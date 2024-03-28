@@ -32,7 +32,8 @@ tables.relations = osm2pgsql.define_relation_table('relations', {
     { column = 'members', type = 'jsonb' },
 })
 
-local w2r = {}
+-- Mapping of relations based on member way ID
+local ways2relation = {}
 
 
 local delete_keys = {
@@ -257,7 +258,7 @@ function osm2pgsql.process_way(object)
         geom = object:as_linestring()
     }
 
-    local d = w2r[object.id]
+    local d = ways2relation[object.id]
     if d then
         local refs = {}
         local ids = {}
@@ -267,7 +268,7 @@ function osm2pgsql.process_way(object)
         end
         table.sort(refs)
         table.sort(ids)
-        local d = w2r[object.id]table.concat(refs, ',')
+        local d = ways2relation[object.id]table.concat(refs, ',')
         row.rel_refs = d
         row.rel_ids = '{' .. table.concat(ids, ',') .. '}'
     end
@@ -302,10 +303,10 @@ function osm2pgsql.process_relation(object)
         -- can be found by the way id.
         for _, member in ipairs(object.members) do
             if member.type == 'w' then
-                if not w2r[member.ref] then
-                    w2r[member.ref] = {}
+                if not ways2relation[member.ref] then
+                    ways2relation[member.ref] = {}
                 end
-                w2r[member.ref][object.id] = object.tags.ref
+                ways2relation[member.ref][object.id] = object.tags.ref
             end
         end
     end

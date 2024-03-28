@@ -43,7 +43,7 @@ function extract_id {
 }
 
 # Function to extract based on bounding box with osm2pgsql
-function extract_bb {
+function extract_bbox_osm2pgsql {
     local relation_id="$1"
     local input_file="$2"
 
@@ -54,15 +54,17 @@ function extract_bb {
 }
 
 # Function to extract based on bounding box with osmium
-function extract_bbos {
+function extract_bbox_osmium {
     local coords="$1"
     local input_file="$2"
     local strategy="$3"
-    if [[ "$coords" =~ ^[0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?$ ]]; then
+    # should match four floats:
+    local coords_regex='^[0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?$'
+    if [[ "$coords" =~ $coords_regex ]]; then
         if [ -z "$strategy" ]; then
-            osmium extract -b "$coords" "$input_file" -o extracted-bb.osm.pbf
+            osmium extract -b "$coords" "$input_file" -o extracted-bbox.osm.pbf
         else
-            osmium extract -b "$coords" "$input_file" -o extracted-bb.osm.pbf -s "$strategy"
+            osmium extract -b "$coords" "$input_file" -o extracted-bbox.osm.pbf -s "$strategy"
         fi
     else
         if [ -z "$strategy" ]; then
@@ -118,9 +120,9 @@ case "$tag" in
                 echo "Error: Invalid strategy type. Call ./filter.sh -h to display help."
                 exit 1
             fi
-            extract_bbos "$2" "$3" "$5"
+            extract_bbox_osmium "$2" "$3" "$5"
         else
-            extract_bbos "$2" "$3"
+            extract_bbox_osmium "$2" "$3"
         fi
         ;;
     -b)
@@ -130,7 +132,7 @@ case "$tag" in
         fi
         relation_id="$2"
         input_file="$3"
-        extract_bb "$relation_id" "$input_file"
+        extract_bbox_osm2pgsql "$relation_id" "$input_file"
         ;;
     -t)
         if [ -z "$2" ] || [ -z "$3" ]; then

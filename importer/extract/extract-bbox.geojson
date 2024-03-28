@@ -1,7 +1,7 @@
 {
     "extracts": [
         {
-            "output": "extracted-bb.osm.pbf",
+            "output": "extracted-bbox.osm.pbf",
             "bbox": [25.12, 54.57, 25.43, 54.75]
             }
         }
