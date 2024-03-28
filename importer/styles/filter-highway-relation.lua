@@ -1,11 +1,12 @@
 -- Process nodes, ways, relations with highway tag and reprocess member ways in relations
+local srid = 4326
 
 local tables = {}
 
 -- define table nodes:
 tables.nodes = osm2pgsql.define_node_table('nodes', {
     -- not_null = true: if invalid node, ignore it
-    { column = 'geom', type = 'point', not_null = true },
+    { column = 'geom', type = 'point', projection=srid, not_null = true },
     { column = 'tags', type = 'jsonb' },
     { column = 'type', type = 'text', not_null = true},
 })
@@ -22,7 +23,7 @@ tables.ways = osm2pgsql.define_way_table('ways', {
     { column = 'rel_refs', type = 'text' }, -- for the refs from the relations
     { column = 'rel_ids',  sql_type = 'int8[]' }, -- array with integers (for relation IDs)
     { column = 'nodes', type = 'jsonb' },
-    { column = 'geom', type = 'linestring', not_null = true },
+    { column = 'geom', type = 'linestring', projection=srid, not_null = true },
 })
 
 

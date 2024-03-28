@@ -1,16 +1,18 @@
+local srid = 4326
+
 local tables = {}
 
 -- define table nodes:
 tables.nodes = osm2pgsql.define_node_table('nodes', {
     -- not_null = true: if invalid node, ignore it
-    { column = 'geom', type = 'point', not_null = true },
+    { column = 'geom', type = 'point', projection=srid, not_null = true },
     { column = 'tags', type = 'jsonb' },
 })
 
 -- define table ways:
 tables.ways = osm2pgsql.define_way_table('ways', {
     -- not_null = true: if invalid way, ignore it
-    { column = 'geom', type = 'linestring', not_null = true },
+    { column = 'geom', type = 'linestring', projection=srid, not_null = true },
     { column = 'tags', type = 'jsonb' },
     { column = 'nodes', type = 'jsonb' },
 })
