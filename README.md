@@ -31,3 +31,6 @@ Before running the script, ensure you have the following configurations set in `
 ## Note
 
 This project is designed to work with specific database schemas and requires access to a remote PostgreSQL database with PostGIS extension. Ensure your database schema matches the expectations of the script (e.g., `nodes`, `edges`, `road_segments` tables).
+
+
+![procedure_contract_graph_in_area](https://github.com/aicenter/road-graph-tool/assets/25695606/8de0fd29-6500-4a13-a3c1-31b57f864c65)
