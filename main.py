@@ -1,3 +1,4 @@
+import logging
 import psycopg2
 from credentials_config import CREDENTIALS
 from sshtunnel import SSHTunnelForwarder
@@ -15,35 +16,32 @@ if __name__ == '__main__':
     config = CREDENTIALS
 
     SERVER_PORT = 22
-    HOST = 'localhost'
-    DBNAME = 'test_larionov'
-    SERVER = 'its.fel.cvut.cz'
 
     try:
         with SSHTunnelForwarder(
                 ssh_pkey=config.private_key_path,
                 ssh_username=config.server_username,
-                ssh_address_or_host=(SERVER, SERVER_PORT),
-                remote_bind_address=(HOST, config.db_server_port),
+                ssh_address_or_host=(config.server, SERVER_PORT),
+                remote_bind_address=(config.host, config.db_server_port),
                 ssh_private_key_password=config.private_key_phrase) as server:
             server.start()
-            print('server connected')
+            logging.info('server connected')
 
-            connection = psycopg2.connect(dbname=DBNAME,
+            connection = psycopg2.connect(dbname=config.db_name,
                                           user=config.username,
                                           password=config.db_password,
-                                          host=HOST, port=server.local_bind_port)
+                                          host=config.db_host, port=server.local_bind_port)
             cur = connection.cursor()
-            print('database connected')
+            logging.info('database connected')
 
-            print('contracting graph')
+            logging.info('contracting graph')
             contract_graph_in_area(cur, target_area_id=area_id, target_area_srid=area_srid)
             connection.commit()
-            print('commit')
+            logging.info('commit')
 
             if connection:
                 cur.close()
                 connection.close()
 
     except Exception as e:
-        print('Connection Failed:', e)
+        logging.error('Connection Failed:', e)
