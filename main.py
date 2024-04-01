@@ -5,7 +5,7 @@ from credentials_config import CREDENTIALS
 
 
 def select_network_nodes_in_area(cursor, target_area_id: int) -> list:
-    cursor.execute('select public.select_network_nodes_in_area(%s::smallint);',
+    cursor.execute('select * from select_network_nodes_in_area(%s::smallint);',
                    (target_area_id,))
     return cursor.fetchall()
 
