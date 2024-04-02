@@ -1,7 +1,6 @@
 # Processing OSM file for importing to PGSQL database
 
 * Author: Dominika Sidlova
-* Last update: 12.03.2024
 
 ## Description
 This directory contains scripts for processing OSM file that is to be imported into PostgreSQL database along with config file for the flex output.
