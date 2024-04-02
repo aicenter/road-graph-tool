@@ -1,18 +1,18 @@
 import logging
 import psycopg2
-from credentials_config import CREDENTIALS
 from sshtunnel import SSHTunnelForwarder
+from credentials_config import CREDENTIALS
 
 
-def contract_graph_in_area(cursor, target_area_id: int, target_area_srid: int):
-    cursor.execute('call public.contract_graph_in_area(%s::smallint, %s::int);',
-                   (target_area_id, target_area_srid))
+def select_network_nodes_in_area(cursor, target_area_id: int) -> list:
+    cursor.execute('select * from select_network_nodes_in_area(%s::smallint);',
+                   (target_area_id,))
+    return cursor.fetchall()
 
 
 if __name__ == '__main__':
 
-    area_id = 0
-    area_srid = 0
+    area_id = 5
     config = CREDENTIALS
 
     SERVER_PORT = 22
@@ -34,8 +34,13 @@ if __name__ == '__main__':
             cur = connection.cursor()
             logging.info('database connected')
 
+            logging.info('selecting nodes')
+            nodes = select_network_nodes_in_area(cur, target_area_id=area_id)
+            print(nodes)
+            
             logging.info('contracting graph')
             contract_graph_in_area(cur, target_area_id=area_id, target_area_srid=area_srid)
+            
             connection.commit()
             logging.info('commit')
 
