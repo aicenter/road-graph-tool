@@ -37,6 +37,10 @@ if __name__ == '__main__':
             logging.info('selecting nodes')
             nodes = select_network_nodes_in_area(cur, target_area_id=area_id)
             print(nodes)
+            
+            logging.info('contracting graph')
+            contract_graph_in_area(cur, target_area_id=area_id, target_area_srid=area_srid)
+            
             connection.commit()
             logging.info('commit')
 
