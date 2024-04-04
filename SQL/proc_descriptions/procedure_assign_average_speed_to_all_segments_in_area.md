@@ -15,8 +15,16 @@ The purpose of this file is to ensure that there are as little misunderstandings
     - Final insertion is made by a list, which is created by Cross Join aka Cartesian product of `node_segments` and `average_speed`, which actually leaves dimensionality to (`count(*) FROM node_segments` X 1), because of one line from `average_speed`. Isertion into `nodes_ways_speeds` with `quality`=5 is executed on the end.
 - __Simplifying it all__, it takes records from `nodes_ways` table, adds some additional data from the same table, then adds additional columns such as `average_speed` & `average_st_dev` and inserts to `nodes_ways_speeds` with `quality`=5.
 
-## Testing points
-This part is about suggestions of what could be tested. To be added shortly afterwards
+## Todo list
+This part is about suggestions of what could be tested. On the end of every point you can see _Status_, which shows what status is on every point, if approven corresponding `approved` should be shown.
+- Testing __procedure__:
+    - test that after execution of this procedure, some records were added to `nodes_ways_speeds` with corresponding values (which would be hardcoded to the assertion). Status: `on review`
+    - test that after double execution with the same args, records wouldn't be added second time. Status: `on review`
+    - test that after inserting invalid args (either of them), the procedure wouldn't modify table, but throw an exception (we may need to modify this procedure to throw an exception). Status: `on review`
+    - test `get_ways_in_target_area()` as an individual function (I mean to test it independently from testing this procedure). Status: `on review`
+- Modification of __procedure__:
+    - add throwing an exception if args are invalid on the start of the procedure (invalid in this context could mean for example, that corresponding `area` does not exist, or some records referring to this area exist in one table, but do not exist in another used in this procedure). Status: `on review`
+    - add throwing an exception if `nodes_ways_speeds` table before execution contains no records. Status: `on review`
 
 ## QA
 - Q: Not sure what __segment__ in this particular context means. I see that we work with the so-called __ways__, does segment refer to that. A: -
@@ -98,4 +106,5 @@ ON CONFLICT DO NOTHING; -- handle overlapping areas
 GET DIAGNOSTICS row_count = ROW_COUNT;
 RAISE NOTICE 'Average speed assigned to % segments', row_count;
 END;
-$$;```
+$$;
+```
