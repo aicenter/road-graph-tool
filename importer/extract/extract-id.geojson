@@ -1,0 +1,11 @@
+{
+    "extracts": [
+        {
+            "output": "extracted-multi.osm.pbf",
+            "multipolygon": {
+                "file_name": "to-extract.osm",
+                "file_type": "osm"
+            }
+        }
+    ]
+}
