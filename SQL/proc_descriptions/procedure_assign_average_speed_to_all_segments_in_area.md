@@ -18,19 +18,20 @@ The purpose of this file is to ensure that there are as little misunderstandings
 ## Todo list
 This part is about suggestions of what could be tested. On the end of every point you can see _Status_, which shows what status is on every point, if approven corresponding `approved` should be shown.
 - Testing __procedure__:
-    - test that after execution of this procedure, some records were added to `nodes_ways_speeds` with corresponding values (which would be hardcoded to the assertion). Status: `on review`
+    - test that after execution of this procedure, some records were added to `nodes_ways_speeds` with corresponding values (which would be hardcoded to the assertion). Status: `approved`. Note: multiple such tests needed, `testing both segments with matching speeds, without them and the combination of segments with and without matching speeds in one way`
     - test that after double execution with the same args, records wouldn't be added second time. Status: `on review`
     - test that after inserting invalid args (either of them), the procedure wouldn't modify table, but throw an exception (we may need to modify this procedure to throw an exception). Status: `on review`
     - test `get_ways_in_target_area()` as an individual function (I mean to test it independently from testing this procedure). Status: `on review`
 - Modification of __procedure__:
     - add throwing an exception if args are invalid on the start of the procedure (invalid in this context could mean for example, that corresponding `area` does not exist, or some records referring to this area exist in one table, but do not exist in another used in this procedure). Status: `on review`
     - add throwing an exception if `nodes_ways_speeds` table before execution contains no records. Status: `on review`
+    - get rid of `geom` column from CTE `node_segments`. Status: `on review`
 
 ## QA
-- Q: Not sure what __segment__ in this particular context means. I see that we work with the so-called __ways__, does segment refer to that. A: -
-- Q: do not really think that it will matter, but anyway we seem to use column `quality` from `nodes_ways_speeds` in this procedure. We gather info on average speed/std deviation from records with quality 1 or 2, and then inserting in the same table with quality 5. A: -
-- Q: Column `geom` from CTE `node_segments` is not used. Why is that? A: -
-- Q: Join `JOIN target_ways ON from_nodes_ways.way_id = target_ways.id` is not used, which makes CTE `target_ways` useless. Why is that? A: -
+- Q: Not sure what __segment__ in this particular context means. I see that we work with the so-called __ways__, does segment refer to that. A: `A segment is part of a way. Each osm way is composed of nodes. A segment is a line between two points in a way. Apart from ways and segments, there are also edges, which represent arcs in the final roadgraph. We should probably cover this notation in the readme at some point.`
+- Q: do not really think that it will matter, but anyway we seem to use column `quality` from `nodes_ways_speeds` in this procedure. We gather info on average speed/std deviation from records with quality 1 or 2, and then inserting in the same table with quality 5. A: `The quality should be derived from the quality of the sources (worst source among all segments). But it does not matter so far as we do not use the quality anywhere...`
+- Q: Column `geom` from CTE `node_segments` is not used. Why is that? A: there is no obvious reason. It might be better to get rid of it in that case
+- Q: Join `JOIN target_ways ON from_nodes_ways.way_id = target_ways.id` is not used, which makes CTE `target_ways` useless. Why is that? A: `most likely, it is used to limit the segments to target ways`
 - Q: Next block feels important, but not really sure what it filters: 
 ```sql
 			JOIN nodes_ways to_node_ways
@@ -41,6 +42,7 @@ This part is about suggestions of what could be tested. On the end of every poin
 					)
 ```
 A: -
+- Q: so if we're not using `quality` anymore, shouldn't we modify the procedure not to use this column anymore? Although this will defintely influence this procedure in such way, that the recursion would be possible (We've taken __n__ records from `nodes_ways_speeds`, execution of this procedure would add another __k__ records to the same table, which actually could be qualified to be used in the second execution of this procedure with the same args. P. S. actually we take records from `nodes_ways` so this hypothesis may be wrong, still commentary is needed). A: -
 
 ## Code
 !!! Warning Warning
@@ -80,7 +82,7 @@ node_segments AS (
 		st_transform(st_makeline(from_nodes.geom, to_nodes.geom), target_area_srid::integer) AS geom -- not used !!!
 	FROM
 		nodes_ways from_nodes_ways
-			JOIN target_ways ON from_nodes_ways.way_id = target_ways.id -- join not used !!!
+			JOIN target_ways ON from_nodes_ways.way_id = target_ways.id -- may be used to filter out some records from nodes_ways
 			JOIN nodes_ways to_node_ways
 				 ON from_nodes_ways.way_id = to_node_ways.way_id -- it takes the same record and filters on it??
 				 AND (
