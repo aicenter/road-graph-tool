@@ -37,7 +37,7 @@
 - [ ] Ask if we need to test for perfoming in good time by using function `performs_ok()`.
 - [x] try out a complicated test with startup, shutdown, setup and teardown functions.
 - [ ] Read https://pgtap.org/documentation.html#tapthatbatch once again, when having several testing functions to fully understand the value of the described functions.
-- [ ] Try out naming convention. I could rewrite names of the existing testing functions
+- [x] Try out naming convention. I could rewrite names of the existing testing functions
 - [ ] Ask about `pg_prove()` utility.
 
 ## Picture of a result
