@@ -6,7 +6,8 @@
 This directory contains Python script for adding elevation to nodes in PostgreSQL database using REST API (elevation-calculator)[https://github.com/aicenter/elevation-calculator].
 
 ## Prerequisities
-Python 3.12 - psycopg2 (for PostgreSQL)
+- psycopg2: PostgreSQL database adapter for Python.
+- PostGIS: Ensure your database is set up with PostGIS extension for spatial queries.
 
 ## Usage
 

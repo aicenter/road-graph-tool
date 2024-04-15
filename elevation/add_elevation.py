@@ -1,25 +1,18 @@
 import requests
 import psycopg2
 import psycopg2.extras
-import json
+import pathlib
+import sys
 
 URL = 'http://localhost:8080/elevation/api'
 
 
-def load_config():
-    """Load configuration of db"""
-    with open('config.json') as f:
-        config = json.load(f)
-    return config['database']
-
-
-def load_coords():
+def load_coords(config):
     """Load node ids and coords from db to dict"""
-    db_params = load_config()
     elevations = dict()
     query = """ SELECT node_id, ST_Y(geom) AS lat, ST_X(geom) AS lon FROM nodes; """
     try:
-        with psycopg2.connect(**db_params) as conn:
+        with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
                 cur.execute(query)
                 for row in cur.fetchall():
@@ -65,9 +58,8 @@ def update_elevations(coords_dict, json_elevation_dict):
     return coords_dict
 
 
-def create_elevation_table_and_column():
+def create_elevation_table_and_column(config):
     """Create table and column for elevations"""
-    db_params = load_config()
     create_table_query = """
     CREATE TABLE IF NOT EXISTS elevations (
         node_id BIGINT NOT NULL,
@@ -76,7 +68,7 @@ def create_elevation_table_and_column():
     """
     add_column_query = """ALTER TABLE nodes ADD COLUMN IF NOT EXISTS elevation REAL;"""
     try:
-        with psycopg2.connect(**db_params) as conn:
+        with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
                 cur.execute(create_table_query)
                 cur.execute(add_column_query)
@@ -85,14 +77,13 @@ def create_elevation_table_and_column():
         print(error)
 
 
-def store_elevations(elevations):
+def store_elevations(config, elevations):
     """Store elevation from elevations dict to db"""
-    db_params = load_config()
-    create_elevation_table_and_column()
+    create_elevation_table_and_column(config)
     insert_query = """ INSERT INTO elevations (node_id, elevation) VALUES %s; """
     data_tuples = [(data['id'], data['ele']) for _, data in elevations.items()]
     try:
-        with psycopg2.connect(**db_params) as conn:
+        with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
                 psycopg2.extras.execute_values(cur, insert_query, data_tuples)
         conn.commit()
@@ -100,9 +91,8 @@ def store_elevations(elevations):
         print(error)
 
 
-def update_nodes_and_drop_elevations():
+def update_nodes_and_drop_elevations(config):
     """Update nodes table with elevations and drop elevations table"""
-    db_params = load_config()
     update_query = """
     UPDATE nodes
     SET elevation = elevations.elevation
@@ -111,7 +101,7 @@ def update_nodes_and_drop_elevations():
     """
     drop_table_query = """DROP TABLE elevations;"""
     try:
-        with psycopg2.connect(**db_params) as conn:
+        with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
                 cur.execute(update_query)
                 cur.execute(drop_table_query)
@@ -120,14 +110,30 @@ def update_nodes_and_drop_elevations():
         print(error)
 
 
-def run():
-    coords = load_coords()
+def run(config):
+    coords = load_coords(config)
     json_coords = prepare_coords(coords)
     json_elevations = get_elevation(json_coords)
     elevations = update_elevations(coords, json_elevations)
-    store_elevations(elevations)
-    update_nodes_and_drop_elevations()
+    store_elevations(config, elevations)
+    update_nodes_and_drop_elevations(config)
 
 
 if __name__ == '__main__':
-    run()
+    # Use credentials_config from parent directory
+    parent_dir = pathlib.Path(__file__).parent.parent
+    sys.path.append(str(parent_dir))
+    from credentials_config import CREDENTIALS
+    config = {
+            "host": CREDENTIALS.host,
+            "dbname": CREDENTIALS.db_name,
+            "user": CREDENTIALS.username,
+            "password": CREDENTIALS.db_password,
+            "port": CREDENTIALS.db_server_port
+        }
+
+    import time
+    start = time.time()
+    run(config)
+    end = time.time()
+    print(f"The program took {end - start} seconds to execute.")
