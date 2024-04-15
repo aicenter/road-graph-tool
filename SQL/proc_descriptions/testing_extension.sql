@@ -2,6 +2,158 @@
 -- Mobility group runtests()
 -- TODO come up with adequate naming or leave it like that
 
+CREATE OR REPLACE FUNCTION findfuncs_recursive(name, text, text) RETURNS text[]
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    schema_name ALIAS FOR $1;
+    pattern ALIAS FOR $2;
+    exclusion_pattern ALIAS FOR $3; -- example of pattern: ^(startup_get_ways_in_target_area_no_target_area|shutdown_get_ways_in_target_area_no_target_area|setup_get_ways_in_target_area_no_target_area|teardown_get_ways_in_target_area_no_target_area)
+    excluded_patterns TEXT[];
+    funcs TEXT[];
+    excluded_funcs TEXT[];
+    funcs_sub TEXT[];
+    split_pattern TEXT[];
+    new_pattern TEXT;
+    i INT;
+BEGIN
+    -- create patterns: e.g. given pattern = '^startup_get_ways_in_target_area_no_target_area'
+    -- the resulting funcs[] should contain:
+    -- ['^startup_get_ways_in_target_area_no_target_area$', '^startup_get_ways_in_target_area_no_target$', '^startup_get_ways_in_target_area_no$',
+    -- '^startup_get_ways_in_target_area$', '^startup_get_ways_in_target$', '^startup_get_ways_in$', '^startup_get_ways$', '^startup_get$']
+    -- Split the pattern by underscores
+    split_pattern := string_to_array(pattern, '_');
+
+    -- get all functions that match the pattern
+    -- Loop through the split pattern
+    FOR i IN 2..array_length(split_pattern, 1)
+    LOOP
+        -- Create a new pattern by joining the split pattern with underscores
+        new_pattern := array_to_string(split_pattern[1:i], '_');
+
+        -- Add a caret at the start and a dollar sign at the end of the new pattern
+        new_pattern := new_pattern || '$';
+
+        -- Get all functions that match the new pattern
+        FOR funcs_sub IN
+            SELECT * FROM findfuncs(schema_name, new_pattern)
+        LOOP
+            -- Add the found funcs to the funcs array
+            funcs := funcs || funcs_sub;
+        END LOOP;
+    END LOOP;
+
+    -- Now we need to exclude functions that match the exclusion pattern
+    IF exclusion_pattern IS NOT NULL THEN
+        -- parse exclusion_pattern into excluded_patterns
+        excluded_patterns := string_to_array(substring(exclusion_pattern, 3, length(exclusion_pattern) - 3), '|');
+        -- Get all functions that match the exclusion pattern
+        FOR i IN 1..array_length(excluded_patterns, 1)
+        LOOP
+            -- Get all functions that match the exclusion pattern
+            FOR excluded_funcs IN
+                SELECT * FROM findfuncs_recursive(schema_name, '^' || excluded_patterns[i])
+            LOOP
+                -- Add the found funcs to the excluded_funcs array
+                excluded_funcs := excluded_funcs || excluded_funcs;
+            END LOOP;
+        END LOOP;
+    END IF;
+
+    -- Remove the excluded functions from the funcs array
+    funcs := ARRAY (SELECT unnest(funcs) EXCEPT SELECT unnest(excluded_funcs));
+
+    -- Return the funcs array
+    RETURN funcs;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION findfuncs_recursive(name, text) RETURNS text[]
+    LANGUAGE plpgsql
+AS
+$$
+    BEGIN
+    RETURN findfuncs_recursive($1, $2, NULL);
+    END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION findfuncs_recursive(text, text) RETURNS text[]
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    pattern ALIAS FOR $1;
+    exclusion_pattern ALIAS FOR $2; -- example of pattern: ^(startup_get_ways_in_target_area_no_target_area|shutdown_get_ways_in_target_area_no_target_area|setup_get_ways_in_target_area_no_target_area|teardown_get_ways_in_target_area_no_target_area)
+    excluded_patterns TEXT[];
+    funcs TEXT[];
+    excluded_funcs TEXT[];
+    funcs_sub TEXT[];
+    split_pattern TEXT[];
+    new_pattern TEXT;
+    i INT;
+BEGIN
+    -- create patterns: e.g. given pattern = '^startup_get_ways_in_target_area_no_target_area'
+    -- the resulting funcs[] should contain:
+    -- ['^startup_get_ways_in_target_area_no_target_area$', '^startup_get_ways_in_target_area_no_target$', '^startup_get_ways_in_target_area_no$',
+    -- '^startup_get_ways_in_target_area$', '^startup_get_ways_in_target$', '^startup_get_ways_in$', '^startup_get_ways$', '^startup_get$']
+    -- Split the pattern by underscores
+    split_pattern := string_to_array(pattern, '_');
+
+    -- get all functions that match the pattern
+    -- Loop through the split pattern
+    FOR i IN 2..array_length(split_pattern, 1)
+    LOOP
+        -- Create a new pattern by joining the split pattern with underscores
+        new_pattern := array_to_string(split_pattern[1:i], '_');
+
+        -- Add a caret at the start and a dollar sign at the end of the new pattern
+        new_pattern := new_pattern || '$';
+
+        -- Get all functions that match the new pattern
+        FOR funcs_sub IN
+            SELECT * FROM findfuncs(new_pattern)
+        LOOP
+            -- Add the found funcs to the funcs array
+            funcs := funcs || funcs_sub;
+        END LOOP;
+    END LOOP;
+
+    -- Now we need to exclude functions that match the exclusion pattern
+    IF exclusion_pattern IS NOT NULL THEN
+        -- parse exclusion_pattern into excluded_patterns
+        excluded_patterns := string_to_array(substring(exclusion_pattern, 3, length(exclusion_pattern) - 3), '|');
+        -- Get all functions that match the exclusion pattern
+        FOR i IN 1..array_length(excluded_patterns, 1)
+        LOOP
+            -- Get all functions that match the exclusion pattern
+            FOR excluded_funcs IN
+                SELECT * FROM findfuncs_recursive('^' || excluded_patterns[i])
+            LOOP
+                -- Add the found funcs to the excluded_funcs array
+                excluded_funcs := excluded_funcs || excluded_funcs;
+            END LOOP;
+        END LOOP;
+    END IF;
+
+    -- Remove the excluded functions from the funcs array
+    funcs := ARRAY (SELECT unnest(funcs) EXCEPT SELECT unnest(excluded_funcs));
+
+    -- Return the funcs array
+    RETURN funcs;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION findfuncs_recursive(text) RETURNS text[]
+    LANGUAGE plpgsql
+AS
+$$
+    BEGIN
+    RETURN findfuncs_recursive($1, NULL);
+    END;
+$$;
+
 
 -- Function: mob_group_runtests(name, text)
 -- This function is used to run a group of tests.
@@ -37,11 +189,11 @@ BEGIN
     BEGIN -- begin transaction for later rollback
         FOR result_record IN
             SELECT * FROM _runner(
-                findfuncs( $1, startup_pattern ),
-                findfuncs( $1, shutdown_pattern ),
-                findfuncs( $1, setup_pattern ),
-                findfuncs( $1, teardown_pattern ),
-                findfuncs( $1, $2, exclude_pattern )
+                findfuncs_recursive( $1, startup_pattern ),
+                findfuncs_recursive( $1, shutdown_pattern ),
+                findfuncs_recursive( $1, setup_pattern ),
+                findfuncs_recursive( $1, teardown_pattern ),
+                findfuncs_recursive( $1, $2, exclude_pattern )
             )
         LOOP
             RETURN NEXT result_record;
@@ -77,10 +229,12 @@ DECLARE
     shutdown TEXT := 'shutdown' || $1;
     setup TEXT := 'setup' || $1;
     teardown TEXT := 'teardown' || $1;
+    test TEXT := 'test' || $1;
     startup_pattern TEXT := '^' || startup;
     shutdown_pattern TEXT := '^' || shutdown;
     setup_pattern TEXT := '^' || setup;
     teardown_pattern TEXT := '^' || teardown;
+    test_pattern TEXT := '^' || test;
     exclude_pattern TEXT := '^(' || startup || '|' || shutdown || '|' || setup || '|' || teardown || ')';
     result_record RECORD;
 BEGIN
@@ -90,11 +244,11 @@ BEGIN
     BEGIN -- begin transaction for later rollback
     FOR result_record IN
         SELECT * FROM _runner(
-            findfuncs( startup_pattern ),
-            findfuncs( shutdown_pattern ),
-            findfuncs( setup_pattern ),
-            findfuncs( teardown_pattern ),
-            findfuncs( $1, exclude_pattern )
+            findfuncs_recursive( startup_pattern ),
+            findfuncs_recursive( shutdown_pattern ),
+            findfuncs_recursive( setup_pattern ),
+            findfuncs_recursive( teardown_pattern ),
+            findfuncs_recursive( test_pattern, exclude_pattern )
         )
     LOOP
         RETURN NEXT result_record;

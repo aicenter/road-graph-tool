@@ -14,12 +14,15 @@ The purpose of this file is to ensure that there are as little misunderstandings
 
 ## TODO list
 This part is about suggestions of what could be tested.
-- test that there is no record on return, when 1) there is no requested area; 2) there is no way intersecting with area 
-- test that there are exact records on return, when 1) there is a ways intersecting area, although there are ways, which do not intersect
-- test that the function raises an error when (not sure if it is actually possible that this function would raise an error).
+- [x] test that there is no record on return, when 
+    - [x] 1) there is no requested area;
+    - [x] 2) there is no way intersecting with area 
+- [x] test that there are exact records on return, when 
+    - [x] 1) there is a ways intersecting area, although there are ways, which do not intersect
+- [ ] test that the function raises an error when (not sure if it is actually possible that this function would raise an error).
 
 ## QA
-No QAs.
+- Q: I see `area` column in table `ways`. Obviously it is not connected to this context (meaning that it is not target_area). Still question is what is this column responsible for? A: -
 
 ## Code
 !!! Warning Warning
