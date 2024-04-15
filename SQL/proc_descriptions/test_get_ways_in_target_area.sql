@@ -106,8 +106,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP FUNCTION setup_get_ways_in_target_area_ways_intersecting_target_area();
-
 -- test
 CREATE OR REPLACE FUNCTION test_get_ways_in_target_area_ways_intersecting_target_area()
 RETURNS SETOF TEXT AS $$
