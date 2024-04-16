@@ -145,7 +145,7 @@ $$ LANGUAGE plpgsql;
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area$'); -- runs only startup
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area'); -- runs only startup
 -- SELECT * FROM mob_group_runtests('_delete_area');
--- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_target_area'); -- tests 1st case
+-- SELECT * FROM mob_group_runtests('public', '_get_ways_in_target_area_no_target_area'); -- tests 1st case
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_ways_intersecting_target_area'); -- tests 2nd case
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area'); -- tests 3rd case
 
