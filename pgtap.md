@@ -16,19 +16,6 @@
 
 ## Useful Notes
 
-<!-- ## Notes according my work -->
-<!-- 1) All tests could be written in one file with extension .sql (maybe tests for every procedure would be seperated in different ) and then one shell script could be executed for testing all of them (maybe even somehow convert it into a function or procedure to test in psql console). P.S. __actually__ it could be done by _Additional functions( useful simplification )_ -->
-<!-- 2) Rather than casually checking return value of the procedure to be the one expected, most of the defined procedures do not return values, thus leaving the only option as to look at the procedure:  -->
-<!--     1. figure out what could be changed,  -->
-<!--     2. save before-call values of the modified tables/rows/columns/cells,  -->
-<!--     3. call the procedure in a sub envrionment,  -->
-<!--     4. check results to be expected, -->
-<!--     5. rollback. -->
-<!-- 3) Useful functions: `can()`, `function_returns()`, `is_strict()` -->
-<!-- 4) Useful postgres: Usage of `SAVEPOINT` -->
-<!-- 5) It is essential to use naming convention. Then particular functions could be called -->
-<!-- !!! WARNING VERY IMPORTANT -->
-<!--     Do not run `plan()` or `no_plan()` without entering transaction mode. Tried it out, tests could be run only once per session (it is somehow related to the point that pgTap creates a tmp table, which is not deleted by `finish()` tests). -->
 - There are 5 kinds of testing functions. Those that start with:
     - `startup`. Are run in alphabetical order before any test functions are run
     - `setup`. Are run in alphabetical order before each test function is run.
