@@ -27,4 +27,4 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- DEBUG: TODO delete
-SELECT * FROM runtests('test_aastas_output_1');
+-- SELECT * FROM mob_group_runtests('test_aastas_output_1');
