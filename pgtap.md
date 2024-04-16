@@ -14,26 +14,35 @@
     make installcheck
     ```
 
-## Useful Notes
+### Useful Notes
 
-- There are 5 kinds of testing functions. Those that start with:
-    - `startup`. Are run in alphabetical order before any test functions are run
-    - `setup`. Are run in alphabetical order before each test function is run.
-    - `test`. Functions which should contain __at least one__ _pgTap_ assertion command.
-    - `teardown`. Are run in alphabetical order after each test function is run. They will not be run, however, after a test that has died.
-    - `shutdown`. Are run in alphabetical order after all test functions have been run.
-- Please refer to [Commands section](#commands) for viewing available _pgtap_ assertions.
+- There are five types of testing functions in PostgreSQL:
 
-!!! note Author's note:
-    This section has the most relevant information about __naming testing functions__ and __running them__! In the next sections you could encounter some vital information about these parts, which still work fine, but we highly recommend to use information described here.
+    - `startup`: These functions run in alphabetical order before any test functions are executed.
+    - `setup`: Functions in this category run in alphabetical order before each test function.
+    - `test`: These functions must include at least one pgTap assertion command.
+    - `teardown`: Functions in this group run in alphabetical order after each test function. However, they are skipped if a test has failed.
+    - `shutdown`: Functions in this category run in alphabetical order after all test functions have been executed.
 
-- Instead of a built-in _pgTap_ function `runtests(...)`, which runs all specified tests, you may use function `mob_group_runtests(...)` provided by `testing_extension.sql` file:
-    - this function provides another layer of ... by rollbacking all modifications made by `^startup` & `^shutdown` functions, which due to some reason are not reverted by original `runtests(...)` function.
-    - this function sets strict _naming convention_ to testing functions, which lets grouping testing functions into some specific hierarchy:
-        - All testing functions should start from either `startup`, `setup`, `test`, `teardown` or `shutdown`.
-        - Hierarchy is built by using underscore symbol `_` in your naming of functions. E.g. `startup_get_ways_in_target_area()`, `setup_get_ways_in_target_area_no_target_area()` or `test_get_ways_in_target_area_no_ways_intersecting_target_area()`
-        - Now a little about execution. Let's imagine that you've got only three testing functions defined in the example from previous point. When running `SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_target_area');` __mob_group_runtests__ tries to look in all schemas for functions, which match such RegExs (order is guaranteed) `^(startup|setup|test|teardown|shutdown)_get$`, `^(startup|setup|test|teardown|shutdown)_get_ways$` and so on until it reaches `^(startup|setup|test|teardown|shutdown)_get_ways_in_target_area_no_target_area$`. So in our particular example all three testing functions would be executed.
-    - you can specify schema of where should `mob_group_runtests(...)` look for testing functions by adding another argument in the first position. E.g. `SELECT * FROM mob_group_runtests('test_scheme', '_get_ways_in_target_area_no_target_area');` would search only through schema called `test_scheme`.
+- Please refer to the [Commands section](#commands) for a list of available pgTap assertions.
+
+!!! note "Author's Note"
+    This section provides crucial information regarding the naming and execution of testing functions. Subsequent sections may contain additional information, but it is recommended to prioritize the guidelines outlined here.
+
+- Instead of using the built-in pgTap function `runtests(...)`, you can utilize the `mob_group_runtests(...)` function provided in the `testing_extension.sql` file. This alternative offers several advantages:
+
+    - It provides an additional layer of safety by rolling back any modifications made by `startup` and `shutdown` functions that may not be reverted by the original `runtests(...)` function.
+    - It enforces a strict naming convention for testing functions, allowing for hierarchical grouping:
+        - All testing functions should begin with either `startup`, `setup`, `test`, `teardown`, or `shutdown`.
+        - Hierarchical structure is established using underscores (_) in function names. For example:
+          `startup_get_ways_in_target_area()`, `setup_get_ways_in_target_area_no_target_area()`, or
+          `test_get_ways_in_target_area_no_ways_intersecting_target_area()`.
+        - Now, let's dive into the execution process. Consider a scenario where you have defined only three testing functions as outlined in the previous section. When you execute the query `SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_target_area');`, the `mob_group_runtests` function searches across all schemas for functions that match specific regular expressions, following a guaranteed order. These regular expressions are constructed as follows:
+            1) `^(startup|setup|test|teardown|shutdown)_get$`
+            2) `^(startup|setup|test|teardown|shutdown)_get_ways$`
+            3) Continuing in this pattern until it reaches: `^(startup|setup|test|teardown|shutdown)_get_ways_in_target_area_no_target_area$`
+    - You can specify the schema for `mob_group_runtests(...)` to search for testing functions by adding an additional argument. For example:
+      `SELECT * FROM mob_group_runtests('test_schema', '_get_ways_in_target_area_no_target_area');` would search only in the schema named `test_schema`.
 
 
 ## TODO list
