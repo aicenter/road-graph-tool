@@ -22,7 +22,7 @@ This part is about suggestions of what could be tested.
 - [ ] test that the function raises an error when (not sure if it is actually possible that this function would raise an error).
 
 ## QA
-- Q: I see `area` column in table `ways`. Obviously it is not connected to this context (meaning that it is not target_area). Still question is what is this column responsible for? A: -
+- Q: I see `area` column in table `ways`. Obviously it is not connected to this context (meaning that it is not target_area). Still question is what is this column responsible for? A: It is not responsible for anything in this particular context.
 
 ## Code
 !!! Warning Warning

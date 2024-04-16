@@ -148,3 +148,21 @@ $$ LANGUAGE plpgsql;
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_target_area'); -- tests 1st case
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_ways_intersecting_target_area'); -- tests 2nd case
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area'); -- tests 3rd case
+
+WITH test_function_oid AS (
+    SELECT oid
+    FROM pg_proc
+    WHERE proname = 'get_ways_in_target_area'
+)
+SELECT pg_get_functiondef(oid) FROM test_function_oid;
+
+-- CREATE OR REPLACE FUNCTION public.get_ways_in_target_area(target_area_id smallint)
+--  RETURNS TABLE(id bigint, tags hstore, geom geometry, area integer, "from" bigint, "to" bigint, oneway boolean)
+--  LANGUAGE sql
+-- AS $function$
+-- 	SELECT ways.*
+-- 	        FROM ways
+-- 	            JOIN areas ON areas.id = target_area_id AND st_intersects(areas.geom, ways.geom);
+-- $function$
+
+SELECT get_ways_in_target_area(1652::smallint);

@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS pgtap;
+
 -- Mobility group runtests(): alternative for pgTap.runtests()
 -- Mobility group runtests()
 -- TODO come up with adequate naming or leave it like that
