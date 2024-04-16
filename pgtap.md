@@ -29,10 +29,29 @@
 <!-- 5) It is essential to use naming convention. Then particular functions could be called -->
 <!-- !!! WARNING VERY IMPORTANT -->
 <!--     Do not run `plan()` or `no_plan()` without entering transaction mode. Tried it out, tests could be run only once per session (it is somehow related to the point that pgTap creates a tmp table, which is not deleted by `finish()` tests). -->
+- There are 5 kinds of testing functions. Those that start with:
+    - `startup`. Are run in alphabetical order before any test functions are run
+    - `setup`. Are run in alphabetical order before each test function is run.
+    - `test`. Functions which should contain __at least one__ _pgTap_ assertion command.
+    - `teardown`. Are run in alphabetical order after each test function is run. They will not be run, however, after a test that has died.
+    - `shutdown`. Are run in alphabetical order after all test functions have been run.
+- Please refer to [Commands section](#commands) for viewing available _pgtap_ assertions.
+
+!!! note Author's note:
+    This section has the most relevant information about __naming testing functions__ and __running them__! In the next sections you could encounter some vital information about these parts, which still work fine, but we highly recommend to use information described here.
+
+- Instead of a built-in _pgTap_ function `runtests(...)`, which runs all specified tests, you may use function `mob_group_runtests(...)` provided by `testing_extension.sql` file:
+    - this function provides another layer of ... by rollbacking all modifications made by `^startup` & `^shutdown` functions, which due to some reason are not reverted by original `runtests(...)` function.
+    - this function sets strict _naming convention_ to testing functions, which lets grouping testing functions into some specific hierarchy:
+        - All testing functions should start from either `startup`, `setup`, `test`, `teardown` or `shutdown`.
+        - Hierarchy is built by using underscore symbol `_` in your naming of functions. E.g. `startup_get_ways_in_target_area()`, `setup_get_ways_in_target_area_no_target_area()` or `test_get_ways_in_target_area_no_ways_intersecting_target_area()`
+        - Now a little about execution. Let's imagine that you've got only three testing functions defined in the example from previous point. When running `SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_target_area');` __mob_group_runtests__ tries to look in all schemas for functions, which match such RegExs (order is guaranteed) `^(startup|setup|test|teardown|shutdown)_get$`, `^(startup|setup|test|teardown|shutdown)_get_ways$` and so on until it reaches `^(startup|setup|test|teardown|shutdown)_get_ways_in_target_area_no_target_area$`. So in our particular example all three testing functions would be executed.
+    - you can specify schema of where should `mob_group_runtests(...)` look for testing functions by adding another argument in the first position. E.g. `SELECT * FROM mob_group_runtests('test_scheme', '_get_ways_in_target_area_no_target_area');` would search only through schema called `test_scheme`.
+
 
 ## TODO list
 - [x] Ask if it is preffered to contain tests in `.sql` files + `.sh` file or rather in database functions. A: It is prefferably to use postgres functions to run_tests.
-- [ ] Write a test procedure, then try out the above described method to see if there are changes after finishing the tests
+- [x] Write a test procedure, then try out the above described method to see if there are changes after finishing the tests
 - [x] read https://pgtap.org/documentation.html#feelingfunky to get methods with function-oriented testing
 - [ ] Ask if we need to test for perfoming in good time by using function `performs_ok()`.
 - [x] try out a complicated test with startup, shutdown, setup and teardown functions.
