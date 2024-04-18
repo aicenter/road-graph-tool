@@ -177,3 +177,77 @@ BEGIN
     END LOOP;
 END;
 $$;
+
+-- procedures for creating testing environment
+
+CREATE OR REPLACE PROCEDURE test_env_constructor(text) AS
+$$
+DECLARE
+    test_scheme_name TEXT := $1;
+    table_name TEXT;
+BEGIN
+    -- check if schema exists
+    IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
+        RAISE EXCEPTION 'Schema % already exists', test_scheme_name;
+    END IF;
+
+    -- Create schema test_scheme_name
+    CREATE SCHEMA test_scheme_name;
+
+    -- copy tables with no data to test_scheme_name
+    FOR table_name IN (SELECT table_name FROM information_schema.tables WHERE table_schema = 'public')
+        LOOP
+            EXECUTE format('CREATE TABLE %I.%I AS TABLE public.%I WITH NO DATA', test_scheme_name, table_name, table_name);
+        END LOOP;
+
+    -- update search path
+    SET SEARCH_PATH TO test_scheme_name;
+END;
+$$
+    LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE test_env_constructor() AS
+$$
+BEGIN
+    -- call with default value
+    CALL test_env_constructor('test_env');
+END;
+$$
+    LANGUAGE plpgsql;
+
+DROP PROCEDURE IF EXISTS test_env_constructor();
+DROP PROCEDURE IF EXISTS test_env_destructor();
+
+CREATE OR REPLACE PROCEDURE test_env_destructor(text) AS
+$$
+DECLARE
+    test_scheme_name TEXT := $1;
+BEGIN
+    -- check if schema exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
+        RAISE EXCEPTION 'Schema % does not exist, thus nothing to do', test_scheme_name;
+    END IF;
+
+    --     -- drop tables in test_scheme_name
+--     FOR table_name IN (SELECT table_name FROM information_schema.tables WHERE table_schema = test_scheme_name)
+--     LOOP
+--         EXECUTE format('DROP TABLE %I.%I', test_scheme_name, table_name);
+--     END LOOP;
+
+    -- drop schema test_scheme_name
+    EXECUTE format('DROP SCHEMA %I CASCADE', test_scheme_name);
+
+    -- update search path
+    RESET search_path;
+END;
+$$
+    LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE test_env_destructor() AS
+$$
+BEGIN
+    -- call with default value
+    CALL test_env_destructor('test_env');
+END;
+$$
+    LANGUAGE plpgsql;
