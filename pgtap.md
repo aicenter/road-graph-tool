@@ -26,7 +26,7 @@
 
 - Please refer to the [Commands section](#commands) for a list of available pgTap assertions.
 
-!!! note "Author's Note"
+!!! note Author's Note
     This section provides crucial information regarding the naming and execution of testing functions. Subsequent sections may contain additional information, but it is recommended to prioritize the guidelines outlined here.
 
 - Instead of using the built-in pgTap function `runtests(...)`, you can utilize the `mob_group_runtests(...)` function provided in the `testing_extension.sql` file. This alternative offers several advantages:
