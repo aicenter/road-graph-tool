@@ -65,8 +65,6 @@ GET DIAGNOSTICS row_count = ROW_COUNT;
 RAISE NOTICE 'Average speed assigned to % segments', row_count;
 END;
 $$
-
-
 -- - Modification of __procedure__:
---     - add throwing an exception if args are invalid on the start of the procedure (invalid in this context could mean for example, that corresponding `area` does not exist, or some records referring to this area exist in one table, but do not exist in another used in this procedure). Status: `approved`
---     - add throwing an exception if `nodes_ways_speeds` table before execution contains no records. Status: `approved`
+--     TODO - add throwing an exception if args are invalid on the start of the procedure (invalid in this context could mean for example, that corresponding `area` does not exist, or some records referring to this area exist in one table, but do not exist in another used in this procedure). Status: `approved`
+--     TODO - add throwing an exception if `nodes_ways_speeds` table before execution contains no records. Status: `approved`
