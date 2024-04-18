@@ -140,7 +140,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- DEBUG: running tests TODO remove
+-- Example of running tests
 -- Note: for now as we do not have automatic grouping of tests, we need to run tests with as much precise group naming as possible !!!
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area$'); -- runs only startup
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area'); -- runs only startup
@@ -149,19 +149,7 @@ $$ LANGUAGE plpgsql;
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_ways_intersecting_target_area'); -- tests 2nd case
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area'); -- tests 3rd case
 
--- DEBUG: parsing function TODO remove
--- WITH test_function_oid AS (
---     SELECT oid
---     FROM pg_proc
---     WHERE proname = 'get_ways_in_target_area'
--- )
--- SELECT pg_get_functiondef(oid) FROM test_function_oid;
-
--- CREATE OR REPLACE FUNCTION public.get_ways_in_target_area(target_area_id smallint)
---  RETURNS TABLE(id bigint, tags hstore, geom geometry, area integer, "from" bigint, "to" bigint, oneway boolean)
---  LANGUAGE sql
--- AS $function$
--- 	SELECT ways.*
--- 	        FROM ways
--- 	            JOIN areas ON areas.id = target_area_id AND st_intersects(areas.geom, ways.geom);
--- $function$
+-- creating test_scheme
+-- CALL test_env_constructor(); -- WARNING: it seems that in order for current_user to run this, they need permissions to create schema
+-- CALL test_env_destructor();
+-- SHOW search_path;

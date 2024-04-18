@@ -184,24 +184,25 @@ CREATE OR REPLACE PROCEDURE test_env_constructor(text) AS
 $$
 DECLARE
     test_scheme_name TEXT := $1;
-    table_name TEXT;
+    table_name_i TEXT;
 BEGIN
     -- check if schema exists
     IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
-        RAISE EXCEPTION 'Schema % already exists', test_scheme_name;
+        RAISE EXCEPTION 'Schema % already exists. Consider using another name...', test_scheme_name;
     END IF;
 
     -- Create schema test_scheme_name
-    CREATE SCHEMA test_scheme_name;
+    EXECUTE format('CREATE SCHEMA %I', test_scheme_name);
 
     -- copy tables with no data to test_scheme_name
-    FOR table_name IN (SELECT table_name FROM information_schema.tables WHERE table_schema = 'public')
+    FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = 'public')
         LOOP
-            EXECUTE format('CREATE TABLE %I.%I AS TABLE public.%I WITH NO DATA', test_scheme_name, table_name, table_name);
+            EXECUTE format('CREATE TABLE %I.%I AS TABLE public.%I WITH NO DATA', test_scheme_name, table_name_i, table_name_i);
         END LOOP;
 
-    -- update search path
-    SET SEARCH_PATH TO test_scheme_name;
+    -- update search path. In the end it should look like: "test_env, \"$user\", public",
+    --  so it would look up the tables in test_env and routines in public
+    EXECUTE format('SET search_path TO %I, %I, public', test_scheme_name, '$user');
 END;
 $$
     LANGUAGE plpgsql;
@@ -227,12 +228,6 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
         RAISE EXCEPTION 'Schema % does not exist, thus nothing to do', test_scheme_name;
     END IF;
-
-    --     -- drop tables in test_scheme_name
---     FOR table_name IN (SELECT table_name FROM information_schema.tables WHERE table_schema = test_scheme_name)
---     LOOP
---         EXECUTE format('DROP TABLE %I.%I', test_scheme_name, table_name);
---     END LOOP;
 
     -- drop schema test_scheme_name
     EXECUTE format('DROP SCHEMA %I CASCADE', test_scheme_name);
