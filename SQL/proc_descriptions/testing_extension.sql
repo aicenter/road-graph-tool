@@ -126,6 +126,9 @@ DECLARE
     exclude_pattern TEXT := '^(' || startup || '|' || shutdown || '|' || setup || '|' || teardown || ')';
     result_record RECORD;
 BEGIN
+    -- create testing environment: TODO adjust to the needs
+--     PERFORM test_env_constructor();
+
     -- A little note about raising exception in this function, it seems that `_runner` function
     -- does not raise an exception, instead catching it and returning it as a record, so under
     -- this assumption we raise "division by zero" AKA "22012" exception to rollback the transaction.
@@ -149,6 +152,9 @@ BEGIN
             -- Catch the exception to prevent it from propagating
             NULL; -- Do nothing
     END;
+
+    -- destroy testing environment: TODO adjust to the needs
+--     PERFORM test_env_destructor();
 END;
 $$;
 
