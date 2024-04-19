@@ -1,16 +1,17 @@
 # Processing OSM file for importing to PGSQL database
 
 * Author: Dominika Sidlova
-* Last update: 12.03.2024
 
 ## Description
 This directory contains scripts for processing OSM file that is to be imported into PostgreSQL database along with config file for the flex output.
 
 ## Prerequisities
-To process data and load them into database, we need to download a few libraries: 
-* psql (for postgresql)
-* osmium: osmium-tool (on MACOS `brew install osmium-tool`), libosmium (on MACOS `brew install libosmium`)
-* osm2pgsql (on MACOS `brew install osm2pgsql`)
+Before we can process and load data into the database, we'll need to obtain and install several libraries: 
+* psql (for PostgreSQL)
+* osmium: osmium-tool (on macOS `brew install osmium-tool`), libosmium (on macOS `brew install libosmium`)
+* osm2pgsql (on macOS `brew install osm2pgsql`)
+The PostgreSQL database needs PostGis extension in order to enable spatial and geographic capabilities within the database, which is essential for working with OSM data.
+Loading large OSM files to database is memory demanding so [documentation](https://osm2pgsql.org/doc/manual.html#system-requirements) suggests to have at least as much RAM as the PBF file with the OSM data is large.
 
 ## 1. Preprocessing of OSM file (optional)
 Preprocessing an OSM file with osmium aims to enhance importing efficiency and speed of osm2pgsql tool. The two most common actions are sorting and renumbering. For these actions, you can use the provided `process` script:
@@ -38,11 +39,11 @@ The default style file for this project is `styles/default.lua`, that processes 
 
 * E.g. this command (described bellow) processes osm file of Lithuania using Flex output and imports them into database `dbname`.
 ```bash
-osm2pgsql -d dbname --output=flex -S styles/default.lua lithuania-latest.osm.pbf
+osm2pgsql -d dbname -P port --output=flex -S styles/default.lua lithuania-latest.osm.pbf
 ```
 
 **Nodes in Lithuania:**
-![Nodes in Lithuania](docs/images/default:nodes.png)
+![Nodes in Lithuania](docs/images/default-nodes.png)
 
 Flex style file can be used for more complex filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks).
 
@@ -63,7 +64,7 @@ Data are often huge and lot of times we only need certain extracts or objects of
 Both osmium and osm2pgsql filter data inside the bounding box (bottom-left/minlon,minlat corner, top-right/maxlon,maxlat corner).
 
 **Nodes inside bounding box in Lithuania:**
-![Nodes inside bounding box in Lithuania](docs/images/bb:nodes.png)
+![Nodes inside bounding box in Lithuania](docs/images/bb-nodes.png)
 
 #### Osmium
 - These commands process osm file using bounding box coordinates to filter data within the bounding box. File `extracted-bbox.osm.pbf` is created and can be futher processed with Flex output.
@@ -103,7 +104,7 @@ For more precise extraction, we define multipolygon. Multipolygon can be defined
 It's better to filter out only what we need with osmium (before processing with flex output) [as suggested](https://osm2pgsql.org/examples/road-length/).
 
 **Ways inside multipolygon of Vilnius:**
-![Ways inside multipolygon of Vilnius](docs/images/multi:ways.png)
+![Ways inside multipolygon of Vilnius](docs/images/multi-ways.png)
 
 #### Osmium
 - ID can be found by specific filtering (or on OpenStreetMap) - e.g. to find relation ID that bounds Vilnius city (ID: 1529146), run:
@@ -134,7 +135,7 @@ Filter specific objects based on tags.
 	- ([find more tags](https://wiki.openstreetmap.org/wiki/Main_Page))
 
 **Ways with highway tag in Lithuania:**
-![Ways with highway tag in Lithuania](docs/images/highway:ways.png)
+![Ways with highway tag in Lithuania](docs/images/highway-ways.png)
 
 ### 3.1.1 Osmium
 <!-- https://osmcode.org/osmium-tool/manual.html#filtering-by-tags -->
