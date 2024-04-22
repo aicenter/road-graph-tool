@@ -146,9 +146,9 @@ BEGIN
         END LOOP;
 
         -- Raise the exception
-        RAISE EXCEPTION '__TAP_ROLLBACK__' USING ERRCODE = '22012';
+        RAISE EXCEPTION '__TAP_ROLLBACK__' USING ERRCODE = '00000';
     EXCEPTION
-        WHEN SQLSTATE '22012' THEN
+        WHEN SQLSTATE '00000' THEN
             -- Catch the exception to prevent it from propagating
             NULL; -- Do nothing
     END;
