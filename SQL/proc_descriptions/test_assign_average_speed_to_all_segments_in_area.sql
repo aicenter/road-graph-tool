@@ -34,6 +34,8 @@ BEGIN
 
     RETURN QUERY SELECT * FROM pass('Debugging');
 
+    CALL assign_average_speed_to_all_segments_in_area(1, 1);
+
 --     RETURN QUERY SELECT assign_average_speed_to_all_segments_in_area(1, 1);
 END;
 $$ LANGUAGE plpgsql;
