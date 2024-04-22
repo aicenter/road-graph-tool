@@ -117,7 +117,7 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
--- tests that shouldn't be executed in mob_group_runtests('_get_ways_in_target_area')
+-- tests that shouldn't be executed in any mob_group_runtests() as they are not mentioned in any mob_group_runtests() call
 CREATE OR REPLACE FUNCTION startup_assign_average_speed_to_ways()
 RETURNS VOID AS $$
 BEGIN
@@ -144,12 +144,29 @@ $$ LANGUAGE plpgsql;
 -- Note: for now as we do not have automatic grouping of tests, we need to run tests with as much precise group naming as possible !!!
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area$'); -- runs only startup
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area'); -- runs only startup
--- SELECT * FROM mob_group_runtests('_delete_area');
+-- SELECT * FROM mob_group_runtests('_delete_area'); -- WARNING: startup_delete_area calls startup_get_ways_in_target_area, corresponding text will be printed
 -- SELECT * FROM mob_group_runtests('public', '_get_ways_in_target_area_no_target_area'); -- tests 1st case
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_ways_intersecting_target_area'); -- tests 2nd case
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area'); -- tests 3rd case
 
--- creating test_scheme
--- CALL test_env_constructor(); -- WARNING: it seems that in order for current_user to run this, they need permissions to create schema
--- CALL test_env_destructor();
--- SHOW search_path;
+-- Example of combination
+CREATE OR REPLACE FUNCTION run_all_tests() RETURNS SETOF TEXT AS
+$$
+BEGIN
+    -- run tests
+    RETURN QUERY SELECT * FROM mob_group_runtests('_get_ways_in_target_area$')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_delete_area')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('public', '_get_ways_in_target_area_no_target_area')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_ways_intersecting_target_area')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area');
+    END;
+$$ LANGUAGE plpgsql;
+
+-- DROP FUNCTION IF EXISTS run_all_tests();
+-- SELECT * FROM run_all_tests();

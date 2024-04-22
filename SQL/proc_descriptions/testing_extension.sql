@@ -126,8 +126,8 @@ DECLARE
     exclude_pattern TEXT := '^(' || startup || '|' || shutdown || '|' || setup || '|' || teardown || ')';
     result_record RECORD;
 BEGIN
-    -- create testing environment: TODO adjust to the needs
---     PERFORM test_env_constructor();
+    -- create testing environment:
+    CALL test_env_constructor();
 
     -- A little note about raising exception in this function, it seems that `_runner` function
     -- does not raise an exception, instead catching it and returning it as a record, so under
@@ -153,8 +153,8 @@ BEGIN
             NULL; -- Do nothing
     END;
 
-    -- destroy testing environment: TODO adjust to the needs
---     PERFORM test_env_destructor();
+    -- destroy testing environment:
+    CALL test_env_destructor();
 END;
 $$;
 
@@ -192,13 +192,21 @@ DECLARE
     test_scheme_name TEXT := $1;
     table_name_i TEXT;
 BEGIN
-    -- check if schema exists
-    IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
-        RAISE EXCEPTION 'Schema % already exists. Consider using another name...', test_scheme_name;
+    -- schema should exist already as a prerequisite
+    -- check that given schema name is not empty
+    IF test_scheme_name = '' THEN
+        RAISE EXCEPTION 'Schema name should not be empty';
     END IF;
 
-    -- Create schema test_scheme_name
-    EXECUTE format('CREATE SCHEMA %I', test_scheme_name);
+    -- check that given schema has no tables containing at least one row
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = test_scheme_name) THEN
+        RAISE EXCEPTION 'Schema % should not contain any tables', test_scheme_name;
+    END IF;
+
+    -- check if schema exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
+        RAISE EXCEPTION 'Schema % does not exist. Please create test scheme...', test_scheme_name;
+    END IF;
 
     -- copy tables with no data to test_scheme_name
     FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = 'public')
@@ -229,14 +237,23 @@ CREATE OR REPLACE PROCEDURE test_env_destructor(text) AS
 $$
 DECLARE
     test_scheme_name TEXT := $1;
+    table_name_i TEXT;
 BEGIN
+    -- check that given schema name is not empty and not 'public'
+    IF test_scheme_name = '' OR test_scheme_name = 'public' THEN
+        RAISE EXCEPTION 'Schema name should not be empty or "public"';
+    END IF;
+
     -- check if schema exists
     IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
         RAISE EXCEPTION 'Schema % does not exist, thus nothing to do', test_scheme_name;
     END IF;
 
-    -- drop schema test_scheme_name
-    EXECUTE format('DROP SCHEMA %I CASCADE', test_scheme_name);
+    -- drop every table in test_scheme_name
+    FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = test_scheme_name)
+        LOOP
+            EXECUTE format('DROP TABLE %I.%I', test_scheme_name, table_name_i);
+        END LOOP;
 
     -- update search path
     RESET search_path;
