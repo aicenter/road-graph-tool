@@ -60,7 +60,7 @@ BEGIN
     END IF;
 
     -- Remove the excluded functions from the funcs array
-    funcs := ARRAY (SELECT unnest(funcs) EXCEPT SELECT unnest(excluded_funcs));
+    funcs := ARRAY (SELECT unnest(funcs) EXCEPT SELECT unnest(excluded_funcs) ORDER BY 1);
 
     -- Return the funcs array
     RETURN funcs;
