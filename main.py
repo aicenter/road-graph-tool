@@ -99,11 +99,15 @@ if __name__ == '__main__':
             connection.commit()
             logging.info('commit')
 
-            logging.info('Testing execution of assign_average_speeds_to_all_segments_in_area')
+            logging.info('Execution of assign_average_speeds_to_all_segments_in_area')
 
-            assign_average_speeds_to_all_segments_in_area(cur, area_id, area_srid)
+            try:
+                assign_average_speeds_to_all_segments_in_area(cur, area_id, area_srid)
+            except psycopg2.errors.InvalidParameterValue as e:
+                logging.info("Expected Error: ", e)
 
             connection.rollback()
+            logging.info('rollback')
 
             if connection:
                 cur.close()
