@@ -112,18 +112,10 @@ CREATE OR REPLACE FUNCTION test_aastas_output() RETURNS SETOF TEXT AS $$
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION test_aastas_output_1() RETURNS SETOF TEXT AS $$
-DECLARE
-    i RECORD;
 BEGIN
     RAISE NOTICE 'Executing test for test_aastas_output_1';
 
     CALL assign_average_speed_to_all_segments_in_area(1::smallint, 1);
-
-    -- DEBUG print everything that has nodes_ways_speeds
-    FOR i IN SELECT * FROM nodes_ways_speeds
-    LOOP
-        RAISE NOTICE 'nodes_ways_speeds: %', i;
-    END LOOP;
 
     -- check that there are some records in the nodes_ways_speeds table with quality 5 - meaning assertion,
     --  that some records were added
