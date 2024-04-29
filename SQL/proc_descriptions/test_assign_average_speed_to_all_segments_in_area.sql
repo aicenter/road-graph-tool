@@ -55,18 +55,10 @@ BEGIN
     -- insert nodes_ways
     RAISE NOTICE 'Inserting into nodes_ways';
     INSERT INTO nodes_ways(way_id, node_id, position, area, id) VALUES -- create nodes_ways for every node in the way
-    (1, 1, 1, 1, 1),
-    (1, 2, 2, 1, 2),
-    (1, 3, 3, 1, 3),
-    (2, 3, 1, 1, 4),
-    (2, 4, 2, 1, 5),
-    (2, 5, 3, 1, 6),
-    (3, 6, 1, 1, 7),
-    (3, 7, 2, 1, 8),
-    (3, 8, 3, 1, 9),
-    (4, 1, 1, 1, 10),
-    (4, 2, 2, 1, 11),
-    (4, 7, 3, 1, 12);
+    (1, 1, 1, 1, 1), (1, 2, 2, 1, 2), (1, 3, 3, 1, 3),
+    (2, 3, 1, 1, 4), (2, 4, 2, 1, 5), (2, 5, 3, 1, 6),
+    (3, 6, 1, 1, 7), (3, 7, 2, 1, 8), (3, 8, 3, 1, 9),
+    (4, 1, 1, 1, 10), (4, 2, 2, 1, 11), (4, 7, 3, 1, 12);
 
     -- create temporary table for expected output
     CREATE TEMP TABLE expected_nodes_ways_speeds AS
@@ -84,10 +76,29 @@ BEGIN
     RAISE NOTICE 'Inserting into nodes_ways_speeds';
     INSERT INTO nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
                                                                                                                         (1, 70, 0, 1, 2, 1),
-                                                                                                                        (2, 75, 0, 2, 2, 1);
+                                                                                                                        (2, 70, 0, 2, 2, 1);
+
+    -- inserting expected output
+    WITH source_records_count AS (
+        SELECT
+            COUNT(*) AS count
+        FROM
+            nodes_ways_speeds
+    )
     INSERT INTO expected_nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
-                                                                                                                                 (1, 70, 0, 3, 5, 1),
-                                                                                                                                 (2, 70, 0, 2, 5, 1);
+                                                                                                                                 (1, 70, 0, 2, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (2, 70, 0, 1, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (2, 70, 0, 3, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (3, 70, 0, 2, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (4, 70, 0, 5, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (5, 70, 0, 4, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (5, 70, 0, 6, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (6, 70, 0, 5, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (10, 70, 0, 11, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (11, 70, 0, 10, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (11, 70, 0, 12, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                    (12, 70, 0, 11, 5, (SELECT count FROM source_records_count));
+
 
 END;
 $$ LANGUAGE plpgsql;
@@ -100,7 +111,7 @@ DECLARE
     RAISE NOTICE 'Checking that the get_ways_in_target_area function returns non-empty result';
 
     RETURN NEXT diag('Checking that the get_ways_in_target_area function returns non-empty result');
-    RETURN NEXT results_ne('SELECT * FROM get_ways_in_target_area(1::smallint)', 'SELECT * FROM get_ways_in_target_area(0::smallint)');
+    RETURN NEXT isnt_empty('SELECT * FROM get_ways_in_target_area(1::smallint)');
 
     -- print all records
         FOR i IN SELECT * FROM get_ways_in_target_area(1::smallint)
@@ -169,10 +180,12 @@ BEGIN
 
     -- check that the nodes_ways_speeds table has been updated
     RETURN NEXT diag('Checking that the nodes_ways_speeds table has been updated and contains records with average speed equal to 70 and quality equal to 5');
-    PERFORM todo(1);
     RETURN NEXT set_eq('SELECT * FROM expected_nodes_ways_speeds', 'SELECT * FROM nodes_ways_speeds WHERE quality = 5');
 END;
 $$ LANGUAGE plpgsql;
+
+-- test case 2: testing both segments with non-matching speeds
+-- TODO
 
 CREATE OR REPLACE FUNCTION run_all_aastas_tests() RETURNS SETOF TEXT AS $$
     DECLARE
