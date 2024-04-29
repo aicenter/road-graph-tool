@@ -41,7 +41,7 @@ This part is about suggestions of what could be tested. On the end of every poin
 						OR (from_nodes_ways.position = to_node_ways.position + 1 AND target_ways.oneway = false)
 					)
 ```
-A: -
+A: this join takes the records from the same table nodes_ways, matches it with way_id records and takes the one, which are either one position lower than the i-th record or one position higher (in this case it is further filtered by oneway = false).
 - Q: so if we're not using `quality` anymore, shouldn't we modify the procedure not to use this column anymore? Although this will defintely influence this procedure in such way, that the recursion would be possible (We've taken __n__ records from `nodes_ways_speeds`, execution of this procedure would add another __k__ records to the same table, which actually could be qualified to be used in the second execution of this procedure with the same args. P. S. actually we take records from `nodes_ways` so this hypothesis may be wrong, still commentary is needed). A: Quality should be left with no adjustments.
 
 ## Code
