@@ -1,7 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS pgtap;
 
 -- Mobility group runtests(): alternative for pgTap.runtests()
--- TODO come up with adequate naming or leave it like that
 
 CREATE OR REPLACE FUNCTION findfuncs_recursive(name, text, text) RETURNS text[]
     LANGUAGE plpgsql
@@ -229,9 +228,6 @@ BEGIN
 END;
 $$
     LANGUAGE plpgsql;
-
-DROP PROCEDURE IF EXISTS test_env_constructor();
-DROP PROCEDURE IF EXISTS test_env_destructor();
 
 CREATE OR REPLACE PROCEDURE test_env_destructor(text) AS
 $$
