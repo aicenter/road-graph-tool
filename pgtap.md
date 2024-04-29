@@ -114,6 +114,7 @@ Note: usage of `is()` and `isnt()` is preffered over `ok()`
 - `SELECT bag_eq( :sql,     :sql,   :description) ` - same as `set_has`, but considers also duplicates, if 2 duplicated rows appear in 1st `sql` query, 2 of these rows should appear in the 2nd.
 - `SELECT bag_ne( :sql,     :sql,   :description) ` - the inverse of `bag_ne()`
 - `SELECT is_empty( :sql,   :description) ` - tests that `:sql` query returns no records
+- `SELECT isnt_empty( :sql,   :description) ` - tests that `:sql` query returns at least one record
 - `SELECT row_eq(   :sql,   :record,    :description) ` - tests that `sql` query returns identical row as `record`. Basically it compares contents
 
 ### The schema assertions
