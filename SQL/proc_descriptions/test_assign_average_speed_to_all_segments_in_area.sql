@@ -1,23 +1,6 @@
 -- This file is purposed to test next procedure in the database
 -- procedure name: assign_average_speed_to_all_segments_in_area
 -- short name : aastas
--- test that after execution of this procedure,
--- some records were added to `nodes_ways_speeds` with corresponding values (which would be hardcoded to the assertion). Status: `approved`.
--- Note: multiple such tests needed,
--- 1) `testing both segments with matching speeds,
--- 2) without them
--- 3) and the combination of segments with
--- 4) and without matching speeds in one way`
--- Note: A segment is a line between two points in a way.
-
--- begin named transaction
-BEGIN TRANSACTION;
-CALL test_env_constructor();
-SELECT * FROM startup_aastas();
-CALL test_env_destructor();
-END TRANSACTION;
-SELECT * FROM areas;
-SHOW SEARCH_PATH;
 
 -- startup function for aastas
 CREATE OR REPLACE FUNCTION startup_aastas() RETURNS VOID AS $$
@@ -382,5 +365,5 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- DEBUG: TODO delete
-SELECT * FROM run_all_aastas_tests();
+-- DEBUG:
+-- SELECT * FROM run_all_aastas_tests();
