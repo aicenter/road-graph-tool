@@ -72,7 +72,6 @@ BEGIN
     RAISE NOTICE 'Executing setup for test_aastas_output_1';
     RAISE NOTICE 'Case: matching speeds';
     -- insert 2 nodes_ways_speeds
-    -- TODO: add more records with different speeds
     RAISE NOTICE 'Inserting into nodes_ways_speeds';
     INSERT INTO nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
                                                                                                                         (1, 70, 0, 1, 2, 1),
@@ -104,8 +103,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION test_aastas_output() RETURNS SETOF TEXT AS $$
-DECLARE
-    i RECORD;
     BEGIN
     RAISE NOTICE 'Executing test for test_aastas_output';
     RAISE NOTICE 'Checking that the get_ways_in_target_area function returns non-empty result';
@@ -113,11 +110,6 @@ DECLARE
     RETURN NEXT diag('Checking that the get_ways_in_target_area function returns non-empty result');
     RETURN NEXT isnt_empty('SELECT * FROM get_ways_in_target_area(1::smallint)');
 
-    -- print all records
-        FOR i IN SELECT * FROM get_ways_in_target_area(1::smallint)
-        LOOP
-            RAISE NOTICE 'get_ways_in_target_area: %', i;
-        END LOOP;
     END;
 $$ LANGUAGE plpgsql;
 
@@ -185,7 +177,156 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- test case 2: testing both segments with non-matching speeds
--- TODO
+CREATE OR REPLACE FUNCTION setup_aastas_output_2() RETURNS VOID AS $$
+BEGIN
+    RAISE NOTICE 'Executing setup for test_aastas_output_2';
+    RAISE NOTICE 'Case: non-matching speeds';
+    -- insert 2 nodes_ways_speeds
+    RAISE NOTICE 'Inserting into nodes_ways_speeds';
+    INSERT INTO nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
+                                                                                                                        (1, 70, 0, 1, 2, 1),
+                                                                                                                        (2, 75, 0, 2, 2, 1),
+                                                                                                                        (3, 80, 0, 4, 1, 1);
+
+    -- inserting expected output
+    WITH source_records_count AS (
+        SELECT
+            COUNT(*) AS count
+        FROM
+            nodes_ways_speeds
+    )
+    INSERT INTO expected_nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
+                                                                                                                                 (1, 75, 0, 2, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (2, 75, 0, 1, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (2, 75, 0, 3, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (3, 75, 0, 2, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (4, 75, 0, 5, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (5, 75, 0, 4, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (5, 75, 0, 6, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (6, 75, 0, 5, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (10, 75, 0, 11, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (11, 75, 0, 10, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (11, 75, 0, 12, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (12, 75, 0, 11, 5, (SELECT count FROM source_records_count));
+
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_aastas_output_2() RETURNS SETOF TEXT AS $$
+BEGIN
+    RAISE NOTICE 'Executing test for test_aastas_output_2';
+
+    CALL assign_average_speed_to_all_segments_in_area(1::smallint, 1);
+
+    -- check that there are some records in the nodes_ways_speeds table with quality 5 - meaning assertion,
+    --  that some records were added
+    RETURN NEXT diag('Checking that the nodes_ways_speeds table has been updated and contains records with quality equal to 5');
+    RETURN NEXT isnt_empty('SELECT * FROM nodes_ways_speeds WHERE quality = 5');
+
+    -- check that the nodes_ways_speeds table has been updated
+    RETURN NEXT diag('Checking that the nodes_ways_speeds table has been updated and contains records with average speed equal to 70 and quality equal to 5');
+    RETURN NEXT set_eq('SELECT * FROM expected_nodes_ways_speeds', 'SELECT * FROM nodes_ways_speeds WHERE quality = 5');
+end;
+$$ LANGUAGE plpgsql;
+
+-- test case 3: segments with matching speeds in oneway
+CREATE OR REPLACE FUNCTION setup_aastas_output_3() RETURNS VOID AS $$
+    BEGIN
+    RAISE NOTICE 'Executing setup for test_aastas_output_3';
+    RAISE NOTICE 'Case: matching speeds in oneway';
+
+    -- update all ways to be oneway
+    UPDATE ways SET oneway = true WHERE TRUE;
+
+    -- insert 2 nodes_ways_speeds
+    RAISE NOTICE 'Inserting into nodes_ways_speeds';
+    INSERT INTO nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
+                                                                                                                        (1, 70, 0, 1, 2, 1),
+                                                                                                                        (2, 70, 0, 2, 2, 1);
+
+    -- inserting expected output
+    WITH source_records_count AS (
+        SELECT
+            COUNT(*) AS count
+        FROM
+            nodes_ways_speeds
+    )
+    INSERT INTO expected_nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
+                                                                                                                                 (1, 70, 0, 2, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (2, 70, 0, 3, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (4, 70, 0, 5, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (5, 70, 0, 6, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (10, 70, 0, 11, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (11, 70, 0, 12, 5, (SELECT count FROM source_records_count));
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_aastas_output_3() RETURNS SETOF TEXT AS $$
+    BEGIN
+    RAISE NOTICE 'Executing test for test_aastas_output_3';
+
+    CALL assign_average_speed_to_all_segments_in_area(1::smallint, 1);
+
+    -- check that there are some records in the nodes_ways_speeds table with quality 5 - meaning assertion,
+    --  that some records were added
+    RETURN NEXT diag('Checking that the nodes_ways_speeds table has been updated and contains records with quality equal to 5');
+    RETURN NEXT isnt_empty('SELECT * FROM nodes_ways_speeds WHERE quality = 5');
+
+    -- check that the nodes_ways_speeds table has been updated
+    RETURN NEXT diag('Checking that the nodes_ways_speeds table has been updated and contains records with average speed equal to 70 and quality equal to 5');
+    RETURN NEXT set_eq('SELECT * FROM expected_nodes_ways_speeds', 'SELECT * FROM nodes_ways_speeds WHERE quality = 5');
+    END;
+$$ LANGUAGE plpgsql;
+
+-- test case 4: segments without matching speeds in oneway
+CREATE OR REPLACE FUNCTION setup_aastas_output_4() RETURNS VOID AS $$
+    BEGIN
+    RAISE NOTICE 'Executing setup for test_aastas_output_4';
+    RAISE NOTICE 'Case: non-matching speeds in oneway';
+
+    -- update all ways to be oneway
+    UPDATE ways SET oneway = true WHERE TRUE;
+
+    -- insert 3 nodes_ways_speeds
+    RAISE NOTICE 'Inserting into nodes_ways_speeds';
+    INSERT INTO nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
+                                                                                                                        (1, 70, 0, 1, 2, 1),
+                                                                                                                        (2, 75, 0, 2, 2, 1),
+                                                                                                                        (3, 80, 0, 4, 1, 1);
+
+    -- inserting expected output
+    WITH source_records_count AS (
+        SELECT
+            COUNT(*) AS count
+        FROM
+            nodes_ways_speeds
+    )
+    INSERT INTO expected_nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
+                                                                                                                                 (1, 75, 0, 2, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (2, 75, 0, 3, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (4, 75, 0, 5, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (5, 75, 0, 6, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (10, 75, 0, 11, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (11, 75, 0, 12, 5, (SELECT count FROM source_records_count));
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_aastas_output_4() RETURNS SETOF TEXT AS $$
+    BEGIN
+    RAISE NOTICE 'Executing test for test_aastas_output_4';
+
+    CALL assign_average_speed_to_all_segments_in_area(1::smallint, 1);
+
+    -- check that there are some records in the nodes_ways_speeds table with quality 5 - meaning assertion,
+    --  that some records were added
+    RETURN NEXT diag('Checking that the nodes_ways_speeds table has been updated and contains records with quality equal to 5');
+    RETURN NEXT isnt_empty('SELECT * FROM nodes_ways_speeds WHERE quality = 5');
+
+    -- check that the nodes_ways_speeds table has been updated
+    RETURN NEXT diag('Checking that the nodes_ways_speeds table has been updated and contains records with average speed equal to 70 and quality equal to 5');
+    RETURN NEXT set_eq('SELECT * FROM expected_nodes_ways_speeds', 'SELECT * FROM nodes_ways_speeds WHERE quality = 5');
+    END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION run_all_aastas_tests() RETURNS SETOF TEXT AS $$
     DECLARE
@@ -193,9 +334,12 @@ CREATE OR REPLACE FUNCTION run_all_aastas_tests() RETURNS SETOF TEXT AS $$
 BEGIN
     FOR record IN
         SELECT * FROM mob_group_runtests('_aastas_output_1')
---         UNION ALL
---         SELECT * FROM mob_group_runtests('_aastas_output_2')
-        --- ADD MORE TESTS HERE
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_aastas_output_2')
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_aastas_output_3')
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_aastas_output_4')
     LOOP
         RETURN NEXT record;
     END loop;
