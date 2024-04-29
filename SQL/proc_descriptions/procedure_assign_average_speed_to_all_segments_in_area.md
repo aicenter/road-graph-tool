@@ -18,8 +18,8 @@ The purpose of this file is to ensure that there are as little misunderstandings
 ## Todo list
 This part is about suggestions of what could be tested. On the end of every point you can see _Status_, which shows what status is on every point, if approven corresponding `approved` should be shown.
 - Testing __procedure__:
-    - test that after execution of this procedure, some records were added to `nodes_ways_speeds` with corresponding values (which would be hardcoded to the assertion). Status: `approved`. Note: multiple such tests needed, `testing both segments with matching speeds, without them and the combination of segments with and without matching speeds in one way`
-    - test that after double execution with the same args, records wouldn't be added second time. Status: `approved`. Note: it may simply fail raising exception (should look into it).
+    - test that after execution of this procedure, some records were added to `nodes_ways_speeds` with corresponding values (which would be hardcoded to the assertion). Status: `done`. Note: multiple such tests needed, `testing both segments with matching speeds, without them and the combination of segments with and without matching speeds in one way`
+    - test that after double execution with the same args, records wouldn't be added second time. Status: `done`. Note: it may simply fail raising exception (should look into it).
     - test that after inserting invalid args (either of them), the procedure wouldn't modify table, but throw an exception (we may need to modify this procedure to throw an exception). Status: `approved`
     - test `get_ways_in_target_area()` as an individual function (I mean to test it independently from testing this procedure). Status: `done`
 - Modification of __procedure__:

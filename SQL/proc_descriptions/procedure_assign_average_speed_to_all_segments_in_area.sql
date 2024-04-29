@@ -13,6 +13,15 @@ DECLARE
     -- Variable to store the number of rows affected by the last SQL command executed.
     row_count integer;
 BEGIN
+    -- Check if the target area exists.
+    IF NOT EXISTS (SELECT 1 FROM areas WHERE id = target_area_id) THEN
+        RAISE EXCEPTION 'Area with ID % does not exist', target_area_id USING ERRCODE = '22023';
+    END IF;
+
+    -- check if there are any records in nodes_ways_speeds with quality 1 or 2
+    IF NOT EXISTS (SELECT 1 FROM nodes_ways_speeds WHERE quality IN (1, 2)) THEN
+        RAISE EXCEPTION 'There are no records in nodes_ways_speeds with quality 1 or 2, which leads to the inability to calculate the average speed' USING ERRCODE = '22023';
+    END IF;
 
 RAISE NOTICE 'assigning average speed to all segments in area %', (SELECT name FROM areas WHERE id = target_area_id);
 
@@ -65,6 +74,3 @@ GET DIAGNOSTICS row_count = ROW_COUNT;
 RAISE NOTICE 'Average speed assigned to % segments', row_count;
 END;
 $$
--- - Modification of __procedure__:
---     TODO - add throwing an exception if args are invalid on the start of the procedure (invalid in this context could mean for example, that corresponding `area` does not exist, or some records referring to this area exist in one table, but do not exist in another used in this procedure). Status: `approved`
---     TODO - add throwing an exception if `nodes_ways_speeds` table before execution contains no records. Status: `approved`

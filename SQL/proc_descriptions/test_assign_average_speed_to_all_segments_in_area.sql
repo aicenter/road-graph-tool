@@ -280,6 +280,84 @@ CREATE OR REPLACE FUNCTION test_aastas_output_4() RETURNS SETOF TEXT AS $$
     END;
 $$ LANGUAGE plpgsql;
 
+-- case 5: double execution of the procedure leads to the same result as one execution
+CREATE OR REPLACE FUNCTION setup_aastas_double_exec() RETURNS VOID AS $$
+    BEGIN
+    RAISE NOTICE 'Executing setup for test_aastas_output_double_exec';
+    RAISE NOTICE 'Case: double execution';
+
+    -- insert 2 nodes_ways_speeds
+    RAISE NOTICE 'Inserting into nodes_ways_speeds';
+    INSERT INTO nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
+                                                                                                                        (1, 70, 0, 1, 2, 1),
+                                                                                                                        (2, 70, 0, 2, 2, 1);
+
+    -- inserting expected output
+    WITH source_records_count AS (
+        SELECT
+            COUNT(*) AS count
+        FROM
+            nodes_ways_speeds
+    )
+    INSERT INTO expected_nodes_ways_speeds(from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count) VALUES
+                                                                                                                                 (1, 70, 0, 2, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (2, 70, 0, 1, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (2, 70, 0, 3, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (3, 70, 0, 2, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (4, 70, 0, 5, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (5, 70, 0, 4, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (5, 70, 0, 6, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (6, 70, 0, 5, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (10, 70, 0, 11, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (11, 70, 0, 10, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (11, 70, 0, 12, 5, (SELECT count FROM source_records_count)),
+                                                                                                                                 (12, 70, 0, 11, 5, (SELECT count FROM source_records_count));
+    END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION test_aastas_double_exec() RETURNS SETOF TEXT AS $$
+    BEGIN
+    RAISE NOTICE 'Executing test for test_aastas_output_double_exec';
+
+    CALL assign_average_speed_to_all_segments_in_area(1::smallint, 1);
+    CALL assign_average_speed_to_all_segments_in_area(1::smallint, 1);
+
+    -- check that there are some records in the nodes_ways_speeds table with quality 5 - meaning assertion,
+    --  that some records were added
+    RETURN NEXT diag('Checking that the nodes_ways_speeds table has been updated and contains records with quality equal to 5');
+    RETURN NEXT isnt_empty('SELECT * FROM nodes_ways_speeds WHERE quality = 5');
+
+    -- check that the nodes_ways_speeds table has been updated
+    RETURN NEXT diag('Checking that the nodes_ways_speeds table has been updated and contains records with average speed equal to 70 and quality equal to 5');
+    RETURN NEXT set_eq('SELECT * FROM expected_nodes_ways_speeds', 'SELECT * FROM nodes_ways_speeds WHERE quality = 5');
+    END;
+$$ LANGUAGE plpgsql;
+
+-- case 6: calling procedure with invalid area id leads to an error
+CREATE OR REPLACE FUNCTION test_aastas_invalid_area_id() RETURNS SETOF TEXT AS $$
+    BEGIN
+    RAISE NOTICE 'Executing test for test_aastas_invalid_area_id';
+
+    -- check that the procedure throws an error when called with an invalid area id
+    RETURN NEXT diag('Checking that the procedure throws an error when called with an invalid area id');
+    RETURN NEXT throws_ok('CALL assign_average_speed_to_all_segments_in_area(2::smallint, 1)', '22023'); -- invalid_parameter_value
+
+    END;
+$$ LANGUAGE plpgsql;
+
+-- case 7: no records in nodes_ways_speeds leads to an error
+CREATE OR REPLACE FUNCTION test_aastas_no_records() RETURNS SETOF TEXT AS $$
+    BEGIN
+    RAISE NOTICE 'Executing test for test_aastas_no_records';
+
+    -- check that the procedure throws an error when called with an invalid area id
+    RETURN NEXT diag('Checking that the procedure throws an error when there are no records in nodes_ways_speeds');
+    RETURN NEXT throws_ok('CALL assign_average_speed_to_all_segments_in_area(1::smallint, 1)', '22023'); -- invalid_parameter_value
+
+    END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION run_all_aastas_tests() RETURNS SETOF TEXT AS $$
     DECLARE
         record RECORD;
@@ -292,6 +370,12 @@ BEGIN
         SELECT * FROM mob_group_runtests('_aastas_output_3')
         UNION ALL
         SELECT * FROM mob_group_runtests('_aastas_output_4')
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_aastas_double_exec')
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_aastas_invalid_area_id')
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_aastas_no_records')
     LOOP
         RETURN NEXT record;
     END loop;
