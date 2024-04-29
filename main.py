@@ -43,6 +43,10 @@ def select_network_nodes_in_area(cursor, target_area_id: int) -> list:
                    (target_area_id,))
     return cursor.fetchall()
 
+def assign_average_speeds_to_all_segments_in_area(cursor, target_area_id: int, target_area_srid: int):
+    cursor.execute('call public.assign_average_speeds_to_all_segments_in_area(%s::smallint, %s::int);',
+                   (target_area_id, target_area_srid)
+
 
 def compute_strong_components(cursor, target_area_id: int):
     cursor.execute('call public.compute_strong_components(%s::smallint)', (target_area_id,))
