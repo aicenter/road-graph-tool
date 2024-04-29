@@ -35,8 +35,6 @@ BEGIN
     , (4, ST_GeomFromText('POINT(5 1)', 4326), 1, false)
     , (5, ST_GeomFromText('POINT(9 1)', 4326), 1, false);
     -- insert 3 nodes outside the test area
-    -- TODO: i've inserted 2 nodes outside test area and assigned to the test area, maybe we should add CHECK constraint with ST_GeomIntersects to the nodes table,
-    --  because later in this test, these nodes are included in calculations, which is not logical at all.
     INSERT INTO nodes(id, geom, area, contracted) VALUES (6, ST_GeomFromText('POINT(11 1)', 4326), 1, false),
     (7, ST_GeomFromText('POINT(11 5)', 4326), 1, false),
     (8, ST_GeomFromText('POINT(11 11)', 4326), 1, false);
@@ -126,44 +124,6 @@ BEGIN
     LOOP
         RAISE NOTICE 'nodes_ways_speeds: %', i;
     END LOOP;
-
-    -- TODO: REMOVE debugging assertions
-    RETURN NEXT diag('DEBUGGING');
-    RETURN NEXT isnt_empty($test_tag_1$
-    SELECT
-        from_nodes_ways.id AS from_id
-    FROM
-        nodes_ways from_nodes_ways
-        $test_tag_1$, 'nodes_nodes_ways non-empty');
-
-    RETURN NEXT isnt_empty($test_tag_2$
-    WITH target_ways AS (
-    SELECT * FROM get_ways_in_target_area(1::smallint)
-)
-    SELECT
-    from_nodes_ways.id AS from_id
-    FROM
-    nodes_ways from_nodes_ways
-    JOIN target_ways ON from_nodes_ways.way_id = target_ways.id;
-        $test_tag_2$, 'Join on target_ways non-empty');
-
-    RETURN NEXT isnt_empty($test_tag_3$
-    WITH target_ways AS (
-    SELECT * FROM get_ways_in_target_area(1::smallint)
-)
-    SELECT
-    from_nodes_ways.id AS from_id
-    FROM
-    nodes_ways from_nodes_ways
-    JOIN target_ways ON from_nodes_ways.way_id = target_ways.id
-    JOIN nodes_ways to_node_ways
-         ON from_nodes_ways.way_id = to_node_ways.way_id
-         AND (
-             from_nodes_ways.position = to_node_ways.position - 1
-             OR (from_nodes_ways.position = to_node_ways.position + 1 AND target_ways.oneway = false)
-         );
-        $test_tag_3$, 'Join on to_nodes_ways non-empty');
-
 
     -- check that there are some records in the nodes_ways_speeds table with quality 5 - meaning assertion,
     --  that some records were added
