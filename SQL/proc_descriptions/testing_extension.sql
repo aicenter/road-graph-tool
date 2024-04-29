@@ -251,6 +251,12 @@ BEGIN
             EXECUTE format('DROP TABLE %I.%I', test_scheme_name, table_name_i);
         END LOOP;
 
+    -- drop routines in test_scheme_name
+    FOR table_name_i IN (SELECT routine_name FROM information_schema.routines WHERE routine_schema = test_scheme_name)
+        LOOP
+            EXECUTE format('DROP FUNCTION %I.%I', test_scheme_name, table_name_i);
+        END LOOP;
+
     -- update search path
     RESET search_path;
 END;
