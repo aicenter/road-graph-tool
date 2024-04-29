@@ -130,7 +130,7 @@ BEGIN
 
     -- A little note about raising exception in this function, it seems that `_runner` function
     -- does not raise an exception, instead catching it and returning it as a record, so under
-    -- this assumption we raise "division by zero" AKA "22012" exception to rollback the transaction.
+    -- this assumption we raise "successful_completion" AKA "00000" exception to rollback the transaction.
     BEGIN -- begin transaction for later rollback
         FOR result_record IN
             SELECT * FROM _runner(
