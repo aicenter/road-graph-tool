@@ -14,7 +14,57 @@
     make installcheck
     ```
 
-### Useful Notes
+### Installing pgtap for PostgreSQL on Windows
+
+To install pgtap for PostgreSQL on Windows, follow these steps:
+
+1. **Download and extract Strawberry Perl**
+
+   Visit the [Strawberry Perl releases page](https://strawberryperl.com/releases.html) and download the Portable 64-bit version. Extract the downloaded archive to a folder named `{strawberryperl}`.
+
+   ![Strawberry Perl download](https://user-images.githubusercontent.com/1125565/140190878-5d23c9d5-7d6d-4c49-9ede-09833813845e.png)
+
+2. **Clone the pgtap repository**
+
+   Clone the pgtap repository from GitHub using the following command:
+
+   ```
+   git clone https://github.com/theory/pgtap.git {pgtapFolder}
+   ```
+
+3. **Open Command Prompt as Administrator**
+
+   Run `cmd.exe` as an Administrator to ensure you have the necessary permissions to copy files into the `ProgramFiles` directory.
+
+4. **Launch the Strawberry Perl portable shell**
+
+   Navigate to the `{strawberryperl}` folder (extracted in step 1) and run `portableshell.bat`.
+
+5. **Prepare and copy the necessary files**
+
+   In the portable shell, execute the following commands:
+
+   ```sh
+   cd {pgtapFolder}
+   copy sql\pgtap.sql.in sql\pgtap.sql
+   perl.exe -pi.bak -e "s/TAPSCHEMA/tap/g" sql\pgtap.sql
+   perl.exe -pi.bak -e "s/__OS__/win32/g" sql\pgtap.sql
+   perl.exe -pi.bak -e "s/__VERSION__/0.24/g" sql\pgtap.sql
+   perl.exe -pi.bak -e "s/^-- ## //g" sql\pgtap.sql
+   copy sql\pgtap.sql "%ProgramFiles%\PostgreSQL\12\share\extension"
+   copy contrib\pgtap.spec  "%ProgramFiles%\PostgreSQL\12\contrib"
+   copy pgtap.control "%ProgramFiles%\PostgreSQL\12\share\extension"
+   cd "%ProgramFiles%\PostgreSQL\12\share\extension\"
+   ren "pgtap.sql" "pgtap--1.2.0.sql"
+   ```
+
+   **Note:** The `copy` commands may differ depending on your system configuration.
+
+   If you encounter an error like "error: extension "pgtap" has no installation script nor update path for version "{version}", modify the last step to `ren "pgtap.sql" "pgtap--{version}.sql"`.
+
+These instructions were adapted from [issue#192](https://github.com/theory/pgtap/issues/192#issuecomment-960033060) of the pgtap repository.
+
+## Useful Notes
 
 - There are five types of testing functions in PostgreSQL:
 
@@ -45,15 +95,15 @@
       `SELECT * FROM mob_group_runtests('test_schema', '_get_ways_in_target_area_no_target_area');` would search only in the schema named `test_schema`.
 
 
-## TODO list
-- [x] Ask if it is preffered to contain tests in `.sql` files + `.sh` file or rather in database functions. A: It is prefferably to use postgres functions to run_tests.
-- [x] Write a test procedure, then try out the above described method to see if there are changes after finishing the tests
-- [x] read https://pgtap.org/documentation.html#feelingfunky to get methods with function-oriented testing
-- [ ] Ask if we need to test for perfoming in good time by using function `performs_ok()`.
-- [x] try out a complicated test with startup, shutdown, setup and teardown functions.
-- [ ] Read https://pgtap.org/documentation.html#tapthatbatch once again, when having several testing functions to fully understand the value of the described functions.
-- [x] Try out naming convention. I could rewrite names of the existing testing functions
-- [ ] Ask about `pg_prove()` utility.
+<!-- ## TODO list -->
+<!-- - [x] Ask if it is preffered to contain tests in `.sql` files + `.sh` file or rather in database functions. A: It is prefferably to use postgres functions to run_tests. -->
+<!-- - [x] Write a test procedure, then try out the above described method to see if there are changes after finishing the tests -->
+<!-- - [x] read https://pgtap.org/documentation.html#feelingfunky to get methods with function-oriented testing -->
+<!-- - [ ] Ask if we need to test for perfoming in good time by using function `performs_ok()`. -->
+<!-- - [x] try out a complicated test with startup, shutdown, setup and teardown functions. -->
+<!-- - [ ] Read https://pgtap.org/documentation.html#tapthatbatch once again, when having several testing functions to fully understand the value of the described functions. -->
+<!-- - [x] Try out naming convention. I could rewrite names of the existing testing functions -->
+<!-- - [ ] Ask about `pg_prove()` utility. -->
 
 ## Picture of a result
 - All tests should be saved as postgresql functions.
