@@ -18,14 +18,14 @@ The purpose of this file is to ensure that there are as little misunderstandings
 ## Todo list
 This part is about suggestions of what could be tested. On the end of every point you can see _Status_, which shows what status is on every point, if approven corresponding `approved` should be shown.
 - Testing __procedure__:
-    - test that after execution of this procedure, some records were added to `nodes_ways_speeds` with corresponding values (which would be hardcoded to the assertion). Status: `approved`. Note: multiple such tests needed, `testing both segments with matching speeds, without them and the combination of segments with and without matching speeds in one way`
-    - test that after double execution with the same args, records wouldn't be added second time. Status: `on review`
-    - test that after inserting invalid args (either of them), the procedure wouldn't modify table, but throw an exception (we may need to modify this procedure to throw an exception). Status: `on review`
-    - test `get_ways_in_target_area()` as an individual function (I mean to test it independently from testing this procedure). Status: `on review`
+    - test that after execution of this procedure, some records were added to `nodes_ways_speeds` with corresponding values (which would be hardcoded to the assertion). Status: `done`. Note: multiple such tests needed, `testing both segments with matching speeds, without them and the combination of segments with and without matching speeds in one way`
+    - test that after double execution with the same args, records wouldn't be added second time. Status: `done`.
+    - test that after inserting invalid args (either of them), the procedure wouldn't modify table, but throw an exception (we may need to modify this procedure to throw an exception). Status: `done`
+    - test `get_ways_in_target_area()` as an individual function (I mean to test it independently from testing this procedure). Status: `done`
 - Modification of __procedure__:
-    - add throwing an exception if args are invalid on the start of the procedure (invalid in this context could mean for example, that corresponding `area` does not exist, or some records referring to this area exist in one table, but do not exist in another used in this procedure). Status: `on review`
-    - add throwing an exception if `nodes_ways_speeds` table before execution contains no records. Status: `on review`
-    - get rid of `geom` column from CTE `node_segments`. Status: `on review`
+    - add throwing an exception if args are invalid on the start of the procedure (invalid in this context could mean for example, that corresponding `area` does not exist, or some records referring to this area exist in one table, but do not exist in another used in this procedure). Status: `done`. Note: implemented throwing only for an invalid area id
+    - add throwing an exception if `nodes_ways_speeds` table before execution contains no records. Status: `done`
+    - get rid of `geom` column from CTE `node_segments`. Status: `rejected`
 
 ## QA
 - Q: Not sure what __segment__ in this particular context means. I see that we work with the so-called __ways__, does segment refer to that. A: `A segment is part of a way. Each osm way is composed of nodes. A segment is a line between two points in a way. Apart from ways and segments, there are also edges, which represent arcs in the final roadgraph. We should probably cover this notation in the readme at some point.`
@@ -41,8 +41,8 @@ This part is about suggestions of what could be tested. On the end of every poin
 						OR (from_nodes_ways.position = to_node_ways.position + 1 AND target_ways.oneway = false)
 					)
 ```
-A: -
-- Q: so if we're not using `quality` anymore, shouldn't we modify the procedure not to use this column anymore? Although this will defintely influence this procedure in such way, that the recursion would be possible (We've taken __n__ records from `nodes_ways_speeds`, execution of this procedure would add another __k__ records to the same table, which actually could be qualified to be used in the second execution of this procedure with the same args. P. S. actually we take records from `nodes_ways` so this hypothesis may be wrong, still commentary is needed). A: -
+A: this join takes the records from the same table nodes_ways, matches it with way_id records and takes the one, which are either one position lower than the i-th record or one position higher (in this case it is further filtered by oneway = false).
+- Q: so if we're not using `quality` anymore, shouldn't we modify the procedure not to use this column anymore? Although this will defintely influence this procedure in such way, that the recursion would be possible (We've taken __n__ records from `nodes_ways_speeds`, execution of this procedure would add another __k__ records to the same table, which actually could be qualified to be used in the second execution of this procedure with the same args. P. S. actually we take records from `nodes_ways` so this hypothesis may be wrong, still commentary is needed). A: Quality should be left with no adjustments.
 
 ## Code
 !!! Warning Warning
