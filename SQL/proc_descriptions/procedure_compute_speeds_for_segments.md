@@ -18,10 +18,10 @@ The purpose of this file is to ensure that there are as little misunderstandings
 
 
 ## TODO list
-- [ ] Create description of the procedure
+- [x] Create description of the procedure
 - [x] Check if index `target_ways_id_idx` of `target_ways` is used. Is used
 - [x] Check if indexes `node_segments_osm_id_idx`, `node_segments_wf_idx`, `node_segments_wt_idx` of `node_sequences` table are used. Only `node_segments_wf_idx` is used -> Issue.
-- [ ] Add deeper exaplanation of data selection for `grouped_speed_records` TEMP table.
+- [x] Add deeper exaplanation of data selection for `grouped_speed_records` TEMP table. - No need, selection is plain.
 - [x] Replace `..., ...` in explanation of flow with classification name.
 - [ ] Reduction of TEMP tables into CTEs AKA With statements. - `target_ways`, `node_sequences` are candidates, not sure about `grouped_speed_records`.
 - [ ] Reduction of If-else statement with conditional WHERE clause with conditional WHERE clause. - Not easily achived as we have two different source for every case of dataset_quality, and refactored block with great chance would have worse perfomance. Does not worth it, in my opinion.
