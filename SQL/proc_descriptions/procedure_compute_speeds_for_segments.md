@@ -12,24 +12,23 @@ The purpose of this file is to ensure that there are as little misunderstandings
     - Main flow:
         - __if-else statement__. If variable __day_of_week__ was not provided => __dataset_quality__=2, otherwise __dataset_quality__=1. This block creates TEMP table `grouped_speed_records` with (`from_osm_id`, `to_osm_id`, `speed`, `st_dev`) columns. If __dataset_quality__=1, then table `speed_records` is used as a source for TEMP table, otherwise table `speed_records_quarterly` is used.
         - Save overall count of records from `nodes_ways_speeds` table to var __current_count__.
-        - __Insertion into nodes_ways_speeds__. Usage of union lets us to divide selection of data into 2 groups: ..., ...
+        - __Insertion into nodes_ways_speeds__. Usage of union lets us to divide selection of data into 2 groups: ascending sequences, descending sequences, which are then merged by union.
 
 
 
 
 ## TODO list
 - [ ] Create description of the procedure
-- [ ] Check if index `target_ways_id_idx` of `target_ways` is used.
-- [ ] Check if indexes `node_segments_osm_id_idx`, `node_segments_wf_idx`, `node_segments_wt_idx` of `node_sequences` table are used.
+- [x] Check if index `target_ways_id_idx` of `target_ways` is used. Is used
+- [x] Check if indexes `node_segments_osm_id_idx`, `node_segments_wf_idx`, `node_segments_wt_idx` of `node_sequences` table are used. Only `node_segments_wf_idx` is used -> Issue.
 - [ ] Add deeper exaplanation of data selection for `grouped_speed_records` TEMP table.
-- [ ] Replace `..., ...` in explanation of flow with classification name.
-- [ ] Reduction of TEMP tables into CTEs AKA With statements.
-- [ ] Reduction of If-else statement with conditional WHERE clause with conditional WHERE clause. Not easily achived as we have two different source for every case of dataset_quality.
-- [ ] Reduction of calculation of average speed in 3rd step of main flow - it is calculated twice. May greatly influence the speed, if 
-- [ ] 
+- [x] Replace `..., ...` in explanation of flow with classification name.
+- [ ] Reduction of TEMP tables into CTEs AKA With statements. - `target_ways`, `node_sequences` are candidates, not sure about `grouped_speed_records`.
+- [ ] Reduction of If-else statement with conditional WHERE clause with conditional WHERE clause. - Not easily achived as we have two different source for every case of dataset_quality, and refactored block with great chance would have worse perfomance. Does not worth it, in my opinion.
+- [ ] Reduction of calculation of average speed in 3rd step of main flow - it is calculated twice. May influence the execution perfomance depending on the number of stored data. - Not really sure, cause window function avg() applies after finding records, not before.
 
 ## QA
-- 
+- Indexes `node_segments_osm_id_idx` & `node_segments_wt_idx` are not used, I think we should remove their creation queries.
 
 ## Code
 !!! Warning Warning
@@ -79,7 +78,7 @@ CREATE TEMPORARY TABLE node_sequences AS
 
 -- Create indexes for `node_sequences` on (from_id, to_id), (way_id, from_position), (way_id, to_position)
 CREATE INDEX node_segments_osm_id_idx ON node_sequences(from_id, to_id);
-CREATE INDEX node_segments_wf_idx ON node_sequences(way_id, from_position);
+CREATE INDEX node_segments_wf_idx ON node_sequences(way_id, from_position); --USED
 CREATE INDEX node_segments_wt_idx ON node_sequences(way_id, to_position);
 
 RAISE NOTICE '% node sequences generated', (SELECT count(1) FROM node_sequences);
