@@ -43,6 +43,10 @@ def select_network_nodes_in_area(cursor, target_area_id: int) -> list:
                    (target_area_id,))
     return cursor.fetchall()
 
+def assign_average_speeds_to_all_segments_in_area(cursor, target_area_id: int, target_area_srid: int):
+    cursor.execute('call public.assign_average_speeds_to_all_segments_in_area(%s::smallint, %s::int);',
+                   (target_area_id, target_area_srid))
+
 
 def compute_strong_components(cursor, target_area_id: int):
     cursor.execute('call public.compute_strong_components(%s::smallint)', (target_area_id,))
@@ -94,6 +98,16 @@ if __name__ == '__main__':
 
             connection.commit()
             logging.info('commit')
+
+            logging.info('Execution of assign_average_speeds_to_all_segments_in_area')
+
+            try:
+                assign_average_speeds_to_all_segments_in_area(cur, area_id, area_srid)
+            except psycopg2.errors.InvalidParameterValue as e:
+                logging.info("Expected Error: ", e)
+
+            connection.rollback()
+            logging.info('rollback')
 
             if connection:
                 cur.close()
