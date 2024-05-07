@@ -6,7 +6,7 @@ The purpose of this file is to ensure that there are as little misunderstandings
 - Procedure name: procedure_compute_speeds_from_neighborhood_segments
 - The __name__ of the procedure + __arguments__ of the procedure imply computing speeds of segments in certain area.
 - Input params: `target_area_id:smallint`, `target_area_srid:integer`. Return value: _None_.
-- Target of the procedure: gather some info and insert it into table `nodes_ways_speeds`
+- Target of the procedure: 
 - Flow:
 
 ## Todo list
