@@ -28,14 +28,17 @@ The purpose of this file is to ensure that there are as little misunderstandings
     - The procedure follows a step-by-step approach to assign speeds to segments in the `nodes_ways_speeds` table. It starts by assigning speeds based on nearby segments within a 10-meter distance, then a 200-meter distance, and finally assigns the overall average speed to the remaining segments. The procedure uses spatial operations and joins to compute and assign speeds based on the available speed data from nearby segments or the overall average.
 
 ## Todo list
-- [ ] Check why __materialized view__ `target_ways` is created, check it out.
-- [ ] check if index `target_ways_geom_idx` is used.
-- [ ] check if indexes `node_segments_osm_id_idx` and `node_segments_geom_idx` are used.
+- [x] Check why __materialized view__ `target_ways` is created, check it out
+- [x] check if index `target_ways_geom_idx` is used. IS USED
+- [x] check if indexes `node_segments_osm_id_idx` and `node_segments_geom_idx` are used:
+    - [x] `node_segments_osm_id_idx`. IS NOT USED
+    - [x] `node_segments_geom_idx`. IS USED
 
 ## QA
 - Q: Why `EXECUTE format('...')` is used? - A:
 - Q: Point 5.1 is reducable to a value stored in some variable. Any need in create view? (The only assumption is that's leftover after debugging). - A:
 - Q: Refresh of views kinda stinks (We're not updating `node_segments` after creation) (The reason may be that there could be concurrent modification of the table, but this function is supposed to run isolated, that's why im not sure why its here). - A: I guess everything comes down to `WHERE nodes_ways_speeds.to_node_ways_id IS NULL` clause in `node_segments` view creation query. Every time we refresh after insertion to `nodes_ways_speeds`, we basically remove those records from `node_segments`, which were used to add to the target table.
+- Q: `node_segments_osm_id_idx` looks like is not used at all. We may consider removing creation of this index. - A: 
 
 ## Code
 !!! Warning Warning
