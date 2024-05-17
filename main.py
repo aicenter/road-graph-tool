@@ -1,101 +1,12 @@
-import json
 import logging
-import psycopg2
-import sqlalchemy
 import psycopg2.errors
-import geopandas as gpd
 from sshtunnel import SSHTunnelForwarder
 from credentials_config import CREDENTIALS
 
 
-def get_sql_alchemy_engine_str(config: CREDENTIALS, server_port):
-    sql_alchemy_engine_str = 'postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}'.format(
-        user=config.username,
-        password=config.db_password,
-        host=config.db_host,
-        port=server_port,
-        dbname=config.db_name)
-
-    return sql_alchemy_engine_str
-
-
-def get_map_nodes_from_db(config: dict, server_port, area_id : int) -> gpd.GeoDataFrame:
-    logging.info("Fetching nodes from db")
-    sql = f"""
-    DROP TABLE IF EXISTS demand_nodes;
-
-    CREATE TEMP TABLE demand_nodes(
-        id int,
-        db_id bigint,
-        x float,
-        y float,
-        geom geometry
-    );
-
-    INSERT INTO demand_nodes
-    SELECT * FROM select_network_nodes_in_area({area_id}::smallint);
-
-    SELECT
-        id,
-        db_id,
-        x,
-        y,
-        geom
-    FROM demand_nodes
-    """
-    sql_alchemy_engine_str = get_sql_alchemy_engine_str(config, server_port)
-    logging.info("Starting sql_alchemy connection")
-    sqlalchemy_engine = sqlalchemy.create_engine(sql_alchemy_engine_str)
-
-    return gpd.read_postgis(sql, sqlalchemy_engine)
-
-
-def get_area_for_demand(cursor, srid_plain: int, dataset_ids: list, zone_types: list,
-                        buffer_meters: int, min_requests_in_zone: int, datetime_min: str,
-                        datetime_max: str, center_point: tuple, max_distance_from_center_point_meters: int) -> list:
-    cursor.execute("""
-        select *
-        from get_area_for_demand(
-                srid_plain := %s,
-                dataset_ids := %s::smallint[],
-                zone_types := %s::smallint[],
-                buffer_meters := %s::smallint,
-                min_requests_in_zone := %s::smallint,
-                datetime_min := %s,
-                datetime_max := %s,
-                center_point := st_makepoint(%s, %s),
-                max_distance_from_center_point_meters := %s::smallint
-        );"""
-                   , (srid_plain, dataset_ids, zone_types, buffer_meters, min_requests_in_zone,
-                      datetime_min, datetime_max, center_point[0], center_point[1],
-                      max_distance_from_center_point_meters))
-    return cursor.fetchall()
-
-
-def insert_area(cursor, name: str, coordinates: list):
-    geom_json = {"type": "MultiPolygon", "coordinates": coordinates}
-    cursor.execute("insert into areas (name, geom) values (%s, st_geomfromgeojson(%s));",
-                   (name, json.dumps(geom_json)))
-
-
-def contract_graph_in_area(cursor, target_area_id: int, target_area_srid: int):
-    cursor.execute('call public.contract_graph_in_area(%s::smallint, %s::int);',
-                   (target_area_id, target_area_srid))
-
-
-def select_network_nodes_in_area(cursor, target_area_id: int) -> list:
-    cursor.execute('select * from select_network_nodes_in_area(%s::smallint);',
-                   (target_area_id,))
-    return cursor.fetchall()
-
-
-def assign_average_speed_to_all_segments_in_area(cursor, target_area_id: int, target_area_srid: int):
-    cursor.execute('call public.assign_average_speed_to_all_segments_in_area(%s::smallint, %s::int)',
-                   (target_area_id, target_area_srid))
-
-
-def compute_strong_components(cursor, target_area_id: int):
-    cursor.execute('call public.compute_strong_components(%s::smallint)', (target_area_id,))
+from map import get_map_nodes_from_db, get_map_edges_from_db
+from database_operations import (select_network_nodes_in_area, compute_strong_components, contract_graph_in_area,
+                                 insert_area, get_area_for_demand, assign_average_speed_to_all_segments_in_area)
 
 
 if __name__ == '__main__':
