@@ -33,6 +33,7 @@ The purpose of this file is to ensure that there are as little misunderstandings
 - [x] check if indexes `node_segments_osm_id_idx` and `node_segments_geom_idx` are used:
     - [x] `node_segments_osm_id_idx`. IS NOT USED
     - [x] `node_segments_geom_idx`. IS USED
+- [ ] Humanize/formalize the description of the procedure
 
 ## QA
 - Q: Why `EXECUTE format('...')` is used? - A:
