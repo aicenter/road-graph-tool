@@ -1,8 +1,12 @@
 import json
 import logging
 import psycopg2
+import sqlalchemy
+import psycopg2.errors
 from sshtunnel import SSHTunnelForwarder
-from credentials_config import CREDENTIALS
+
+from roadgraphtool.credentials_config import CREDENTIALS
+from roadgraphtool.export import get_map_nodes_from_db
 
 
 def get_area_for_demand(cursor, srid_plain: int, dataset_ids: list, zone_types: list,
@@ -44,13 +48,18 @@ def select_network_nodes_in_area(cursor, target_area_id: int) -> list:
     return cursor.fetchall()
 
 
+def assign_average_speed_to_all_segments_in_area(cursor, target_area_id: int, target_area_srid: int):
+    cursor.execute('call public.assign_average_speed_to_all_segments_in_area(%s::smallint, %s::int)',
+                   (target_area_id, target_area_srid))
+
+
 def compute_strong_components(cursor, target_area_id: int):
     cursor.execute('call public.compute_strong_components(%s::smallint)', (target_area_id,))
 
 
 if __name__ == '__main__':
 
-    area_id = 0
+    area_id = 13
     area_srid = 0
     config = CREDENTIALS
 
@@ -92,8 +101,20 @@ if __name__ == '__main__':
                                        (50.0, 10.0), 5000)
             print(area)
 
+            logging.info('Execution of assign_average_speeds_to_all_segments_in_area')
+            try:
+                assign_average_speed_to_all_segments_in_area(cur, area_id, area_srid)
+            except psycopg2.errors.InvalidParameterValue as e:
+                logging.info("Expected Error: ", e)
+
+            nodes = get_map_nodes_from_db(config, server.local_bind_port, area_id)
+            print(nodes)
+
             connection.commit()
             logging.info('commit')
+
+            connection.rollback()
+            logging.info('rollback')
 
             if connection:
                 cur.close()
