@@ -2,28 +2,69 @@
 ## Purpose of this file
 The purpose of this file is to ensure that there are as little misunderstandings as could be. That's why it serves to show how I (Vladyslav Zlochevskyi/zlochina) see what this procedure does. Also this way I might figure out what actually could be tested in this procedure.
 
-## Decsription of the procedure
-- Procedure name: procedure_compute_speeds_from_neighborhood_segments
-- The __name__ of the procedure + __arguments__ of the procedure imply computing speeds of segments in certain area.
-- Input params: `target_area_id:smallint`, `target_area_srid:integer`. Return value: _None_.
-- Target of the procedure: 
-- Flow:
-    1. Select the target ways (roads) within the specified area and create a materialized view `target_ways`.
-    2. Create a materialized view `node_segments` containing the segments between nodes for the target ways, excluding segments that already have assigned speeds.
-    3. Create indexes on `target_ways` and `node_segments` tables for efficient querying.
-    4. Create a temporary table `speed_segment_data` to store the geometric representation of segments along with their associated speed and standard deviation values. This data is derived from various tables, including `nodes_ways_speeds`, `nodes_ways`, `target_ways`, and `nodes`, through a series of joins.
-    5. Update the `assigned_segments_count` variable with the current number of records in `speed_segment_data`.
-    6. Create a view `assigned_segments_in_target_area` to count the assigned segments in the target area.
-    7. Assign speeds to segments in the `nodes_ways_speeds` table based on nearby segments within a 10-meter distance, with a quality value of 3.
-    8. Update the `new_assigned_segments_count` variable with the count of assigned segments after the 10-meter distance assignment.
-    9. Refresh the `node_segments` materialized view to reflect the changes made in step 7.
-    10. Assign speeds to segments in the `nodes_ways_speeds` table based on nearby segments within a 200-meter distance, with a quality value of 4.
-    11. Update the `new_assigned_segments_count` variable with the count of assigned segments after the 200-meter distance assignment.
-    12. Refresh the `node_segments` materialized view again to reflect the changes made in step 10.
-    13. Calculate the overall average speed and standard deviation from the `speed_segment_data` table.
-    14. Assign the overall average speed to the remaining segments in the `nodes_ways_speeds` table that don't have assigned speeds from the previous steps, with a quality value of 5.
-    15. Update the `new_assigned_segments_count` variable with the count of assigned segments after assigning the average speed.
-    16. Clean up temporary objects by dropping the `speed_segment_data` table, `node_segments` materialized view, `assigned_segments_in_target_area` view, and `target_ways` materialized view.
+### Procedure Name
+`procedure_compute_speeds_from_neighborhood_segments`
+
+### Description
+The `procedure_compute_speeds_from_neighborhood_segments` procedure computes speeds for road segments within a specified target area using nearby segments' speed data and overall average speeds.
+
+### Input Parameters
+- `target_area_id`::`smallint`: Identifier for the target area.
+- `target_area_srid`::`integer`: Spatial reference system identifier for the target area.
+
+### Returns
+- This procedure does not return any values.
+
+### Flow
+
+1. **Select Target Ways**
+    - Create a materialized view `target_ways` to hold the roads within the specified area.
+
+2. **Create Node Segments**
+    - Create a materialized view `node_segments` to store segments between nodes for the target ways, excluding segments that already have assigned speeds.
+
+3. **Index Creation**
+    - Create indexes on the `target_ways` and `node_segments` tables for efficient querying.
+
+4. **Create Temporary Table**
+    - Create a temporary table `speed_segment_data` to store the geometric representation of segments, associated speeds, and standard deviation values. This data is derived from `nodes_ways_speeds`, `nodes_ways`, `target_ways`, and `nodes` through a series of joins.
+
+5. **Update Assigned Segments Count** (Only for logging purposes)
+    - Update the variable `assigned_segments_count` with the current number of records in `speed_segment_data`.
+
+6. **Create View for Assigned Segments**
+    - Create a view `assigned_segments_in_target_area` to count the assigned segments in the target area.
+
+7. **Assign Speeds Within 10 Meters**
+    - Assign speeds to segments in the `nodes_ways_speeds` table based on nearby segments within a 10-meter distance, setting the quality value to 3.
+
+8. **Update Assigned Segments Count**
+    - Update the variable `new_assigned_segments_count` with the count of assigned segments after the 10-meter distance assignment.
+
+9. **Refresh Node Segments View**
+    - Refresh the `node_segments` materialized view to reflect changes made in step 7.
+
+10. **Assign Speeds Within 200 Meters**
+    - Assign speeds to segments in the `nodes_ways_speeds` table based on nearby segments within a 200-meter distance, setting the quality value to 4.
+
+11. **Update Assigned Segments Count**
+    - Update the variable `new_assigned_segments_count` with the count of assigned segments after the 200-meter distance assignment.
+
+12. **Refresh Node Segments View**
+    - Refresh the `node_segments` materialized view again to reflect changes made in step 10.
+
+13. **Calculate Overall Average Speed**
+    - Calculate the overall average speed and standard deviation from the `speed_segment_data` table.
+
+14. **Assign Overall Average Speed**
+    - Assign the overall average speed to the remaining segments in the `nodes_ways_speeds` table that do not have assigned speeds from the previous steps, setting the quality value to 5.
+
+15. **Update Assigned Segments Count**
+    - Update the variable `new_assigned_segments_count` with the count of assigned segments after assigning the average speed.
+
+16. **Clean Up Temporary Objects**
+    - Drop the `speed_segment_data` table, `node_segments` materialized view, `assigned_segments_in_target_area` view, and `target_ways` materialized view to clean up temporary objects.
+
 - __Summary__:
     - The procedure follows a step-by-step approach to assign speeds to segments in the `nodes_ways_speeds` table. It starts by assigning speeds based on nearby segments within a 10-meter distance, then a 200-meter distance, and finally assigns the overall average speed to the remaining segments. The procedure uses spatial operations and joins to compute and assign speeds based on the available speed data from nearby segments or the overall average.
 
@@ -33,11 +74,11 @@ The purpose of this file is to ensure that there are as little misunderstandings
 - [x] check if indexes `node_segments_osm_id_idx` and `node_segments_geom_idx` are used:
     - [x] `node_segments_osm_id_idx`. IS NOT USED
     - [x] `node_segments_geom_idx`. IS USED
-- [ ] Humanize/formalize the description of the procedure
+- [x] Humanize/formalize the description of the procedure
 
 ## QA
-- Q: Why `EXECUTE format('...')` is used? - A:
-- Q: Point 5.1 is reducable to a value stored in some variable. Any need in create view? (The only assumption is that's leftover after debugging). - A:
+- Q: Why `EXECUTE format('...')` is used? Im not really seeing the need in that - A:
+- Q: Point 5.1 is reduceable to a value stored in some variable. Any need in create view? (The only assumption is that's leftover after debugging). - A:
 - Q: Refresh of views kinda stinks (We're not updating `node_segments` after creation) (The reason may be that there could be concurrent modification of the table, but this function is supposed to run isolated, that's why im not sure why its here). - A: I guess everything comes down to `WHERE nodes_ways_speeds.to_node_ways_id IS NULL` clause in `node_segments` view creation query. Every time we refresh after insertion to `nodes_ways_speeds`, we basically remove those records from `node_segments`, which were used to add to the target table.
 - Q: `node_segments_osm_id_idx` looks like is not used at all. We may consider removing creation of this index. - A: 
 
