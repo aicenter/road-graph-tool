@@ -37,9 +37,7 @@ CREATE TEMPORARY TABLE node_sequences AS
 								OR (from_nodes_ways.position > to_node_ways.position AND target_ways.oneway = false)
 							)
 );
-CREATE INDEX node_segments_osm_id_idx ON node_sequences(from_id, to_id);
 CREATE INDEX node_segments_wf_idx ON node_sequences(way_id, from_position);
-CREATE INDEX node_segments_wt_idx ON node_sequences(way_id, to_position);
 RAISE NOTICE '% node sequences generated', (SELECT count(1) FROM node_sequences);
 
 IF day_of_week IS NULL THEN
