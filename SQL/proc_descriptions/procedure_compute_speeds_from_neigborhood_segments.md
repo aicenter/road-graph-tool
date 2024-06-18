@@ -77,8 +77,8 @@ The `procedure_compute_speeds_from_neighborhood_segments` procedure computes spe
 - [x] Humanize/formalize the description of the procedure
 
 ## QA
-- Q: Why `EXECUTE format('...')` is used? Im not really seeing the need in that - A:
-- Q: Point 5.1 is reduceable to a value stored in some variable. Any need in create view? (The only assumption is that's leftover after debugging). - A:
+- Q: Why `EXECUTE format('...')` is used? Im not really seeing the need in that - A: Leftover from debugging. `RESOLVED`
+- Q: Point 5.1 is reduceable to a value stored in some variable. Any need in create view? (The only assumption is that's leftover after debugging). - A: Usage of view prevents repeated usage of the same block of code to calculate the assigned segments count.
 - Q: Refresh of views kinda stinks (We're not updating `node_segments` after creation) (The reason may be that there could be concurrent modification of the table, but this function is supposed to run isolated, that's why im not sure why its here). - A: I guess everything comes down to `WHERE nodes_ways_speeds.to_node_ways_id IS NULL` clause in `node_segments` view creation query. Every time we refresh after insertion to `nodes_ways_speeds`, we basically remove those records from `node_segments`, which were used to add to the target table.
 - Q: `node_segments_osm_id_idx` looks like is not used at all. We may consider removing creation of this index. - A: 
 - Q: I've got to ask what is the relation between `target_area_id` and `target_area_srid`. I think there is indeed a strong connection between those values, that's why we may need to test the case when we pass unrelated values to this procedure (in which case it should throw an error or do nothing at all. Error would more informative to the User). - A:
@@ -112,11 +112,10 @@ BEGIN
     RAISE NOTICE 'selecting target ways';
 
     -- 1.1 Create view target_ways
-    EXECUTE format($target_ways_view$
     CREATE MATERIALIZED VIEW target_ways AS
     (
-        SELECT ways.* FROM ways JOIN areas ON areas.id = %L AND st_intersects(areas.geom, ways.geom)
-    )$target_ways_view$, target_area_id);
+        SELECT ways.* FROM ways JOIN areas ON areas.id = target_area_id AND st_intersects(areas.geom, ways.geom)
+    );
 
     -- 1.2 Add index on target_ways(id)
     CREATE INDEX target_ways_id_idx ON target_ways(id);
@@ -125,13 +124,12 @@ BEGIN
     RAISE NOTICE 'creating node segments view';
 
     -- 2.1 Create a view of node segments for the target ways
-    EXECUTE format($node_segments_view$
     CREATE MATERIALIZED VIEW node_segments AS
     (
         SELECT
             from_nodes_ways.id AS from_id,
             to_node_ways.id AS to_id,
-            st_transform(st_makeline(from_nodes.geom, to_nodes.geom), %L::integer) AS geom
+            st_transform(st_makeline(from_nodes.geom, to_nodes.geom), target_area_srid) AS geom
         FROM
             nodes_ways from_nodes_ways
         JOIN target_ways ON from_nodes_ways.way_id = target_ways.id
@@ -147,7 +145,7 @@ BEGIN
         JOIN nodes from_nodes ON from_nodes_ways.node_id = from_nodes.id
         JOIN nodes to_nodes ON to_node_ways.node_id = to_nodes.id
         WHERE nodes_ways_speeds.to_node_ways_id IS NULL
-    )$node_segments_view$, target_area_srid);
+    );
 
     -- 2.2 Add index on (from_id, to_id)
     CREATE INDEX node_segments_osm_id_idx ON node_segments(from_id, to_id);
