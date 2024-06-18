@@ -38,7 +38,7 @@ The `procedure_compute_speeds_from_neighborhood_segments` procedure computes spe
 7. **Assign Speeds Within 10 Meters**
     - Assign speeds to segments in the `nodes_ways_speeds` table based on nearby segments within a 10-meter distance, setting the quality value to 3.
 
-8. **Update Assigned Segments Count**
+8. **Update Assigned Segments Count** (Only for logging purposes)
     - Update the variable `new_assigned_segments_count` with the count of assigned segments after the 10-meter distance assignment.
 
 9. **Refresh Node Segments View**
@@ -47,7 +47,7 @@ The `procedure_compute_speeds_from_neighborhood_segments` procedure computes spe
 10. **Assign Speeds Within 200 Meters**
     - Assign speeds to segments in the `nodes_ways_speeds` table based on nearby segments within a 200-meter distance, setting the quality value to 4.
 
-11. **Update Assigned Segments Count**
+11. **Update Assigned Segments Count** (Only for logging purposes)
     - Update the variable `new_assigned_segments_count` with the count of assigned segments after the 200-meter distance assignment.
 
 12. **Refresh Node Segments View**
@@ -59,7 +59,7 @@ The `procedure_compute_speeds_from_neighborhood_segments` procedure computes spe
 14. **Assign Overall Average Speed**
     - Assign the overall average speed to the remaining segments in the `nodes_ways_speeds` table that do not have assigned speeds from the previous steps, setting the quality value to 5.
 
-15. **Update Assigned Segments Count**
+15. **Update Assigned Segments Count** (Only for logging purposes)
     - Update the variable `new_assigned_segments_count` with the count of assigned segments after assigning the average speed.
 
 16. **Clean Up Temporary Objects**
@@ -81,6 +81,16 @@ The `procedure_compute_speeds_from_neighborhood_segments` procedure computes spe
 - Q: Point 5.1 is reduceable to a value stored in some variable. Any need in create view? (The only assumption is that's leftover after debugging). - A:
 - Q: Refresh of views kinda stinks (We're not updating `node_segments` after creation) (The reason may be that there could be concurrent modification of the table, but this function is supposed to run isolated, that's why im not sure why its here). - A: I guess everything comes down to `WHERE nodes_ways_speeds.to_node_ways_id IS NULL` clause in `node_segments` view creation query. Every time we refresh after insertion to `nodes_ways_speeds`, we basically remove those records from `node_segments`, which were used to add to the target table.
 - Q: `node_segments_osm_id_idx` looks like is not used at all. We may consider removing creation of this index. - A: 
+- Q: I've got to ask what is the relation between `target_area_id` and `target_area_srid`. I think there is indeed a strong connection between those values, that's why we may need to test the case when we pass unrelated values to this procedure (in which case it should throw an error or do nothing at all. Error would more informative to the User). - A:
+- Q: Do we need to add more testing cases? - A:
+- Q: In case we would want to implement the 1st test case in such way, that it would check for throwing, may I modify original procedure to throw such error (basically the same as we did with some of the previous procedures/functions)? - A:
+
+## Testing cases
+1. **Invalid data**. Either passed value Is NULL -> test for throwing an error. (`target_area_id` is used only in creation __VIEW__ `target_ways`)
+2. **Invalid data**. Given input is valid, but some data are missing from used tables (`areas`, `nodes`, `nodes_ways`) -> no new entries to target table. Basically check that no errors are raised.
+3. **Standard case**. All values present both in args and tables -> check that average is as expected by every quality in range[3,5].
+4. **Standard case**. Second execution of the procedure with the same args does not lead to creation of duplicates.
+5. More?
 
 ## Code
 !!! Warning Warning
