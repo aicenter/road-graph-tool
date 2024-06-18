@@ -15,10 +15,6 @@ def get_sql_alchemy_engine_str(config: CREDENTIALS, server_port):
     return sql_alchemy_engine_str
 
 
-def get_map_edges_from_db(config, server_port, area_id: int, area_srid: int) -> gpd.GeoDataFrame:
-    pass
-
-
 def get_map_nodes_from_db(config, server_port, area_id: int) -> gpd.GeoDataFrame:
     logging.info("Fetching nodes from db")
     sql = f"""
