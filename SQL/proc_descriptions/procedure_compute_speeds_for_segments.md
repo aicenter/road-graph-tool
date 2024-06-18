@@ -60,7 +60,7 @@ This procedure is designed to efficiently calculate and update speed records for
 - [x] Humanize/formalize the description.
 
 ## QA
-- Indexes `node_segments_osm_id_idx` & `node_segments_wt_idx` are not used, I think we should remove their creation queries. `RESOLVED`
+- Indexes `node_segments_osm_id_idx` & `node_segments_wt_idx` are not used, I think we should remove their creation queries.
 
 ## Code
 !!! Warning Warning
@@ -108,8 +108,10 @@ CREATE TEMPORARY TABLE node_sequences AS
 							)
 );
 
--- Create index for `node_sequences` on (way_id, from_position)
-CREATE INDEX node_segments_wf_idx ON node_sequences(way_id, from_position); 
+-- Create indexes for `node_sequences` on (from_id, to_id), (way_id, from_position), (way_id, to_position)
+CREATE INDEX node_segments_osm_id_idx ON node_sequences(from_id, to_id);
+CREATE INDEX node_segments_wf_idx ON node_sequences(way_id, from_position); --USED
+CREATE INDEX node_segments_wt_idx ON node_sequences(way_id, to_position);
 
 RAISE NOTICE '% node sequences generated', (SELECT count(1) FROM node_sequences);
 
