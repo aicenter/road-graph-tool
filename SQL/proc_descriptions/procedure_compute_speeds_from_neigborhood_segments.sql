@@ -14,10 +14,10 @@ BEGIN
 	RAISE NOTICE 'selecting target ways';
 
 	-- 1.1 Create view target_ways
+  EXECUTE format($target_ways_view$
 	CREATE MATERIALIZED VIEW target_ways AS
-	(
-		SELECT ways.* FROM ways JOIN areas ON areas.id = target_area_id AND st_intersects(areas.geom, ways.geom)
-	);
+	SELECT ways.* FROM ways JOIN areas ON areas.id = %L AND st_intersects(areas.geom, ways.geom)
+  $target_ways_view$, target_area_id);
 
 	-- 1.2 Add index on target_ways(id)
 	CREATE INDEX target_ways_id_idx ON target_ways(id);
@@ -26,12 +26,12 @@ BEGIN
 	RAISE NOTICE 'creating node segments view';
 
 	-- 2.1 Create a view of node segments for the target ways
+  EXECUTE format($node_segments_view$
 	CREATE MATERIALIZED VIEW node_segments AS
-	(
 		SELECT
 			from_nodes_ways.id AS from_id,
 			to_node_ways.id AS to_id,
-			st_transform(st_makeline(from_nodes.geom, to_nodes.geom), target_area_srid) AS geom
+			st_transform(st_makeline(from_nodes.geom, to_nodes.geom), %L::integer) AS geom
 		FROM
 			nodes_ways from_nodes_ways
 		JOIN target_ways ON from_nodes_ways.way_id = target_ways.id
@@ -47,7 +47,7 @@ BEGIN
 		JOIN nodes from_nodes ON from_nodes_ways.node_id = from_nodes.id
 		JOIN nodes to_nodes ON to_node_ways.node_id = to_nodes.id
 		WHERE nodes_ways_speeds.to_node_ways_id IS NULL
-	);
+    $node_segments_view$, target_area_srid);
 
 	-- 2.2 Add index on geom (with the help of Generalized Search Tree)
 	CREATE INDEX node_segments_geom_idx
