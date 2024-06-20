@@ -1,6 +1,4 @@
 -- Procedure: compute_speeds_from_neigborhood_segments()
--- TODO: remove
--- CALL compute_speeds_from_neigborhood_segments(1::smallint, 2::integer);
 -- Testing cases:
 -- 1. **Invalid data**. Either passed value Is NULL -> test for throwing an error. (`target_area_id` is used only in creation __VIEW__ `target_ways`)
 -- 2. **Invalid data**. Given input is valid, but some data are missing from used tables (`areas`, `nodes`, `nodes_ways`) -> no new entries to target table. Basically check that no errors are raised.
@@ -125,7 +123,32 @@ CREATE OR REPLACE FUNCTION test_compute_speeds_from_neighborhood_segments_3() RE
 $$ LANGUAGE plpgsql;
 
 -- 4th case: Standard case. Second execution of the procedure with the same args does not lead to creation of duplicates
--- TODO
+CREATE OR REPLACE FUNCTION setup_compute_speeds_from_neighborhood_segments_4() RETURNS SETOF TEXT AS $$
+    DECLARE
+        record RECORD;
+    BEGIN
+        FOR record IN
+            SELECT * FROM setup_compute_speeds_from_neighborhood_segments_3()
+        LOOP
+            RETURN NEXT record;
+        END LOOP;
+
+        ALTER TABLE test3_expected_results RENAME TO test4_expected_results;
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_compute_speeds_from_neighborhood_segments_4() RETURNS SETOF TEXT AS $$
+    BEGIN
+    CALL compute_speeds_from_neighborhood_segments(1::smallint, 4326::integer);
+    RETURN NEXT diag('Checking that computed results are as expected');
+    RETURN NEXT set_eq('SELECT * FROM test4_expected_results', 'SELECT * FROM nodes_ways_speeds WHERE quality IN (3,4,5)');
+
+    -- now executing once more
+    CALL compute_speeds_from_neighborhood_segments(1::smallint, 4326::integer);
+    RETURN NEXT diag('Checking that no new records were added');
+    RETURN NEXT set_eq('SELECT * FROM test4_expected_results', 'SELECT * FROM nodes_ways_speeds WHERE quality IN (3,4,5)');
+    END;
+$$ LANGUAGE plpgsql;
 
 -- all tests
 CREATE OR REPLACE FUNCTION run_all_compute_speeds_from_neighborhood_segments() RETURNS SETOF TEXT AS $$
@@ -134,6 +157,8 @@ CREATE OR REPLACE FUNCTION run_all_compute_speeds_from_neighborhood_segments() R
 BEGIN
     FOR record IN
         SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_3')
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_4')
     LOOP
         RETURN NEXT record;
     END LOOP;
