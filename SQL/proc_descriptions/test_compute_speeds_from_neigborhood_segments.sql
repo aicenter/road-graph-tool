@@ -88,10 +88,26 @@ $$ LANGUAGE plpgsql;
 -- CALL test_env_destructor();
 
 -- 1st case: Invalid data. `target_area_id` is NULL OR `target_area_srid` is NULL
--- TODO
+CREATE OR REPLACE FUNCTION test_compute_speeds_from_neighborhood_segments_1() RETURNS SETOF TEXT AS $$
+    BEGIN
+    RETURN NEXT diag('Checking that an error is thrown when `target_area_id` is NULL');
+    RETURN NEXT throws_ok('compute_speeds_from_neighborhood_segments(NULL::smallint, 4326::integer)');
+
+    RETURN NEXT diag('Checking that an error is thrown when `target_area_srid` is NULL');
+    RETURN NEXT throws_ok('compute_speeds_from_neighborhood_segments(1::smallint, NULL::integer)');
+    END;
+$$ LANGUAGE plpgsql;
 
 -- 2nd case: Invalid data. Given input is valid, but some data are missing from used tables
 -- TODO
+-- CREATE OR REPLACE FUNCTION setup_compute_speeds_from_neighborhood_segments_2() RETURNS SETOF TEXT AS $$
+--     BEGIN
+--         -- remove all nodes_ways_speeds
+--         DELETE FROM nodes_ways_speeds;
+--     END;
+-- $$ LANGUAGE plpgsql;
+--
+-- CREATE OR REPLACE FUNCTION
 
 -- 3rd case: Standard case. All values present both in args and tables
 
@@ -156,6 +172,8 @@ CREATE OR REPLACE FUNCTION run_all_compute_speeds_from_neighborhood_segments() R
         record RECORD;
 BEGIN
     FOR record IN
+        SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_1')
+        UNION ALL
         SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_3')
         UNION ALL
         SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_4')
