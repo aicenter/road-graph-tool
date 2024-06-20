@@ -80,17 +80,15 @@ The `procedure_compute_speeds_from_neighborhood_segments` procedure computes spe
 - Q: Why `EXECUTE format('...')` is used? Im not really seeing the need in that - A: Leftover from debugging. `RESOLVED`
 - Q: Point 5.1 is reduceable to a value stored in some variable. Any need in create view? (The only assumption is that's leftover after debugging). - A: Usage of view prevents repeated usage of the same block of code to calculate the assigned segments count.
 - Q: Refresh of views kinda stinks (We're not updating `node_segments` after creation) (The reason may be that there could be concurrent modification of the table, but this function is supposed to run isolated, that's why im not sure why its here). - A: I guess everything comes down to `WHERE nodes_ways_speeds.to_node_ways_id IS NULL` clause in `node_segments` view creation query. Every time we refresh after insertion to `nodes_ways_speeds`, we basically remove those records from `node_segments`, which were used to add to the target table.
-- Q: `node_segments_osm_id_idx` looks like is not used at all. We may consider removing creation of this index. - A: 
+- Q: `node_segments_osm_id_idx` looks like is not used at all. We may consider removing creation of this index. - A: `RESOLVED`
 - Q: I've got to ask what is the relation between `target_area_id` and `target_area_srid`. I think there is indeed a strong connection between those values, that's why we may need to test the case when we pass unrelated values to this procedure (in which case it should throw an error or do nothing at all. Error would more informative to the User). - A:
-- Q: Do we need to add more testing cases? - A:
-- Q: In case we would want to implement the 1st test case in such way, that it would check for throwing, may I modify original procedure to throw such error (basically the same as we did with some of the previous procedures/functions)? - A:
+- Q: In case we would want to implement the 1st test case in such way, that it would check for throwing, may I modify original procedure to throw such error (basically the same as we did with some of the previous procedures/functions)? - A: Yup
 
 ## Testing cases
 1. **Invalid data**. Either passed value Is NULL -> test for throwing an error. (`target_area_id` is used only in creation __VIEW__ `target_ways`)
 2. **Invalid data**. Given input is valid, but some data are missing from used tables (`areas`, `nodes`, `nodes_ways`) -> no new entries to target table. Basically check that no errors are raised.
 3. **Standard case**. All values present both in args and tables -> check that average is as expected by every quality in range[3,5].
 4. **Standard case**. Second execution of the procedure with the same args does not lead to creation of duplicates.
-5. More?
 
 ## Code
 !!! Warning Warning
@@ -147,9 +145,7 @@ BEGIN
         WHERE nodes_ways_speeds.to_node_ways_id IS NULL
     );
 
-    -- 2.2 Add index on (from_id, to_id)
-    CREATE INDEX node_segments_osm_id_idx ON node_segments(from_id, to_id);
-    -- 2.3 Add index on geom (with the help of Generalized Search Tree)
+    -- 2.2 Add index on geom (with the help of Generalized Search Tree)
     CREATE INDEX node_segments_geom_idx
         ON node_segments
             USING GIST (geom);

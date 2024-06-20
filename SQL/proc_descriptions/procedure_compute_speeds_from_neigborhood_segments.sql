@@ -49,9 +49,7 @@ BEGIN
 		WHERE nodes_ways_speeds.to_node_ways_id IS NULL
 	);
 
-	-- 2.2 Add index on (from_id, to_id)
-	CREATE INDEX node_segments_osm_id_idx ON node_segments(from_id, to_id);
-	-- 2.3 Add index on geom (with the help of Generalized Search Tree)
+	-- 2.2 Add index on geom (with the help of Generalized Search Tree)
 	CREATE INDEX node_segments_geom_idx
 		ON node_segments
 			USING GIST (geom);
