@@ -1,7 +1,5 @@
 import json
 import logging
-import psycopg2
-import sqlalchemy
 import psycopg2.errors
 from sshtunnel import SSHTunnelForwarder
 
@@ -107,7 +105,7 @@ if __name__ == '__main__':
             except psycopg2.errors.InvalidParameterValue as e:
                 logging.info("Expected Error: ", e)
 
-            nodes = get_map_nodes_from_db(config, server.local_bind_port, area_id)
+            nodes = get_map_nodes_from_db(area_id)
             print(nodes)
 
             connection.commit()
