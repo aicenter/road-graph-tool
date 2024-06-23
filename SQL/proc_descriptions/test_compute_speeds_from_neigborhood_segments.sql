@@ -82,9 +82,10 @@ RETURNS VOID AS $$
 $$ LANGUAGE plpgsql;
 
 -- DEBUG: TODO remove
--- SELECT * FROM startup_compute_speeds_from_neigborhood_segments();
+-- SELECT * FROM startup_compute_speeds_from_neighborhood_segments();
 -- SELECT * FROM test_compute_speeds_from_neigborhood_segments_3();
 -- SELECT * FROM test_env.nodes_ways_speeds WHERE quality != 1 ORDER BY from_node_ways_id, to_node_ways_id;
+-- SELECT * FROM setup_compute_speeds_from_neighborhood_segments_2();
 -- CALL test_env_destructor();
 
 -- 1st case: Invalid data. `target_area_id` is NULL OR `target_area_srid` is NULL
@@ -99,15 +100,57 @@ CREATE OR REPLACE FUNCTION test_compute_speeds_from_neighborhood_segments_1() RE
 $$ LANGUAGE plpgsql;
 
 -- 2nd case: Invalid data. Given input is valid, but some data are missing from used tables
--- TODO
--- CREATE OR REPLACE FUNCTION setup_compute_speeds_from_neighborhood_segments_2() RETURNS SETOF TEXT AS $$
---     BEGIN
---         -- remove all nodes_ways_speeds
---         DELETE FROM nodes_ways_speeds;
---     END;
--- $$ LANGUAGE plpgsql;
---
--- CREATE OR REPLACE FUNCTION
+
+CREATE OR REPLACE FUNCTION setup_compute_speeds_from_neighborhood_segments_2() RETURNS SETOF TEXT AS $$
+    BEGIN
+        -- save all nodes_ways_speeds
+        CREATE TABLE test2_expected_results AS
+        SELECT * FROM nodes_ways_speeds;
+    END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION setup_compute_speeds_from_neighborhood_segments_2_areas() RETURNS SETOF TEXT AS $$
+    BEGIN
+        Delete from areas;
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_compute_speeds_from_neighborhood_segments_2_areas() RETURNS SETOF TEXT AS $$
+    BEGIN
+    CALL compute_speeds_from_neighborhood_segments(1::smallint, 4326::integer);
+    RETURN NEXT diag('"areas" was cleared. Expecting no new entries to be added');
+    RETURN NEXT set_eq('SELECT * FROM nodes_ways_speeds', 'SELECT * FROM test2_expected_results');
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION setup_compute_speeds_from_neighborhood_segments_2_nodes() RETURNS SETOF TEXT AS $$
+    BEGIN
+        Delete from nodes;
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_compute_speeds_from_neighborhood_segments_2_nodes() RETURNS SETOF TEXT AS $$
+    BEGIN
+    CALL compute_speeds_from_neighborhood_segments(1::smallint, 4326::integer);
+    RETURN NEXT diag('"nodes" was cleared. Expecting no new entries to be added');
+    RETURN NEXT set_eq('SELECT * FROM nodes_ways_speeds', 'SELECT * FROM test2_expected_results');
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION setup_compute_speeds_from_neighborhood_segments_2_nodesways() RETURNS SETOF TEXT AS $$
+    BEGIN
+        Delete from nodes_ways;
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_compute_speeds_from_neighborhood_segments_2_nodesways() RETURNS SETOF TEXT AS $$
+    BEGIN
+    CALL compute_speeds_from_neighborhood_segments(1::smallint, 4326::integer);
+    RETURN NEXT diag('"nodes_ways" was cleared. Expecting no new entries to be added');
+    RETURN NEXT set_eq('SELECT * FROM nodes_ways_speeds', 'SELECT * FROM test2_expected_results');
+    END;
+$$ LANGUAGE plpgsql;
 
 -- 3rd case: Standard case. All values present both in args and tables
 
@@ -173,6 +216,12 @@ CREATE OR REPLACE FUNCTION run_all_compute_speeds_from_neighborhood_segments() R
 BEGIN
     FOR record IN
         SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_1')
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_2_areas')
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_2_nodes')
+        UNION ALL
+        SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_2_nodesways')
         UNION ALL
         SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_3')
         UNION ALL
