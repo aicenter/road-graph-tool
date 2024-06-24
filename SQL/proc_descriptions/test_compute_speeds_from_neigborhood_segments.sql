@@ -58,10 +58,10 @@ CREATE OR REPLACE FUNCTION test_compute_speeds_from_neighborhood_segments_1() RE
 	BEGIN
 	RAISE NOTICE '--- test_compute_speeds_from_neighborhood_segments_1 ---';
 	RETURN NEXT diag('Checking that an error is thrown when `target_area_id` is NULL');
-	RETURN NEXT throws_ok('compute_speeds_from_neighborhood_segments(NULL::smallint, 4326::integer)');
+	RETURN NEXT throws_ok('CALL compute_speeds_from_neighborhood_segments(NULL::smallint, 4326::integer);');
 
 	RETURN NEXT diag('Checking that an error is thrown when `target_area_srid` is NULL');
-	RETURN NEXT throws_ok('compute_speeds_from_neighborhood_segments(1::smallint, NULL::integer)');
+	RETURN NEXT throws_ok('CALL compute_speeds_from_neighborhood_segments(1::smallint, NULL::integer);');
 	END;
 $$ LANGUAGE plpgsql;
 

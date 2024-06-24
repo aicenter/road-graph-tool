@@ -9,6 +9,15 @@ DECLARE
 	assigned_segments_count INTEGER;
 	new_assigned_segments_count INTEGER;
 BEGIN
+    -- 0. Check if the target_area_id is NULL
+    IF target_area_id IS NULL THEN
+        RAISE EXCEPTION 'target_area_id cannot be NULL' USING ERRCODE = '22004';
+    END IF;
+
+    -- 0.1 Check if the target_area_srid is NULL
+    IF target_area_srid IS NULL THEN
+        RAISE EXCEPTION 'target_area_srid cannot be NULL' USING ERRCODE = '22004';
+    END IF;
 
 	-- 1. Select the target ways withing the specified area
 	RAISE NOTICE 'selecting target ways';
