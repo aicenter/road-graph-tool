@@ -89,7 +89,6 @@ The `procedure_compute_speeds_from_neighborhood_segments` procedure computes spe
 2. **Invalid data**. Given input is valid, but some data are missing from used tables (`areas`, `nodes`, `nodes_ways`) -> no new entries to target table. Basically check that no errors are raised.
 3. **Standard case**. All values present both in args and tables -> check that average is as expected by every quality in range[3,5].
 4. **Standard case**. Second execution of the procedure with the same args does not lead to creation of duplicates.
-5. **Standard case**. Check that permutations of provided data in used tables lead to the same result. (e.g. TODO)
 
 ## Code
 !!! Warning Warning
