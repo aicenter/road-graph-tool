@@ -56,6 +56,10 @@ def assign_average_speed_to_all_segments_in_area(cursor, target_area_id: int, ta
 def compute_strong_components(cursor, target_area_id: int):
     cursor.execute('call public.compute_strong_components(%s::smallint)', (target_area_id,))
 
+def compute_speeds_for_segments(cursor, target_area_id: int, speed_records_dataset: int, hour: int, day_of_week: int):
+    cursor.execute('call public.compute_speeds_for_segments(%s::smallint, %s::smallint, %s::smallint, %s::smallint);',
+                   (target_area_id, speed_records_dataset, hour, day_of_week))
+
 
 if __name__ == '__main__':
 
@@ -109,6 +113,9 @@ if __name__ == '__main__':
 
             nodes = get_map_nodes_from_db(config, server.local_bind_port, area_id)
             print(nodes)
+
+            logging.info('Execution of compute_speeds_for_segments')
+            compute_speeds_for_segments(cur, area_id, 1, 12, 1)
 
             connection.commit()
             logging.info('commit')
