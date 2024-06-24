@@ -49,12 +49,16 @@ def select_network_nodes_in_area(cursor, target_area_id: int) -> list:
 
 
 def assign_average_speed_to_all_segments_in_area(cursor, target_area_id: int, target_area_srid: int):
-    cursor.execute('call public.assign_average_speed_to_all_segments_in_area(%s::smallint, %s::int)',
+    cursor.execute('call public.assign_average_speed_to_all_segments_in_area(%s::smallint, %s::int);',
                    (target_area_id, target_area_srid))
 
 
 def compute_strong_components(cursor, target_area_id: int):
     cursor.execute('call public.compute_strong_components(%s::smallint)', (target_area_id,))
+
+def compute_speeds_from_neighborhood_segments(cursor, target_area_id: int, target_area_srid: int):
+    cursor.execute('call public.compute_speeds_from_neighborhood_segments(%s::smallint, %s::int);',
+                   (target_area_id, target_area_srid))
 
 
 if __name__ == '__main__':
@@ -109,6 +113,9 @@ if __name__ == '__main__':
 
             nodes = get_map_nodes_from_db(config, server.local_bind_port, area_id)
             print(nodes)
+
+            logging.info('Execution of compute_speeds_from_neighborhood_segments')
+            compute_speeds_from_neighborhood_segments(cur, area_id, area_srid)
 
             connection.commit()
             logging.info('commit')
