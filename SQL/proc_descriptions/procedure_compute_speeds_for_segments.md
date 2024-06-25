@@ -3,29 +3,61 @@
 The purpose of this file is to ensure that there are as little misunderstandings as could be. That's why it serves to show how I (Vladyslav Zlochevskyi/zlochina) see what this function does. Also this way I might figure out what actually could be tested in this function.
 
 ## Description of the procedure
-- procedure name: compute_speeds_for_segments
-- the __name of the procedure__ + __arguments of the procedure__ implies that this procedure computes speeds for given hour + day_of_week in target area.
-- Input params of the procedure: `target_area_id::smallint`, `speeds_records_dataset`, `hour::smallint`, `day_of_week::smallint`. Returns nothing.
-- Flow:
-    - Create TEMP table `target_ways`, which is basically the same as return value of the function `get_ways_in_target_area(target_area_id smallint)`. But here we also add __INDEX__ to optimise search of the records. 
-    - Create TEMP table `node_sequences`. Table (`from_nodes_ways.node_id`, `to_node_ways.node_id`, `target_ways.id`, `from_nodes_ways.position`, `to_nodes_ways.position`). Basically creating records, which say from which __node__ to which __node__ you can get by which __way__ with additional info on __nodes' positions__ in a particular edge. Also some __INDEXes__ are added. 
-    - Main flow:
-        - __if-else statement__. If variable __day_of_week__ was not provided => __dataset_quality__=2, otherwise __dataset_quality__=1. This block creates TEMP table `grouped_speed_records` with (`from_osm_id`, `to_osm_id`, `speed`, `st_dev`) columns. If __dataset_quality__=1, then table `speed_records` is used as a source for TEMP table, otherwise table `speed_records_quarterly` is used.
-        - Save overall count of records from `nodes_ways_speeds` table to var __current_count__.
-        - __Insertion into nodes_ways_speeds__. Usage of union lets us to divide selection of data into 2 groups: ascending sequences, descending sequences, which are then merged by union.
+### Procedure Name
+`compute_speeds_for_segments`
 
+### Description
+The `compute_speeds_for_segments` procedure calculates speeds for a given hour and day of the week within a specified target area. 
 
+### Input Parameters
+- `target_area_id`::`smallint`: Identifier for the target area.
+- `speeds_records_dataset`: Identifier for the speed records dataset.
+- `hour`::`smallint`: The hour for which the speeds are being computed.
+- `day_of_week`::`smallint`: The day of the week for which the speeds are being computed. 
 
+### Returns
+- This procedure does not return any values.
+
+### Flow
+
+1. **Create Temporary Tables**
+    - **Temporary Table `target_ways`**:
+        - This table is created in the same way function `get_ways_in_target_area(target_area_id smallint)` creates table.
+        - An index is added to `target_ways` to optimize the search of the records.
+
+    - **Temporary Table `node_sequences`**:
+        - Structure: `(from_nodes_ways.node_id, to_node_ways.node_id, target_ways.id, from_nodes_ways.position, to_nodes_ways.position)`.
+        - This table contains records indicating from which node to which node one can travel via a specific way, with additional information on the nodes' positions in a particular edge.
+        - Indexes are added to this table for optimization.
+
+2. **Main Flow**
+    - **Conditional Block**:
+        - **If** `day_of_week` is not provided:
+            - Set `dataset_quality = 2`.
+        - **Else**:
+            - Set `dataset_quality = 1`.
+
+    - **Temporary Table `grouped_speed_records`**:
+        - Structure: `(from_osm_id, to_osm_id, speed, st_dev)`.
+        - If `dataset_quality = 1`, data for this table is sourced from `speed_records`.
+        - If `dataset_quality = 2`, data for this table is sourced from `speed_records_quarterly`.
+
+    - **Insertion into `nodes_ways_speeds`**:
+        - Use `UNION` to merge the selection of data into two groups: ascending sequences and descending sequences.
+        - Insert the merged data into `nodes_ways_speeds`.
+
+This procedure is designed to efficiently calculate and update speed records for given time parameters in a specified target area. The use of temporary tables and indexes ensures optimal performance during the data processing steps.
 
 ## TODO list
 - [x] Create description of the procedure
-- [x] Check if index `target_ways_id_idx` of `target_ways` is used. Is used
-- [x] Check if indexes `node_segments_osm_id_idx`, `node_segments_wf_idx`, `node_segments_wt_idx` of `node_sequences` table are used. Only `node_segments_wf_idx` is used -> Issue.
+- [x] Check if index `target_ways_id_idx` of `target_ways` is used. __Is indeed used__
+- [x] Check if indexes `node_segments_osm_id_idx`, `node_segments_wf_idx`, `node_segments_wt_idx` of `node_sequences` table are used. __Only `node_segments_wf_idx` is used__ -> Issue.
 - [x] Add deeper exaplanation of data selection for `grouped_speed_records` TEMP table. - No need, selection is plain.
-- [x] Replace `..., ...` in explanation of flow with classification name.
-- [ ] Reduction of TEMP tables into CTEs AKA With statements. - `target_ways`, `node_sequences` are candidates, not sure about `grouped_speed_records`.
-- [ ] Reduction of If-else statement with conditional WHERE clause with conditional WHERE clause. - Not easily achived as we have two different source for every case of dataset_quality, and refactored block with great chance would have worse perfomance. Does not worth it, in my opinion.
-- [ ] Reduction of calculation of average speed in 3rd step of main flow - it is calculated twice. May influence the execution perfomance depending on the number of stored data. - Not really sure, cause window function avg() applies after finding records, not before.
+- [ ] Reduction of TEMP tables into CTEs AKA With statements. - `target_ways` - used twice in independent contexts (first one for __STDOUT output__) + additional INDEXes, `node_sequences` - used twice in independent contexts (first one for __STDOUT output__) + 3 INDEXes, `grouped_speed_records` - same as previous two + different table sources are applied to different input of function.
+- [ ] Reduction of If-else statement (1. step) with conditional WHERE clause. - Not easily achived as we have two different source for every case of dataset_quality, and refactored block with great chance would have worse perfomance. Does not worth it, in my opinion.
+<!-- - [ ] Reduction of calculation of average speed in 3rd step of main flow - it is calculated twice. May influence the execution perfomance depending on the number of stored data. - Not really sure, cause window function avg() applies after finding records, not before. -->
+<!-- On the other hand, im not really sure why i've brought it up -->
+- [x] Humanize/formalize the description.
 
 ## QA
 - Indexes `node_segments_osm_id_idx` & `node_segments_wt_idx` are not used, I think we should remove their creation queries.
