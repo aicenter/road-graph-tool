@@ -87,21 +87,21 @@ SELECT * FROM get_ways_in_target_area(18::smallint);
 The `select_network_nodes_in_area` function is designed to retrieve network nodes within a specified geographic area. It returns a table containing information about the nodes such as their index, ID, coordinates, and geometry.
 
 ### Parameters.
-* `area_id`: A small integer representing the ID of the area for which network nodes are to be selected.
+- `area_id`: A small integer representing the ID of the area for which network nodes are to be selected.
 
 ### Return Value.
 The function returns a table with the following columns ordered by id:
 
-* `index`: An integer representing the index of the node.
-* `id`: A bigint representing the ID of the node.
-* `x`: A double precision value representing the x-coordinate of the node.
-* `y`: A double precision value representing the y-coordinate of the node.
-* `geom`: A geometry object representing the geometry of the node.
+| index | id | x | y | geom |
+| :---: | :---: | :---: | :---: | :---: |
+| integer | bigint | float | float | geometry |
+| _index of the node_ | _ID of the node in table `nodes`_ | _x-coordinate of the node_ | _y-coordinate of the node_ | _geometry of the node_ |
 
 ### Example.
-```SELECT * FROM select_network_nodes_in_area(Cast(5 As smallint));```
 
-
+```sql
+SELECT * FROM select_network_nodes_in_area(Cast(5 As smallint));
+```
 
 # SQL Procedures
 
