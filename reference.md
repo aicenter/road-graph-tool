@@ -3,23 +3,28 @@
 ## Export Functions (export.py)
 
 ### `Function : `get_map_nodes_from_db`
+
+#### Description.
 This function retrieves map nodes from a database based on the area ID. It utilizes SQLAlchemy for database connectivity and GeoPandas for handling geographic data.
 
-#### Parameters
+#### Parameters.
 - `config`: A dictionary containing configuration parameters for database connectivity.
 - `server_port`: The port number of the database server.
 - `area_id` (int): The ID of the area for which nodes are to be retrieved.
 
-#### Returns
+#### Return Value.
 - `gpd.GeoDataFrame`: A GeoDataFrame containing the retrieved map nodes.
 
 # SQL Functions
 
 
 ## `get_area_for_demand`
+
+### Description.
+
 This function generates a geometric area around specified zones based on certain criteria related to demand.
 
-### Parameters:
+### Parameters.
 
 - `srid_plain` (integer): The SRID of the plain geometry.
 - `dataset_ids` (array of smallint): An array of dataset IDs to filter the demand.
@@ -31,7 +36,7 @@ This function generates a geometric area around specified zones based on certain
 - `center_point` (geometry, default: NULL): The center point for filtering zones.
 - `max_distance_from_center_point_meters` (integer, default: 10000): The maximum distance in meters from the center point.
 
-### Returns:
+### Return Value.
 
 - `target_area` (geometry): The generated geometric area around the specified zones.
 
@@ -52,17 +57,39 @@ from get_area_for_demand(
 );
 ```
 
+## `get_ways_in_target_area`
 
+### Description.
+
+This function serves as a helper function to the procedure `assign_average_speed_to_all_segments_in_area()`.\
+Based on the given area identifier function selects ways, which intersects with the geometry of the area.
+
+### Parameters.
+
+- `target_area_id` (smallint). Identifier of the area, for which intersecting ways are looked up.
+
+### Return Value.
+
+- Table in the format:
+
+| id | tags | geom | area | "from" | "to" | oneway |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| bigint | hstore | geometry | integer | bigint | bigint | boolean |
+
+### Example.
+```sql
+SELECT * FROM get_ways_in_target_area(18::smallint);
+```
 
 ## `select_network_nodes_in_area`
 
-### Overview
+### Description.
 The `select_network_nodes_in_area` function is designed to retrieve network nodes within a specified geographic area. It returns a table containing information about the nodes such as their index, ID, coordinates, and geometry.
 
-### Parameters
+### Parameters.
 * `area_id`: A small integer representing the ID of the area for which network nodes are to be selected.
 
-### Return Type
+### Return Value.
 The function returns a table with the following columns ordered by id:
 
 * `index`: An integer representing the index of the node.
@@ -71,7 +98,7 @@ The function returns a table with the following columns ordered by id:
 * `y`: A double precision value representing the y-coordinate of the node.
 * `geom`: A geometry object representing the geometry of the node.
 
-### Example
+### Example.
 ```SELECT * FROM select_network_nodes_in_area(Cast(5 As smallint));```
 
 
