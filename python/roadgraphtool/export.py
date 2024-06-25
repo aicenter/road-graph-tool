@@ -1,11 +1,10 @@
 import logging
-import sqlalchemy
 import geopandas as gpd
 
-from db import get_sql_alchemy_engine_str
+from roadgraphtool.db import db
 
 
-def get_map_nodes_from_db(config: dict, server_port, area_id : int) -> gpd.GeoDataFrame:
+def get_map_nodes_from_db(area_id: int) -> gpd.GeoDataFrame:
     logging.info("Fetching nodes from db")
     sql = f"""
     DROP TABLE IF EXISTS demand_nodes;
@@ -29,8 +28,6 @@ def get_map_nodes_from_db(config: dict, server_port, area_id : int) -> gpd.GeoDa
         geom
     FROM demand_nodes
     """
-    sql_alchemy_engine_str = get_sql_alchemy_engine_str(config, server_port)
     logging.info("Starting sql_alchemy connection")
-    sqlalchemy_engine = sqlalchemy.create_engine(sql_alchemy_engine_str)
 
-    return gpd.read_postgis(sql, sqlalchemy_engine)
+    return db.execute_query_to_geopandas(sql)
