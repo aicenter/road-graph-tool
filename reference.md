@@ -169,21 +169,21 @@ CALL assign_average_speed_to_all_segments_in_area(1, 4326);
 
 Here's what should be added to the reference.md file based on the provided procedure description:
 
-# compute_speeds_for_segments
+## compute_speeds_for_segments
 
-## Description
+### Description
 Calculates speeds for a given hour and day of the week within a specified target area.
 
-## Input Parameters
+### Input Parameters
 - `target_area_id` (smallint): Identifier for the target area.
 - `speeds_records_dataset` (smallint): Identifier for the speed records dataset.
 - `hour` (smallint): The hour for which the speeds are being computed.
 - `day_of_week` (smallint): The day of the week for which the speeds are being computed (optional).
 
-## Returns
+### Returns
 This procedure does not return any values.
 
-## Operations
+### Operations
 
 1. Create temporary tables:
    - `target_ways`: Contains ways in the target area.
@@ -201,9 +201,49 @@ This procedure does not return any values.
    - Merge data selection into two groups: ascending sequences and descending sequences.
    - Insert the merged data into `nodes_ways_speeds`.
 
-## Notes
+### Notes
 - The procedure uses temporary tables and indexes for optimal performance.
 - It processes data differently based on whether a specific day of the week is provided or not.
+
+## `compute_speeds_from_neighborhood_segments`
+
+### Description
+This procedure computes speeds for road segments within a specified target area using nearby segments' speed data and overall average speeds. It assigns speeds to segments in the `nodes_ways_speeds` table based on proximity and overall averages.
+
+### Parameters
+- `target_area_id` (smallint): Identifier for the target area.
+- `target_area_srid` (integer): Spatial reference system identifier for the target area.
+
+### Operations
+1. Create materialized view `target_ways` for roads within the specified area.
+2. Create materialized view `node_segments` for segments between nodes in target ways, excluding segments with assigned speeds.
+3. Create temporary table `speed_segment_data` with geometric representation of segments, speeds, and standard deviations.
+4. Assign speeds to segments within 10 meters, setting quality to 3.
+5. Assign speeds to segments within 200 meters, setting quality to 4.
+6. Calculate overall average speed and standard deviation.
+7. Assign overall average speed to remaining segments, setting quality to 5.
+8. Clean up temporary objects.
+
+### Notes
+- The procedure uses spatial operations and joins to compute and assign speeds.
+- Speed assignments are done in stages, with increasing distance thresholds and decreasing quality values.
+- Temporary views and tables are used for efficient data manipulation.
+
+### Example
+```sql
+CALL compute_speeds_from_neighborhood_segments(1, 4326);
+```
+or
+```sql
+CALL compute_speeds_from_neighborhood_segments(
+    target_area_id := 1,
+    target_area_srid := 4326
+);
+```
+
+### Error Handling
+- The procedure may throw an error if invalid or null values are passed for `target_area_id` or `target_area_srid`.
+- No new entries will be added to the target table if required data is missing from related tables (`areas`, `nodes`, `nodes_ways`).
 
 ## `compute_strong_components`
 
