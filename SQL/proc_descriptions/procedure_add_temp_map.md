@@ -1,4 +1,4 @@
-# 1st procedure
+# Procedure add temp map
 ## Purpose of this file
 The puprose of this file is to ensure that there are as little misunderstandings as could be. That's why it serves to show how I (Vladyslav Zlochevskyi) see what 1st procedure does.
 Also this way I might figure out what actually could be tested in this procedure.

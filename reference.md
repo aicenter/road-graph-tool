@@ -103,6 +103,37 @@ SELECT * FROM select_network_nodes_in_area(CAST(5 AS smallint));
 
 # SQL Procedures
 
+## `add_temp_map`
+
+### Description
+This procedure transfers data from temporary tables (with prefix `_tmp`, not SQL `TEMP TABLE`) to permanent tables for a specified map area. It first removes existing data for the given area from permanent tables, then inserts new data from corresponding temporary tables.
+
+### Parameters
+- `map_area` (integer): The identifier of the map area for which data is being added or updated.
+
+### Operations
+1. Delete existing data for the specified `map_area` from permanent tables:
+   - `ways`
+   - `nodes`
+   - `nodes_ways`
+2. Insert new data from temporary tables to permanent tables:
+   - Insert into `nodes` from `nodes_tmp`
+   - Insert into `ways` from `ways_tmp`, joining with `nodes_tmp`
+   - Insert into `nodes_ways` from `nodes_ways_tmp`, joining with `ways_tmp` and `nodes_tmp`
+
+### Notes
+- All insert operations use `ON CONFLICT DO NOTHING` clause to handle potential conflicts.
+- The procedure assumes that temporary tables contain only data related to the specified `map_area`.
+
+### Example
+```sql
+CALL add_temp_map(5);
+```
+or
+```sql
+CALL add_temp_map(map_area := 5);
+```
+
 ## `compute_strong_components`
 
 ### Description
