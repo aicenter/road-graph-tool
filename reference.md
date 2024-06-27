@@ -2,30 +2,27 @@
 
 ## Export Functions (export.py)
 
-### `Function : `get_map_nodes_from_db`
+### `get_map_nodes_from_db`
 
-#### Description.
+#### Description
 This function retrieves map nodes from a database based on the area ID. It utilizes SQLAlchemy for database connectivity and GeoPandas for handling geographic data.
 
-#### Parameters.
+#### Parameters
 - `config`: A dictionary containing configuration parameters for database connectivity.
 - `server_port`: The port number of the database server.
 - `area_id` (int): The ID of the area for which nodes are to be retrieved.
 
-#### Return Value.
+#### Return Value
 - `gpd.GeoDataFrame`: A GeoDataFrame containing the retrieved map nodes.
 
 # SQL Functions
 
-
 ## `get_area_for_demand`
 
-### Description.
-
+### Description
 This function generates a geometric area around specified zones based on certain criteria related to demand.
 
-### Parameters.
-
+### Parameters
 - `srid_plain` (integer): The SRID of the plain geometry.
 - `dataset_ids` (array of smallint): An array of dataset IDs to filter the demand.
 - `zone_types` (array of smallint): An array of zone types to filter.
@@ -36,15 +33,12 @@ This function generates a geometric area around specified zones based on certain
 - `center_point` (geometry, default: NULL): The center point for filtering zones.
 - `max_distance_from_center_point_meters` (integer, default: 10000): The maximum distance in meters from the center point.
 
-### Return Value.
-
+### Return Value
 - `target_area` (geometry): The generated geometric area around the specified zones.
 
-### Example:
-
+### Example
 ```sql
-select *
-from get_area_for_demand(
+SELECT * FROM get_area_for_demand(
     srid_plain := 4326,
     dataset_ids := ARRAY[1, 2, 3]::smallint[],
     zone_types := ARRAY[1, 2, 3]::smallint[],
@@ -59,48 +53,52 @@ from get_area_for_demand(
 
 ## `get_ways_in_target_area`
 
-### Description.
+### Description
+This function serves as a helper function to the procedure `assign_average_speed_to_all_segments_in_area()`. Based on the given area identifier, it selects ways that intersect with the geometry of the area.
 
-This function serves as a helper function to the procedure `assign_average_speed_to_all_segments_in_area()`.\
-Based on the given area identifier function selects ways, which intersects with the geometry of the area.
+### Parameters
+- `target_area_id` (smallint): Identifier of the area for which intersecting ways are looked up.
 
-### Parameters.
+### Return Value
+Table in the format:
 
-- `target_area_id` (smallint). Identifier of the area, for which intersecting ways are looked up.
+| Column | Type |
+|--------|------|
+| id | bigint |
+| tags | hstore |
+| geom | geometry |
+| area | integer |
+| from | bigint |
+| to | bigint |
+| oneway | boolean |
 
-### Return Value.
-
-- Table in the format:
-
-| id | tags | geom | area | "from" | "to" | oneway |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| bigint | hstore | geometry | integer | bigint | bigint | boolean |
-
-### Example.
+### Example
 ```sql
 SELECT * FROM get_ways_in_target_area(18::smallint);
 ```
 
 ## `select_network_nodes_in_area`
 
-### Description.
-The `select_network_nodes_in_area` function is designed to retrieve network nodes within a specified geographic area. It returns a table containing information about the nodes such as their index, ID, coordinates, and geometry.
+### Description
+The `select_network_nodes_in_area` function retrieves network nodes within a specified geographic area.
 
-### Parameters.
-- `area_id`: A small integer representing the ID of the area for which network nodes are to be selected.
+### Parameters
+- `area_id` (smallint): The ID of the area for which network nodes are to be selected.
 
-### Return Value.
-The function returns a table with the following columns ordered by id:
+### Return Value
+Table with the following columns ordered by id:
 
-| index | id | x | y | geom |
-| :---: | :---: | :---: | :---: | :---: |
-| integer | bigint | float | float | geometry |
-| _index of the node_ | _ID of the node in table `nodes`_ | _x-coordinate of the node_ | _y-coordinate of the node_ | _geometry of the node_ |
+| Column | Type | Description |
+|--------|------|-------------|
+| index | integer | Index of the node |
+| id | bigint | ID of the node in table `nodes` |
+| x | float | x-coordinate of the node |
+| y | float | y-coordinate of the node |
+| geom | geometry | Geometry of the node |
 
-### Example.
-
+### Example
 ```sql
-SELECT * FROM select_network_nodes_in_area(Cast(5 As smallint));
+SELECT * FROM select_network_nodes_in_area(CAST(5 AS smallint));
 ```
 
 # SQL Procedures
@@ -108,46 +106,38 @@ SELECT * FROM select_network_nodes_in_area(Cast(5 As smallint));
 ## `compute_strong_components`
 
 ### Description
-The `compute_strong_components.sql` procedure computes strong components for a specified target area and stores the results in the `component_data` table.
+The `compute_strong_components` procedure computes strong components for a specified target area and stores the results in the `component_data` table.
 
 ### Parameters
-- `target_area_id`: A small integer representing area for which strong components are computed.
+- `target_area_id` (smallint): Area for which strong components are computed.
 
 ### Operations
-   - **Create Temporary Table**: A temporary table named `components` is created to store the strong components.
-   - **Execute Query**: The `pgr_strongcomponents` function is called with a formatted SQL query to compute the strong components based on the target area's geometry and edge data.
-   - **Storing Results**: stores the computed strong components in the `component_data` table.
-   - **Drop Temporary Table**: The temporary table `components` is dropped to free up memory resources.
+1. Create temporary table `components` to store strong components.
+2. Execute `pgr_strongcomponents` function to compute strong components.
+3. Store results in the `component_data` table.
+4. Drop temporary table `components`.
 
 ### Example
 ```sql
-
--- Compute strong components for the target area with ID 5
-call compute_strong_components(Cast(5 As smallint));
+CALL compute_strong_components(CAST(5 AS smallint));
 ```
 or
 ```sql
-call compute_strong_components(target_area_id := Cast(5 As smallint));
+CALL compute_strong_components(target_area_id := CAST(5 AS smallint));
 ```
 
 ![compute_strong_components](https://github.com/aicenter/road-graph-tool/assets/25695606/cf1e0fff-1307-4226-af08-cb1c17d4c3f2)
 
+## `contract_graph_in_area`
 
-## `contract_graph_in_area.sql`
-
-### Purpose:
-
+### Description
 This procedure optimizes road network data within a specific area by contracting the graph representation of the road network and generating optimized edge data.
 
-
-### Inputs:
-
-* `target_area_id`: A small integer representing the target geographical area ID.
-* `target_area_srid`: An integer representing the spatial reference identifier for the target geographical area.
-
+### Parameters
+- `target_area_id` (smallint): The target geographical area ID.
+- `target_area_srid` (integer): The spatial reference identifier for the target geographical area.
 
 ### Operations
-
 1. Create Temporary Table `road_segments`:
     * This operation selects road segment data within the specified geographical area using the `select_node_segments_in_area` function and creates a temporary table named `road_segments`.
     * The road segments are filtered based on the `target_area_id` and `target_area_srid` parameters.
@@ -171,43 +161,30 @@ This procedure optimizes road network data within a specific area by contracting
 
 ![procedure_contract_graph_in_area](https://github.com/aicenter/road-graph-tool/assets/25695606/8de0fd29-6500-4a13-a3c1-31b57f864c65)
 
-
 ### Outputs
-
-* The procedure updates the `nodes` table to mark contracted nodes.
-* Edge data for both contracted and non-contracted road segments is inserted into the `edges` table, providing an optimized representation of the road network within the specified geographical area.
-
-
-### Usage
-
-* Call the procedure with appropriate values for `target_area_id` and `target_area_srid` to process road segment data and optimize the graph representation of the road network.
-
+- Updates `nodes` table to mark contracted nodes.
+- Inserts edge data for both contracted and non-contracted road segments into the `edges` table.
 
 ### Example
-
+```sql
+CALL public.contract_graph_in_area(CAST(0 AS smallint), 0);
 ```
-call public.contract_graph_in_area(Cast(0 As smallint), 0);	
-```
-
-
 or
-
-
+```sql
+CALL public.contract_graph_in_area(target_area_id := CAST(0 AS smallint), target_area_srid := 0);
 ```
-call public.contract_graph_in_area(target_area_id := Cast(0 As smallint), target_area_srid := 0);
-```
-
 
 ## `insert_area`
 TODO update, now it is not a procedure!
 
-### Description:
+### Description
 This function inserts a new area into a database table named `areas`. The area is defined by its name and a list of coordinates representing its geometry.
 
-### Parameters:
-- `name` : The name of the area being inserted (String).
-- `coordinates` : A list of coordinates representing the geometry of the area.
+### Parameters
+- `name` (string): The name of the area being inserted.
+- `coordinates` (list): A list of coordinates representing the geometry of the area.
 
-### Example :
+### Example
 ```sql
-insert into areas(name, geom) values('name', st_geomfromgeojson('{"type": "MultiPolygon", "coordinates": []}'))
+INSERT INTO areas(name, geom) VALUES('name', st_geomfromgeojson('{"type": "MultiPolygon", "coordinates": []}'));
+```
