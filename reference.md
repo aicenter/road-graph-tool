@@ -37,7 +37,7 @@ This function retrieves map nodes from a database based on the area ID. It utili
 
 # SQL Functions
 
-## `get_area_for_demand`
+## [`get_area_for_demand`](SQL/functions/function_get_area_for_demand.sql)
 
 ### Description
 This function generates a geometric area around specified zones based on certain criteria related to demand.
@@ -71,7 +71,7 @@ SELECT * FROM get_area_for_demand(
 );
 ```
 
-## `get_ways_in_target_area`
+## [`get_ways_in_target_area`](SQL/functions/function_get_ways_in_target_area.sql)
 
 ### Description
 This function serves as a helper function to the procedure `assign_average_speed_to_all_segments_in_area()`. Based on the given area identifier, it selects ways that intersect with the geometry of the area.
@@ -97,7 +97,7 @@ Table in the format:
 SELECT * FROM get_ways_in_target_area(18::smallint);
 ```
 
-## `select_network_nodes_in_area`
+## [`select_network_nodes_in_area`](SQL/functions/function_select_network_nodes_in_area.sql)
 
 ### Description
 The `select_network_nodes_in_area` function retrieves network nodes within a specified geographic area.
@@ -123,7 +123,7 @@ SELECT * FROM select_network_nodes_in_area(CAST(5 AS smallint));
 
 # SQL Procedures
 
-## `add_temp_map`
+## [`add_temp_map`](SQL/procedures/procedure_add_temp_map.sql)
 
 ### Description
 This procedure transfers data from temporary tables (with prefix `_tmp`, not SQL `TEMP TABLE`) to permanent tables for a specified map area. It first removes existing data for the given area from permanent tables, then inserts new data from corresponding temporary tables.
@@ -154,7 +154,7 @@ or
 CALL add_temp_map(map_area := 5);
 ```
 
-## `assign_average_speed_to_all_segments_in_area`
+## [`assign_average_speed_to_all_segments_in_area`](SQL/procedures/procedure_assign_average_speed_to_all_segments_in_area.sql)
 
 ### Description
 This procedure assigns average speed to all segments in a specified area. It calculates the average speed and standard deviation from existing data, then applies these values to segments within the target area.
@@ -189,7 +189,7 @@ CALL assign_average_speed_to_all_segments_in_area(1, 4326);
 
 Here's what should be added to the reference.md file based on the provided procedure description:
 
-## compute_speeds_for_segments
+## [`compute_speeds_for_segments`](SQL/procedures/procedure_compute_speeds_for_segments.sql)
 
 ### Description
 Calculates speeds for a given hour and day of the week within a specified target area.
@@ -225,7 +225,7 @@ This procedure does not return any values.
 - The procedure uses temporary tables and indexes for optimal performance.
 - It processes data differently based on whether a specific day of the week is provided or not.
 
-## `compute_speeds_from_neighborhood_segments`
+## [`compute_speeds_from_neighborhood_segments`](SQL/procedures/procedure_compute_speeds_from_neigborhood_segments.sql)
 
 ### Description
 This procedure computes speeds for road segments within a specified target area using nearby segments' speed data and overall average speeds. It assigns speeds to segments in the `nodes_ways_speeds` table based on proximity and overall averages.
@@ -265,7 +265,7 @@ CALL compute_speeds_from_neighborhood_segments(
 - The procedure may throw an error if invalid or null values are passed for `target_area_id` or `target_area_srid`.
 - No new entries will be added to the target table if required data is missing from related tables (`areas`, `nodes`, `nodes_ways`).
 
-## `compute_strong_components`
+## [`compute_strong_components`](SQL/procedures/procedure_compute_strongly_connected_components.sql)
 
 ### Description
 The `compute_strong_components` procedure computes strong components for a specified target area and stores the results in the `component_data` table.
@@ -290,7 +290,7 @@ CALL compute_strong_components(target_area_id := CAST(5 AS smallint));
 
 ![compute_strong_components](https://github.com/aicenter/road-graph-tool/assets/25695606/cf1e0fff-1307-4226-af08-cb1c17d4c3f2)
 
-## `contract_graph_in_area`
+## [`contract_graph_in_area`](SQL/procedures/procedure_contract_graph_in_area.sql)
 
 ### Description
 This procedure optimizes road network data within a specific area by contracting the graph representation of the road network and generating optimized edge data.
@@ -336,7 +336,7 @@ or
 CALL public.contract_graph_in_area(target_area_id := CAST(0 AS smallint), target_area_srid := 0);
 ```
 
-## `insert_area`
+## [`insert_area`](SQL/insert_area.sql)
 TODO update, now it is not a procedure!
 
 ### Description
