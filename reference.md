@@ -1,3 +1,23 @@
+# Table of Contents
+
+1. [Python Functions](#python-functions)
+   1. [Export Functions (export.py)](#export-functions-exportpy)
+      - [get_map_nodes_from_db](#get_map_nodes_from_db)
+
+2. [SQL Functions](#sql-functions)
+   - [get_area_for_demand](#get_area_for_demand)
+   - [get_ways_in_target_area](#get_ways_in_target_area)
+   - [select_network_nodes_in_area](#select_network_nodes_in_area)
+
+3. [SQL Procedures](#sql-procedures)
+   - [add_temp_map](#add_temp_map)
+   - [assign_average_speed_to_all_segments_in_area](#assign_average_speed_to_all_segments_in_area)
+   - [compute_speeds_for_segments](#compute_speeds_for_segments)
+   - [compute_speeds_from_neighborhood_segments](#compute_speeds_from_neighborhood_segments)
+   - [compute_strong_components](#compute_strong_components)
+   - [contract_graph_in_area](#contract_graph_in_area)
+   - [insert_area](#insert_area)
+
 # Python Functions
 
 ## Export Functions (export.py)
