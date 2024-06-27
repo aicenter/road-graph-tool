@@ -134,6 +134,39 @@ or
 CALL add_temp_map(map_area := 5);
 ```
 
+## `assign_average_speed_to_all_segments_in_area`
+
+### Description
+This procedure assigns average speed to all segments in a specified area. It calculates the average speed and standard deviation from existing data, then applies these values to segments within the target area.
+
+### Parameters
+- `target_area_id` (smallint): The identifier of the target area.
+- `target_area_srid` (integer): The Spatial Reference System Identifier for the target area.
+
+### Operations
+1. Calculate average speed and standard deviation from `nodes_ways_speeds` table where quality is 1 or 2.
+2. Identify target ways using `get_ways_in_target_area` function.
+3. Generate node segments for the target area.
+4. Insert new records into `nodes_ways_speeds` table with calculated average speed, standard deviation, and quality 5.
+
+### CTEs (Common Table Expressions)
+1. `average_speed`: Calculates average speed and standard deviation.
+2. `target_ways`: Retrieves ways in the target area.
+3. `node_segments`: Generates node segments for the target area.
+
+### Notes
+- The procedure uses `ON CONFLICT DO NOTHING` to handle potential conflicts during insertion.
+- It assigns a quality of 5 to newly inserted records.
+- The procedure raises notices about the progress of the operation.
+
+### Example
+```sql
+CALL assign_average_speed_to_all_segments_in_area(1, 4326);
+```
+
+### Error Handling
+- The procedure throws exceptions for invalid area IDs and when the `nodes_ways_speeds` table is empty before execution.
+
 ## `compute_strong_components`
 
 ### Description
