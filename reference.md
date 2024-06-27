@@ -167,6 +167,44 @@ CALL assign_average_speed_to_all_segments_in_area(1, 4326);
 ### Error Handling
 - The procedure throws exceptions for invalid area IDs and when the `nodes_ways_speeds` table is empty before execution.
 
+Here's what should be added to the reference.md file based on the provided procedure description:
+
+# compute_speeds_for_segments
+
+## Description
+Calculates speeds for a given hour and day of the week within a specified target area.
+
+## Input Parameters
+- `target_area_id` (smallint): Identifier for the target area.
+- `speeds_records_dataset` (smallint): Identifier for the speed records dataset.
+- `hour` (smallint): The hour for which the speeds are being computed.
+- `day_of_week` (smallint): The day of the week for which the speeds are being computed (optional).
+
+## Returns
+This procedure does not return any values.
+
+## Operations
+
+1. Create temporary tables:
+   - `target_ways`: Contains ways in the target area.
+   - `node_sequences`: Contains records indicating from which node to which node one can travel via a specific way.
+
+2. Determine dataset quality:
+   - If `day_of_week` is not provided, set `dataset_quality = 2`.
+   - Otherwise, set `dataset_quality = 1`.
+
+3. Create temporary table `grouped_speed_records`:
+   - If `dataset_quality = 1`, source data from `speed_records`.
+   - If `dataset_quality = 2`, source data from `speed_records_quarterly`.
+
+4. Insert data into `nodes_ways_speeds`:
+   - Merge data selection into two groups: ascending sequences and descending sequences.
+   - Insert the merged data into `nodes_ways_speeds`.
+
+## Notes
+- The procedure uses temporary tables and indexes for optimal performance.
+- It processes data differently based on whether a specific day of the week is provided or not.
+
 ## `compute_strong_components`
 
 ### Description
