@@ -31,7 +31,11 @@ For testing the PostgreSQL procedures that are the core of the tool, we use the 
 To run the tests, follow these steps:
 1. Install the `pgTAP` extension in your PostgreSQL database according to the [pgTAP manual](./doc/pgtap.md).
 2. Ensure all functions and procedures from the `SQL/` directory are present in your database.
-3. Execute the tests by running the following query in your PostgreSQL console:
+3. Create a new schema named `test_env` if it doesn't already exist. This schema will serve as the testing environment. You can create it using the following SQL command:
+```sql
+CREATE SCHEMA IF NOT EXISTS test_env;
+```
+4. Execute the tests by running the following query in your PostgreSQL console:
 ```sql
    SELECT * FROM run_all_tests();
    ```
