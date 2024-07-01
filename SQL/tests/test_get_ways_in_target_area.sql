@@ -150,7 +150,7 @@ $$ LANGUAGE plpgsql;
 -- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area'); -- tests 3rd case
 
 -- Example of combination
-CREATE OR REPLACE FUNCTION run_all_tests() RETURNS SETOF TEXT AS
+CREATE OR REPLACE FUNCTION run_all_get_ways_in_target_area_tests() RETURNS SETOF TEXT AS
 $$
 BEGIN
     -- run tests

@@ -214,11 +214,11 @@ $$ LANGUAGE plpgsql;
 
 
 -- all tests
-CREATE OR REPLACE FUNCTION run_all_compute_speeds_from_neighborhood_segments() RETURNS SETOF TEXT AS $$
+CREATE OR REPLACE FUNCTION run_all_compute_speeds_from_neighborhood_segments_tests() RETURNS SETOF TEXT AS $$
 	DECLARE
 		record RECORD;
 BEGIN
-		RAISE NOTICE '--- run_all_compute_speeds_from_neighborhood_segments ---';
+		RAISE NOTICE '--- run_all_compute_speeds_from_neighborhood_segments_tests ---';
 	FOR record IN
 		SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_1')
 		UNION ALL
@@ -241,4 +241,4 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Run tests
--- SELECT * FROM run_all_compute_speeds_from_neighborhood_segments();
+-- SELECT * FROM run_all_compute_speeds_from_neighborhood_segments_tests();
