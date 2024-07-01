@@ -27,9 +27,16 @@ Then, run the `main.py` script.
 # Testing
 For testing the PostgreSQL procedures that are the core of the tool, we use the `pgTAP` testing framework. To learn how to use `pgTAP`, see the [pgTAP manual](./doc/pgtap.md).
 
-To run the tests:
+
+To run the tests, follow these steps:
 1. Install the `pgTAP` extension in your PostgreSQL database according to the [pgTAP manual](./doc/pgtap.md).
-2. TODO
+2. Ensure all functions and procedures from the `SQL/` directory are present in your database.
+3. Execute the tests by running the following query in your PostgreSQL console:
+```sql
+   SELECT * FROM run_all_tests();
+   ```
+
+This query will return a result set containing the execution status of each test.
 
 # Components
 The road graph tool consists of a set of components that are responsible for individual processing steps, importing data, or exporting data. Each component is implemented as an PostgreSQL procedure, possibly calling other procedures or functions. Additionally, each component has its own Python wrapper script that connects to the database and calls the procedure. Currently, the following components are implemented:
