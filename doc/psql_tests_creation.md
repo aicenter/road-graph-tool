@@ -10,7 +10,10 @@
 4. [Running Tests](#running-tests)
    - [`runtests()`](#runtests)
    - [`mob_group_runtests()`](#mob_group_runtests)
-5. [Examples](#examples)
+5. [Running All Tests](#running-all-tests)
+   - [Main Testing Function Format](#main-testing-function-format)
+   - [Example](#example)
+6. [Examples](#examples)
 
 ## Prerequisites
 
@@ -94,6 +97,50 @@ This function adapts `runtests()` with additional features:
    - Implements hierarchical grouping using underscores `_`.
 
 For more information on hierarchical grouping, refer to the [useful notes section](./pgtap.md#useful-notes) of our PgTap guide.
+
+## Running All Tests
+
+We highly recommend creating a main testing function when writing tests. This function should have a strict naming convention in the format "run_all_{DYNAMIC_FUNCTION_NAME}_tests". The purpose of this naming is to allow our `run_all_tests()` function to find and execute your tests.
+
+### Main Testing Function Format
+
+```sql
+CREATE OR REPLACE FUNCTION run_all_{DYNAMIC_FUNCTION_NAME}_tests() RETURNS SETOF TEXT AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT * FROM mob_group_runtests('{pattern1}')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('{pattern2}')
+    -- Add more UNION ALL clauses as needed
+    ;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### Example
+
+```sql
+CREATE OR REPLACE FUNCTION run_all_get_ways_in_target_area_tests() RETURNS SETOF TEXT AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area$')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_delete_area')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('public', '_get_ways_in_target_area_no_target_area')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_ways_intersecting_target_area')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area');
+END;
+$$ LANGUAGE plpgsql;
+```
+
+This main testing function combines multiple `mob_group_runtests()` calls to run all related tests for the `get_ways_in_target_area` functionality. The `run_all_tests()` function can then find and execute this function to run all tests for this specific feature.
 
 ## Examples
 
