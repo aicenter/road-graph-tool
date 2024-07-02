@@ -142,11 +142,15 @@ SELECT * FROM runtests('foo_foo');
 -- Execution order:
 -- 1. startup_bar()
 -- 2. startup_foo()
--- 3. setup_foo_foo()
--- 4. setup_foo_fooooo()
--- 5. test_foo_foo()
--- 6. test_foo_foo_1()
--- 5. test_foo_foo_2()
+    -- 3. setup_foo_foo()
+    -- 4. setup_foo_fooooo()
+    -- 5. test_foo_foo()
+    -- 6. setup_foo_foo()
+    -- 7. setup_foo_fooooo()
+    -- 8. test_foo_foo_1()
+    -- 9. setup_foo_foo()
+    -- 10. setup_foo_fooooo()
+    -- 11. test_foo_foo_2()
 
 SELECT * FROM mob_group_runtests('_foo_foo');
 -- Execution order:
