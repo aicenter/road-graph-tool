@@ -11,13 +11,8 @@ BEGIN
     );
     -- run tests
     RAISE NOTICE 'Running all tests...';
-    FOR record IN
-        SELECT * FROM run_all_aastas_tests()
-        UNION ALL
-        SELECT * FROM run_all_compute_speeds_from_neighborhood_segments_tests()
-        UNION ALL
-        SELECT * FROM run_all_get_ways_in_target_area_tests()
-        -- TO BE ADDED manually
+
+    FOR record IN EXECUTE run_all_tests_helper()
     LOOP
         DECLARE
             record_content TEXT := regexp_replace(record::TEXT, '^[(]["](.*)["][)]$', '\1');
@@ -37,6 +32,7 @@ BEGIN
         RETURN NEXT record;
         END;
     END LOOP;
+
     -- return results
     RETURN NEXT 'Summary:';
     FOR record IN
@@ -61,5 +57,32 @@ BEGIN
     END LOOP;
     -- drop temp table
     DROP TABLE test_results;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION run_all_tests_helper() RETURNS TEXT AS $$
+DECLARE
+    result text := '';
+    func text;
+    func_names text[] := findfuncs('^run_all_.*_tests$');
+    func_names_clean text[];
+BEGIN
+    FOREACH func IN ARRAY func_names
+        LOOP
+            func_names_clean := array_append(func_names_clean, split_part(func, '.', 2));
+        END LOOP;
+    FOREACH func IN ARRAY func_names_clean
+        LOOP
+            -- Append to the result
+            result := result || '        SELECT * FROM ' || func || '()';
+
+            -- Add UNION ALL except for the last item
+            -- debug print
+            IF func != func_names_clean[array_upper(func_names, 1)] THEN
+                result := result || E'\n        UNION ALL\n';
+            END IF;
+        END LOOP;
+
+    RETURN result;
 END;
 $$ LANGUAGE plpgsql;
