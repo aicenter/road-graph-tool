@@ -119,6 +119,12 @@ $$ BEGIN
     -- setup of foo. Special case foo_fooooo
 END; $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION test_foo_foo() RETURNS SETOF TEXT AS
+$$ BEGIN
+    -- testing foo. Special case foo_foo
+    RETURN NEXT pass('Passsed foo_foo');
+END; $$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION test_foo_foo_1() RETURNS SETOF TEXT AS
 $$ BEGIN
     -- testing foo. Special case foo_foo_1
@@ -131,18 +137,20 @@ $$ BEGIN
     RETURN NEXT pass('Passsed foo_foo_2');
 END; $$ LANGUAGE plpgsql;
 
--- Running test of special case foo_foo_2
-SELECT * FROM runtests('foo_foo_2');
+-- Running test of special case foo_foo
+SELECT * FROM runtests('foo_foo');
 -- Execution order:
 -- 1. startup_bar()
 -- 2. startup_foo()
 -- 3. setup_foo_foo()
 -- 4. setup_foo_fooooo()
+-- 5. test_foo_foo()
+-- 6. test_foo_foo_1()
 -- 5. test_foo_foo_2()
 
-SELECT * FROM mob_group_runtests('_foo_foo_2');
+SELECT * FROM mob_group_runtests('_foo_foo');
 -- Execution order:
 -- 1. startup_foo();
 -- 2. setup_foo_foo();
--- 3. test_foo_foo_2();
+-- 3. test_foo_foo();
 ```
