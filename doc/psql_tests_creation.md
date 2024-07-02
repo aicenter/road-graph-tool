@@ -1,5 +1,3 @@
-Here's a formalized version of your manual with a table of contents added:
-
 # Writing Tests with PgTap
 
 ## Table of Contents
