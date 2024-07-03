@@ -24,7 +24,7 @@ def insert_area(
     """
     cursor.execute(
         "SELECT insert_area(%s, %s, %s, %s)",
-        (id, name, description, json.dumps(geom)),
+        (name, json.dumps(geom), id, description),
     )
 
 

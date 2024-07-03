@@ -13,10 +13,10 @@
 -- Date: 2024
 ------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION insert_area(
-    id INTEGER DEFAULT NULL,
     name VARCHAR,
-    description VARCHAR DEFAULT NULL,
-    geom JSON
+    geom JSON,
+    id INTEGER DEFAULT NULL,
+    description VARCHAR DEFAULT NULL
 ) RETURNS VOID AS
 $$
 BEGIN
