@@ -20,12 +20,21 @@ CREATE OR REPLACE FUNCTION insert_area(
 ) RETURNS VOID AS
 $$
 BEGIN
-    INSERT INTO areas(id, name, description, geom)
-    VALUES (
-        COALESCE(id, DEFAULT),
-        name,
-        description,
-        st_geomfromgeojson(geom)
-    );
+    IF id IS NULL THEN
+        INSERT INTO areas(name, description, geom)
+        VALUES (
+            name,
+            description,
+            st_geomfromgeojson(geom)
+        );
+    ELSE
+        INSERT INTO areas(id, name, description, geom)
+        VALUES (
+            id,
+            name,
+            description,
+            st_geomfromgeojson(geom)
+        );
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
