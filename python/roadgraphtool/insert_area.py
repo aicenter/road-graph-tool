@@ -3,6 +3,7 @@ import json
 import sys
 
 import psycopg2
+from db import db
 
 
 def insert_area(
@@ -80,9 +81,7 @@ def main():
     geojson = read_json_file(args.file_path)
 
     # Establish database connection
-    conn = (
-        get_database_connection()
-    )  # TODO import connection flow from ../scripts/main.py
+    conn = db._psycopg2_connection
 
     try:
         with conn.cursor() as cursor:
