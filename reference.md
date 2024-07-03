@@ -118,10 +118,29 @@ This function does not return.
 
 ```sql
 -- All parameters
-SELECT insert_area(1, 'Area Name', 'Description', '{"type": "Point", "coordinates": [0, 0]}');
-
--- Only required parameters
-SELECT insert_area('Area Name', geom := '{"type": "Point", "coordinates": [0, 0]}');
+SELECT insert_area(1, 'Area Name', 'Description','{
+        "type": "MultiPolygon",
+        "coordinates": [
+            [
+                [
+                    [100.0, 0.0],
+                    [101.0, 0.0],
+                    [101.0, 1.0],
+                    [100.0, 1.0],
+                    [100.0, 0.0]
+                ]
+            ],
+            [
+                [
+                    [102.0, 2.0],
+                    [103.0, 2.0],
+                    [103.0, 3.0],
+                    [102.0, 3.0],
+                    [102.0, 2.0]
+                ]
+            ]
+        ]
+    }');
 ```
 
 ## [`select_network_nodes_in_area`](SQL/functions/function_select_network_nodes_in_area.sql)
