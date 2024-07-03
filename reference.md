@@ -7,6 +7,7 @@
 2. [SQL Functions](#sql-functions)
    - [get_area_for_demand](#get_area_for_demand)
    - [get_ways_in_target_area](#get_ways_in_target_area)
+   - [insert_area](#insert_area)
    - [select_network_nodes_in_area](#select_network_nodes_in_area)
 
 3. [SQL Procedures](#sql-procedures)
