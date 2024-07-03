@@ -97,6 +97,33 @@ Table in the format:
 SELECT * FROM get_ways_in_target_area(18::smallint);
 ```
 
+## [`insert_area`](SQL/functions/function_insert_area.sql)
+
+### Description
+
+The `insert_area` inserts new area with given geo data in the format of __geojson__.
+
+### Parameters
+
+- `id` (integer): The id of the area (optional).
+- `name` (varchar): The name of the area.
+- `description` (varchar): The description of the given area (optional).
+- `geom` (json): The geometry of the area, should be in geojson format.
+
+### Return Value
+
+This function does not return.
+
+### Example
+
+```sql
+-- All parameters
+SELECT insert_area(1, 'Area Name', 'Description', '{"type": "Point", "coordinates": [0, 0]}');
+
+-- Only required parameters
+SELECT insert_area('Area Name', geom := '{"type": "Point", "coordinates": [0, 0]}');
+```
+
 ## [`select_network_nodes_in_area`](SQL/functions/function_select_network_nodes_in_area.sql)
 
 ### Description
