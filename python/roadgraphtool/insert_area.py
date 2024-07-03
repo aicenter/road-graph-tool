@@ -89,7 +89,11 @@ def main():
             # For this example, we're using a placeholder ID and description
             # You might want to generate these dynamically or accept them as additional arguments
             insert_area(
-                cursor, id=1, name=args.name, description="Description", geom=geojson
+                cursor,
+                id=args.id,
+                name=args.name,
+                description=args.description,
+                geom=geojson,
             )
         conn.commit()
         print(f"Area '{args.name}' inserted successfully.")
