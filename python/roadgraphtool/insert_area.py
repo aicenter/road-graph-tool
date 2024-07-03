@@ -81,7 +81,7 @@ def main():
     geojson = read_json_file(args.file_path)
 
     # Establish database connection
-    conn = db._psycopg2_connection
+    conn = db.get_new_psycopg2_connection()
 
     try:
         with conn.cursor() as cursor:
