@@ -69,26 +69,55 @@ DECLARE
     num_records INTEGER;
 BEGIN
     RAISE NOTICE '--- test_insert_area_valid_existing_id ---';
-    -- TODO
---     SELECT * FROM test_insert_area_data WHERE name = 'test2_1' INTO test_data;
---     PERFORM insert_area(test_data.name, test_data.geom, test_data.id, test_data.description);
---
---     -- check that the record was inserted
---     SELECT count(1) INTO num_records FROM areas;
---
---     RETURN NEXT is(num_records, 1, 'Count of records in `areas` is 1');
+    SELECT * FROM test_insert_area_data WHERE name = 'test2_1' INTO test_data;
+    PERFORM insert_area(test_data.name, test_data.geom, test_data.id, test_data.description);
+
+    -- check that the record was inserted
+    SELECT count(1) INTO num_records FROM areas;
+
+    RETURN NEXT is(num_records, 1, 'Prerequisite: Count of records in `areas` is 1');
+
+    -- Now check for throwing when inserting record with the same id
+    RETURN NEXT diag('Expecting an error due to failing unique constraint of the table');
+    RETURN NEXT throws_ok('SELECT insert_area(test_data.name, test_data.geom, test_data.id, test_data.description)' ||
+                          ' FROM test_insert_area_data test_data WHERE name = ''test2_2'';', '23505');
 END;
 $$ LANGUAGE plpgsql;
--- 3. valid input with only mandatory parameters TODO
--- 4. invalid input: given geom is not of type geometry(MultiPolygon) -- TODO
--- 5. invalid input: mandatory parameters are missing or set to NULL -- TODO
+
+-- 3. valid input with only mandatory parameters 
+CREATE OR REPLACE FUNCTION test_insert_area_valid_mandatory_params() RETURNS SETOF TEXT AS
+$$
+DECLARE
+  test_data RECORD;
+  num_records INTEGER;
+BEGIN
+  RAISE NOTICE '--- test_insert_area_valid_mandatory_params ---';
+  SELECT * FROM test_insert_area_data WHERE name = 'test3' INTO test_data;
+  PERFORM insert_area(test_data.name, test_data.geom, test_data.id, test_data.description);
+
+  -- check that the record was inserted
+  SELECT count(1) INTO num_records FROM areas;
+
+  RETURN NEXT is(num_records, 1, 'Inserted record with mandatory parameters only.');
+END;
+$$ LANGUAGE plpgsql;
+
+-- 4. invalid input: given geom is not of type geometry(MultiPolygon) 
+CREATE OR REPLACE FUNCTION test_insert_area_invalid_geom() RETURNS SETOF TEXT AS
+$$
+BEGIN
+  RAISE NOTICE '--- test_insert_area_invalid_geom ---';
+  RETURN NEXT diag('Expecting an error due to invalid geom type');
+  RETURN NEXT throws_ok('SELECT insert_area(test_data.name, test_data.geom, test_data.id, test_data.description)' ||
+                        ' FROM test_insert_area_data test_data WHERE name = ''test4'';', '22023');
+END;
+$$ LANGUAGE plpgsql;
 
 -- run all tests of the function
 CREATE OR REPLACE FUNCTION run_all_insert_area_tests() RETURNS SETOF TEXT AS
 $$
 BEGIN
   -- runtests
-  RETURN QUERY SELECT * FROM mob_group_runtests('_insert_area_valid_all');
-  -- UNION ALL TODO
+  RETURN QUERY SELECT * FROM mob_group_runtests('_insert_area_.*');
 END;
 $$ LANGUAGE plpgsql;
