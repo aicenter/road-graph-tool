@@ -3,12 +3,11 @@ import json
 import sys
 
 import psycopg2
-from db import db
+
+from .db import db
 
 
-def insert_area(
-    cursor: psycopg2.cursor, id: int, name: str, description: str, geom: dict
-):
+def insert_area(cursor, id: int, name: str, description: str, geom: dict):
     """
     Insert a new area into the areas table.
 
@@ -78,7 +77,7 @@ def main():
     args = parse_arguments()
 
     # Read the GeoJSON file
-    geojson = read_json_file(args.file_path)
+    geojson = read_json_file(args.file)
 
     # Establish database connection
     conn = db.get_new_psycopg2_connection()
