@@ -33,49 +33,58 @@
 
 To install pgtap for PostgreSQL on Windows, follow these steps:
 
-1. **Download and extract Strawberry Perl**
+1. **Clone the pgtap repository**
 
-   Visit the [Strawberry Perl releases page](https://strawberryperl.com/releases.html) and download the Portable 64-bit version. Extract the downloaded archive to a folder named `{strawberryperl}`.
+Clone the pgtap repository from GitHub using the following command:
 
-   ![Strawberry Perl download](https://user-images.githubusercontent.com/1125565/140190878-5d23c9d5-7d6d-4c49-9ede-09833813845e.png)
+```
+git clone https://github.com/theory/pgtap.git {pgtapDirectory}
+```
 
-2. **Clone the pgtap repository**
+2. **Open Command Prompt as Administrator**
 
-   Clone the pgtap repository from GitHub using the following command:
+Run `cmd.exe` as an Administrator to ensure you have the necessary permissions to copy files into the `ProgramFiles` directory.
 
-   ```
-   git clone https://github.com/theory/pgtap.git {pgtapFolder}
-   ```
+3. **Set up environment variables**
 
-3. **Open Command Prompt as Administrator**
+Define the following variables at the beginning of your script or command prompt session. Adjust the paths according to your system:
 
-   Run `cmd.exe` as an Administrator to ensure you have the necessary permissions to copy files into the `ProgramFiles` directory.
+```powershell
+$PostgreSQLDir = "C:\Program Files\PostgreSQL\16"
+$PgTapDir = "C:\path\to\pgtap"
+$PgTapVersion = "1.3.4"  # Update this to the version you're installing
+$OS = "win64"
+```
 
-4. **Launch the Strawberry Perl portable shell**
+4. **Prepare and copy the necessary files**
 
-   Navigate to the `{strawberryperl}` folder (extracted in step 1) and run `portableshell.bat`.
+Execute the following commands:
 
-5. **Prepare and copy the necessary files**
+```powershell
+# Change to the pgtap directory
+cd $PgTapDir
 
-   In the portable shell, execute the following commands:
+# Copy and rename pgtap.sql
+Copy-Item "sql\pgtap.sql.in" "sql\pgtap.sql"
 
-   ```sh
-   cd {pgtapFolder}
-   copy sql\pgtap.sql.in sql\pgtap.sql
-   perl.exe -pi.bak -e "s/TAPSCHEMA/tap/g" sql\pgtap.sql
-   perl.exe -pi.bak -e "s/__OS__/win32/g" sql\pgtap.sql
-   perl.exe -pi.bak -e "s/__VERSION__/0.24/g" sql\pgtap.sql
-   perl.exe -pi.bak -e "s/^-- ## //g" sql\pgtap.sql
-   copy sql\pgtap.sql "%ProgramFiles%\PostgreSQL\12\share\extension"
-   copy contrib\pgtap.spec  "%ProgramFiles%\PostgreSQL\12\contrib"
-   copy pgtap.control "%ProgramFiles%\PostgreSQL\12\share\extension"
-   cd "%ProgramFiles%\PostgreSQL\12\share\extension\"
-   ren "pgtap.sql" "pgtap--1.2.0.sql"
-   ```
+# Replace placeholders in pgtap.sql
+(Get-Content "sql\pgtap.sql") | 
+   ForEach-Object {$_ -replace "TAPSCHEMA", "tap"} |
+   ForEach-Object {$_ -replace "__OS__", "$OS"} |
+   ForEach-Object {$_ -replace "__VERSION__", "0.24"} |
+   ForEach-Object {$_ -replace "^-- ## ", ""} |
+   Set-Content "sql\pgtap.sql"
 
-   **Note:** The `copy` commands may differ depending on your system configuration.
+# Copy files to PostgreSQL directories
+Copy-Item "sql\pgtap.sql" "$PostgreSQLDir\share\extension"
+Copy-Item "contrib\pgtap.spec" "$PostgreSQLDir\contrib"
+Copy-Item "pgtap.control" "$PostgreSQLDir\share\extension"
 
-   If you encounter an error like "error: extension "pgtap" has no installation script nor update path for version "{version}", modify the last step to `ren "pgtap.sql" "pgtap--{version}.sql"`.
+# Rename pgtap.sql to include version number
+Rename-Item "$PostgreSQLDir\share\extension\pgtap.sql" "pgtap--$PgTapVersion.sql"
+```
+
+**Note:** If you encounter an error like "error: extension "pgtap" has no installation script nor update path for version "{version}", modify the last step to rename the file to `pgtap--{version}.sql`, replacing `{version}` with the appropriate version number.
 
 These instructions were adapted from [issue#192](https://github.com/theory/pgtap/issues/192#issuecomment-960033060) of the pgtap repository.
 
