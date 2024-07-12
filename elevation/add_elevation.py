@@ -10,7 +10,8 @@ URL = 'http://localhost:8080/elevation/api'
 def load_coords(config):
     """Load node ids and coords from db to dict"""
     elevations = dict()
-    query = """ SELECT node_id, ST_Y(geom) AS lat, ST_X(geom) AS lon FROM nodes; """
+    # query = """ SELECT node_id, ST_Y(geom) AS lat, ST_X(geom) AS lon FROM nodes; """
+    query = """ SELECT node_id, ST_Y(geom), ST_X(geom) FROM nodes; """
     try:
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
@@ -134,6 +135,16 @@ if __name__ == '__main__':
 
     import time
     start = time.time()
-    run(config)
-    end = time.time()
-    print(f"The program took {end - start} seconds to execute.")
+    # run(config)
+
+    coords = load_coords(config)
+    e = time.time()
+    print(f"Loading coords... {e - start} seconds.")
+
+    s = time.time()
+    json_coords = prepare_coords(coords)
+    e = time.time()
+    print(f"Preparing coords... {e - s} seconds.")
+
+    # end = time.time()
+    # print(f"The program took {end - start} seconds to execute.")

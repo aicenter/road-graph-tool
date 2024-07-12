@@ -12,15 +12,16 @@ CHUNK_SIZE = 500
 def load_coords(config):
     """Load node ids and coords from db to dict"""
     coords = list()
-    # temp_coords = list()
     create_table_query = """
     CREATE TABLE IF NOT EXISTS temp_elevations (
         node_id BIGINT NOT NULL,
         elevation REAL
     );
     """
-    add_column_query = """ALTER TABLE nodes_germany ADD COLUMN IF NOT EXISTS elevation REAL;"""
-    select_query = """ SELECT node_id, ST_Y(geom) AS lat, ST_X(geom) AS lon FROM nodes_germany; """
+    # add_column_query = """ALTER TABLE nodesS ADD COLUMN IF NOT EXISTS elevation REAL;"""
+    add_column_query = """ALTER TABLE nodes ADD COLUMN IF NOT EXISTS elevation REAL;"""
+    # select_query = """ SELECT node_id, ST_Y(geom), ST_X(geom) FROM nodesS; """
+    select_query = """ SELECT node_id, ST_Y(geom), ST_X(geom) FROM nodes; """
     # print("Loading coords...")
     try:
         with psycopg2.connect(**config) as conn:
@@ -30,7 +31,6 @@ def load_coords(config):
                 cur.execute(select_query)
                 chunk = []
                 for row in cur.fetchall():
-                    # coords.append([row[0], row[1], row[2]])
                     # node_id, latitude, longitude
                     chunk.append([row[0], row[1], row[2]])
                     if len(chunk) == CHUNK_SIZE:
@@ -40,14 +40,12 @@ def load_coords(config):
                     coords.append(chunk)
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
-    # prepare to chunks later
-
     return coords
 
 
 def prepare_coords(coords_chunk_list):
     """Prepare json with coords for api request"""
-    print("Preparing coords...")
+    # print("Preparing coords...")
     chunk_json_list = list()
     for chunk in coords_chunk_list:
         json_coord_dict = {'locations': []}
@@ -156,23 +154,23 @@ if __name__ == '__main__':
     e = time.time()
     print(f"Preparing coords... {e - s} seconds.")
 
-    s = time.time()
-    json_elevations = get_elevation(json_coords)
-    e = time.time()
-    print(f"Getting coords... {e - s} seconds.")
-
-    s = time.time()
-    elevations = update_elevations(coords, json_elevations)
-    e = time.time()
-    print(f"Updating coords with elevations... {e - s} seconds.")
-
-    s = time.time()
-    store_elevations(config, elevations)
-    e = time.time()
-    print(f"Storing elevations to table... {e - s} seconds.")
+    # s = time.time()
+    # json_elevations = get_elevation(json_coords)
+    # e = time.time()
+    # print(f"Getting coords... {e - s} seconds.")
 
     # s = time.time()
-    # update_nodes_and_drop_elevations(config)
-    # end = time.time()
-    # print(f"Update correct table... {e - s} seconds.")
-    print(f"The program took {e - start} seconds to execute.")
+    # elevations = update_elevations(coords, json_elevations)
+    # e = time.time()
+    # print(f"Updating coords with elevations... {e - s} seconds.")
+
+    # s = time.time()
+    # store_elevations(config, elevations)
+    # e = time.time()
+    # print(f"Storing elevations to table... {e - s} seconds.")
+
+    # # s = time.time()
+    # # update_nodes_and_drop_elevations(config)
+    # # end = time.time()
+    # # print(f"Update correct table... {e - s} seconds.")
+    # print(f"The program took {e - start} seconds to execute.")
