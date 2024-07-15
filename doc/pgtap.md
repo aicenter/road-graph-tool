@@ -1,5 +1,20 @@
 # Notes regarding pgTap testing framework
 
+1. [Installation](#installation)
+    - [Installing pgTap for PostgreSQL on Windows](#installing-pgtap-for-postgresql-on-windows)
+
+2. [Useful Notes](#useful-notes)
+
+3. [Commands](#commands)
+    - [Basic assertions](#basic-assertions)
+    - [Exception handling assertions](#exception-handling)
+    - [Comparison assertions](#comparasion-assertions)
+    - [Function/procedure assertions](#functionprocedure-assertions)
+    - [Additional functions (Diagnostics)](#additional-functions-diagnostics)
+    - [Additional functions (Conditional Tests)](#additional-functions-conditional-tests)
+    - [Additional functions (Useful Simplification)](#additional-functions-useful-simplification)
+    - [Additional functions (Running Tests)](#additional-functions-running-tests)
+
 ## Installation
 1) pgTAP must be installed on a host with PostgreSQL server running; it cannot be installed remotely. If you’re using PostgreSQL in Docker, you need to install pgTAP inside the Docker container.
     If you are using Linux, you may (depending on your distribution) be able to use you distribution’s package management system to install pgTAP. For instance, on Debian, Ubuntu, or Linux Mint pgTAP can be installed with the command:
@@ -18,49 +33,58 @@
 
 To install pgtap for PostgreSQL on Windows, follow these steps:
 
-1. **Download and extract Strawberry Perl**
+1. **Clone the pgtap repository**
 
-   Visit the [Strawberry Perl releases page](https://strawberryperl.com/releases.html) and download the Portable 64-bit version. Extract the downloaded archive to a folder named `{strawberryperl}`.
+Clone the pgtap repository from GitHub using the following command:
 
-   ![Strawberry Perl download](https://user-images.githubusercontent.com/1125565/140190878-5d23c9d5-7d6d-4c49-9ede-09833813845e.png)
+```
+git clone https://github.com/theory/pgtap.git {pgtapDirectory}
+```
 
-2. **Clone the pgtap repository**
+2. **Open Command Prompt as Administrator**
 
-   Clone the pgtap repository from GitHub using the following command:
+Run `cmd.exe` as an Administrator to ensure you have the necessary permissions to copy files into the `ProgramFiles` directory.
 
-   ```
-   git clone https://github.com/theory/pgtap.git {pgtapFolder}
-   ```
+3. **Set up environment variables**
 
-3. **Open Command Prompt as Administrator**
+Define the following variables at the beginning of your script or command prompt session. Adjust the paths according to your system:
 
-   Run `cmd.exe` as an Administrator to ensure you have the necessary permissions to copy files into the `ProgramFiles` directory.
+```powershell
+$PostgreSQLDir = "C:\Program Files\PostgreSQL\16"
+$PgTapDir = "C:\path\to\pgtap"
+$PgTapVersion = "1.3.4"  # Update this to the version you're installing
+$OS = "win64"
+```
 
-4. **Launch the Strawberry Perl portable shell**
+4. **Prepare and copy the necessary files**
 
-   Navigate to the `{strawberryperl}` folder (extracted in step 1) and run `portableshell.bat`.
+Execute the following commands:
 
-5. **Prepare and copy the necessary files**
+```powershell
+# Change to the pgtap directory
+cd $PgTapDir
 
-   In the portable shell, execute the following commands:
+# Copy and rename pgtap.sql
+Copy-Item "sql\pgtap.sql.in" "sql\pgtap.sql"
 
-   ```sh
-   cd {pgtapFolder}
-   copy sql\pgtap.sql.in sql\pgtap.sql
-   perl.exe -pi.bak -e "s/TAPSCHEMA/tap/g" sql\pgtap.sql
-   perl.exe -pi.bak -e "s/__OS__/win32/g" sql\pgtap.sql
-   perl.exe -pi.bak -e "s/__VERSION__/0.24/g" sql\pgtap.sql
-   perl.exe -pi.bak -e "s/^-- ## //g" sql\pgtap.sql
-   copy sql\pgtap.sql "%ProgramFiles%\PostgreSQL\12\share\extension"
-   copy contrib\pgtap.spec  "%ProgramFiles%\PostgreSQL\12\contrib"
-   copy pgtap.control "%ProgramFiles%\PostgreSQL\12\share\extension"
-   cd "%ProgramFiles%\PostgreSQL\12\share\extension\"
-   ren "pgtap.sql" "pgtap--1.2.0.sql"
-   ```
+# Replace placeholders in pgtap.sql
+(Get-Content "sql\pgtap.sql") | 
+   ForEach-Object {$_ -replace "TAPSCHEMA", "tap"} |
+   ForEach-Object {$_ -replace "__OS__", "$OS"} |
+   ForEach-Object {$_ -replace "__VERSION__", "0.24"} |
+   ForEach-Object {$_ -replace "^-- ## ", ""} |
+   Set-Content "sql\pgtap.sql"
 
-   **Note:** The `copy` commands may differ depending on your system configuration.
+# Copy files to PostgreSQL directories
+Copy-Item "sql\pgtap.sql" "$PostgreSQLDir\share\extension"
+Copy-Item "contrib\pgtap.spec" "$PostgreSQLDir\contrib"
+Copy-Item "pgtap.control" "$PostgreSQLDir\share\extension"
 
-   If you encounter an error like "error: extension "pgtap" has no installation script nor update path for version "{version}", modify the last step to `ren "pgtap.sql" "pgtap--{version}.sql"`.
+# Rename pgtap.sql to include version number
+Rename-Item "$PostgreSQLDir\share\extension\pgtap.sql" "pgtap--$PgTapVersion.sql"
+```
+
+**Note:** If you encounter an error like "error: extension "pgtap" has no installation script nor update path for version "{version}", modify the last step to rename the file to `pgtap--{version}.sql`, replacing `{version}` with the appropriate version number.
 
 These instructions were adapted from [issue#192](https://github.com/theory/pgtap/issues/192#issuecomment-960033060) of the pgtap repository.
 
@@ -94,23 +118,13 @@ These instructions were adapted from [issue#192](https://github.com/theory/pgtap
     - You can specify the schema for `mob_group_runtests(...)` to search for testing functions by adding an additional argument. For example:
       `SELECT * FROM mob_group_runtests('test_schema', '_get_ways_in_target_area_no_target_area');` would search only in the schema named `test_schema`.
 
-
-<!-- ## TODO list -->
-<!-- - [x] Ask if it is preffered to contain tests in `.sql` files + `.sh` file or rather in database functions. A: It is prefferably to use postgres functions to run_tests. -->
-<!-- - [x] Write a test procedure, then try out the above described method to see if there are changes after finishing the tests -->
-<!-- - [x] read https://pgtap.org/documentation.html#feelingfunky to get methods with function-oriented testing -->
-<!-- - [ ] Ask if we need to test for perfoming in good time by using function `performs_ok()`. -->
-<!-- - [x] try out a complicated test with startup, shutdown, setup and teardown functions. -->
-<!-- - [ ] Read https://pgtap.org/documentation.html#tapthatbatch once again, when having several testing functions to fully understand the value of the described functions. -->
-<!-- - [x] Try out naming convention. I could rewrite names of the existing testing functions -->
-<!-- - [ ] Ask about `pg_prove()` utility. -->
-
 ## Picture of a result
 - All tests should be saved as postgresql functions.
 - On the start of testing (every kind of testing), I think it would be a good idea to check if corresponding tests, setups, startups, teardowns, shutdowns exist with the help of `can()`
 - I guess, if indiviudal setups/teardowns are requested, then we should just call them inside of `test_...()` function block on the start/end.
 
 ## Commands
+- Please refer to [official documentation](https://pgtap.org/documentation.html) for additional information
 - Declaring number of tests script is going to run: `Select plan(42)`. If not known use `SELECT * FROM no_plan();`. Ofthen you can count number of tests like so: `SELECT plan( COUNT(*) ) FROM foo;`
 - In the end of tests you should always use `SELECT * FROM finish()`. To end with an exception use true argument: `SELECT * FROM finish(true);`
 - You can run all unit tests at any time using `runtests()`. E.g. of statement: `SELECT * FROM runtests();`. Each test function will run within its own transaction.
@@ -129,11 +143,11 @@ instead of
 ```
 # my_example_test_function_name()
 ```
-
 - Sequences are not rolled back to the value used at the beginning of a rolled-back transaction.
 
-!!! note Author's note:
-    in further functions argument `:description` is optional. Argument `:sql` means an sql statement in singular quotes ''.
+- __in further functions argument `:description` is optional. Argument `:sql` means an sql statement in singular quotes ''.__
+
+### Basic assertions
 - `SELECT ok( :boolean, :description )` - returns either "ok - description" or "not ok - description" based on a resulting evaluation of boolean expression (NULL equals TRUE).
 - `SELECT is( :have,    :want,  :description )` or `SELECT isnt( :have,    :want,  :description )` - compares two args `:have` and `:want` of the same data type and returns diagnostics of the test simillar to `ok()` function return value.
 Note: usage of `is()` and `isnt()` is preffered over `ok()`
@@ -168,16 +182,12 @@ Note: usage of `is()` and `isnt()` is preffered over `ok()`
 - `SELECT row_eq(   :sql,   :record,    :description) ` - tests that `sql` query returns identical row as `record`. Basically it compares contents
 
 ### The schema assertions
-!!! note Author's note: 
-    I'm gonna skip this one, as it is highly unlikely, that I would encounter tasks including testing schemas
+This type of assertions is skipped due to low probability of usage. Please refer to official documentation for information. 
 
 ### Table assertions
-!!! note Author's note: 
-    This part is mainly about structure, so I'm skipping this one as well.
+This type of assertions is skipped due to low probability of usage. Please refer to official documentation for information. 
 
 ### Function/procedure assertions
-!!! note Author's note:
-    This part looks promising!
 - `SELECT can( :schema, :functions, :description )` or `SELECT can( :functions, :description )` - Checks that `:schema` has `:functions` defined. If `:schema` is not defined, this assertion will look through all schemas defined in the search path. 
 - `SELECT function_lang_is( :schema,    :function,  :args,  :language)` - checks that function is implemented in a particular procedural language.
 - `SELECT function_returns( :schema?,   :function,  :args?, :type,  :description)` - tests that a particular function returns a particular data type.
@@ -197,12 +207,10 @@ Note: usage of `is()` and `isnt()` is preffered over `ok()`
 - `SELECT trigger_is( :schema?, :table?,    :trigger,   :func_schema,   :function,  :description)` - tests that the specified trigger calls the named function.
 
 ### Other object assertions
-!!! note Author's note:
-    this part is about asserting functions of some objects, that cannot be grouped, e.g. superuser assertion, casting assertion and so on.
+This type of assertions is skipped due to low probability of usage. Please refer to official documentation for information. 
 
 ### Owner assertions
-!!! note Author's note:
-    this part is about asserting owner of some objects like view, tablespace and so on. 
+This type of assertions is skipped due to low probability of usage. Please refer to official documentation for information. 
 
 ### Additional functions( Diagnostics )
 - `SELECT diag( :lines )`, where `:lines` is a list of one or more SQL values of the same type.\
