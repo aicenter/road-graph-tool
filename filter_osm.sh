@@ -8,7 +8,7 @@ function display_help {
     echo "  -b                     : Filter geographic objects based on bounding box (with osm2pgsql)"
     echo "  -bos                   : Filter geographic objects based on bounding box (with osmium)"
     echo "  -t [expression_file]   : Filter objects based on tags in expression_file"
-    echo "  -h                     : Display this help message"
+    echo "  -h/--help              : Display this help message"
     echo "Option: "
     echo "  -s                     : Specify strategy type (optional for: -id, -b)"
     exit 0
@@ -28,11 +28,11 @@ function check_strategy {
 
 # Function to filter out based on input id
 function extract_id {
-    tmp_file="./extract/to-extract.osm"
+    tmp_file="./resources/to-extract.osm"
     local relation_id="$1"
     local input_file="$2"
     local strategy="$3"
-    local path="./extract/extract-id.geojson"
+    local path="./resources/extract-id.geojson"
     curl -o "$tmp_file" "https://www.openstreetmap.org/api/0.6/relation/$relation_id/full"
     if [ -z "$strategy" ]; then
         osmium extract -c "$path" "$input_file"
@@ -49,7 +49,7 @@ function extract_bbox_osm2pgsql {
 
     tmp_file="to-extract.xml"
     curl -o "$tmp_file" "https://www.openstreetmap.org/api/0.6/relation/$relation_id/full"
-    python3 find_bbox.py "$tmp_file" 
+    python3 python/scripts/find_bbox.py "$tmp_file" 
     rm "$tmp_file"
 }
 
@@ -75,12 +75,13 @@ function extract_bbox_osmium {
     fi
 }
 
-# Extracting arguments
-tag=$1
-
-if [ "$tag" == "-h" ]; then
+# Check if the script is called with -h/--help
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     display_help
 fi
+
+# Extracting arguments
+tag=$1
 
 # Run command based on provided tags
 case "$tag" in
@@ -97,7 +98,7 @@ case "$tag" in
                 exit 1
             fi
             if ! check_strategy_type "$5"; then
-                echo "Error: Invalid strategy type. Call ./filter.sh -h to display help."
+                echo "Error: Invalid strategy type. Call ./filter_osm.sh -h/--help to display help."
                 exit 1
             fi
             extract_id "$relation_id" "$input_file" "$5"
@@ -117,7 +118,7 @@ case "$tag" in
                 exit 1
             fi
             if ! check_strategy_type "$5"; then
-                echo "Error: Invalid strategy type. Call ./filter.sh -h to display help."
+                echo "Error: Invalid strategy type. Call ./filter_osm.sh -h/--help to display help."
                 exit 1
             fi
             extract_bbox_osmium "$2" "$3" "$5"
@@ -142,7 +143,7 @@ case "$tag" in
         osmium tags-filter "$3" -e "$2" -o filtered.osm.pbf
         ;;
     *)
-        echo "Invalid tag. Call ./filter.sh -h to display help."
+        echo "Invalid tag. Call ./filter_osm.sh -h/--help to display help."
         exit 1
         ;;
 esac
