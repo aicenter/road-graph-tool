@@ -1,0 +1,1 @@
+postgres_dir = Get-ChildItem HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall | % { Get-ItemProperty $_.PSPath } | ? { $_.DisplayName -Match "PostgreSQL" } | Select-Object -ExpandProperty InstallLocation

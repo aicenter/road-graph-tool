@@ -33,13 +33,8 @@
 
 To install pgtap for PostgreSQL on Windows, follow these steps:
 
-1. **Clone the pgtap repository**
+1. Clone the [pgtap repository](https://github.com/theory/pgtap)
 
-Clone the pgtap repository from GitHub using the following command:
-
-```
-git clone https://github.com/theory/pgtap.git {pgtapDirectory}
-```
 
 2. **Open Command Prompt as Administrator**
 
