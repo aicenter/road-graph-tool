@@ -17,9 +17,9 @@ function display_help {
     echo "               (Requires specifying output file with '-o' tag)"
     echo "     -s       : Sort OSM file based on IDs"
     echo "               (Requires specifying output file with '-o' tag)"
-    echo "Usage: $0 -f [input_file] [style_file_path]"
+    echo "Usage: $0 -l [input_file] [style_file_path]"
     echo "  Tag: "
-    echo "     -f       : Import OSM file to PostgreSQL database using osm2pgsql with the specified style file"
+    echo "     -l       : Import OSM file to PostgreSQL database using osm2pgsql with the specified style file"
     echo "               (Optional: specify style file path - default.lua is used otherwise)"
     exit 0
 }
@@ -109,11 +109,11 @@ case "$tag" in
 
         osmium sort "$file_name" -o "$output_file"
         ;;
-    -f)
-        if [ "$4"]; then
-            style_file_path=$4
+    -l)
+        if [ "$3"]; then
+            style_file_path=$3
         fi
-        input_file=$3
+        input_file=$2
         style_file_path="resources/lua_styles/default.lua"
         db_username=$(get_config_value "username")
         db_host=$(get_config_value "db_host")

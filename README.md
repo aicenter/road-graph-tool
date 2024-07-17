@@ -57,11 +57,11 @@ The PostgreSQL database needs PostGis extension in order to enable spatial and g
 Loading large OSM files to database is memory demanding so [documentation](https://osm2pgsql.org/doc/manual.html#system-requirements) suggests to have at least as much RAM as the PBF file with the OSM data is large.
 
 ### 1. Preprocessing of OSM file (optional)
-Preprocessing an OSM file with osmium aims to enhance importing efficiency and speed of osm2pgsql tool. The two most common actions are sorting and renumbering. For these actions, you can use the provided `process` script:
+Preprocessing an OSM file with osmium aims to enhance importing efficiency and speed of osm2pgsql tool. The two most common actions are sorting and renumbering. For these actions, you can use the provided `process_osm.sh` script:
 ```bash
 ./process_osm.sh [action_tag] [input_file] -o [output_file]
 ```
-Call `./process_osm.sh -h` for more information.
+Call `./process_osm.sh -h` or `./process_osm.sh --help` for more information.
 
 #### Sorting:
 Sorts objects based on IDs.
@@ -76,26 +76,25 @@ Renumbering starts at index 1.
 ```
 
 ### 2. Importing to database using Flex output
-The process_osm.sh script also allows to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration to get the desired output. To use it, we specify the flex style file (Lua script) that has all the logic for processing data in OSM file.
+The `process_osm.sh` script also allows to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we specify the flex style file (Lua script) that has all the logic for processing data in OSM file.
+
 
 The default style file for this project is `resources/lua_styles/default.lua`, that processes and all nodes, ways and relations with tags without creating additional attributes (columns).
 
 ```bash
-./process_osm.sh -f [input_file] [style_file]
+./process_osm.sh -l [input_file] [style_file]
 ```
 
-* E.g. this command (described bellow) processes osm file of Lithuania using Flex output and imports them into database (all configurations should be provided in `config.ini`).
+* E.g. this command (described bellow) processes osm file of Lithuania using Flex output and loads them into database (all configurations should be provided in `config.ini` in top folder).
 ```bash
 # runs with default.lua
-./process_osm.sh -f lithuania-latest.osm.pbf
+./process_osm.sh -l lithuania-latest.osm.pbf
 # runs with highway.lua script
-./process_osm.sh -f lithuania-latest.osm.pbf resources/lua_styles/highway.lua
+./process_osm.sh -l lithuania-latest.osm.pbf resources/lua_styles/highway.lua
 ```
 
 **Nodes in Lithuania:**
 ![Nodes in Lithuania](doc/images/default-nodes.png)
-
-Flex style file can be used for more complex filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks).
 
 ### 3. Filtering and extraction
 Data are often huge and lot of times we only need certain extracts or objects of interest in our database. So it's better practice to filter out only what we need and work with that in our database.
