@@ -1,4 +1,4 @@
-CREATE PROCEDURE add_temp_map(map_area integer)
+CREATE OR REPLACE PROCEDURE add_temp_map(map_area integer)
 	LANGUAGE plpgsql
 AS
 $$BEGIN
@@ -17,6 +17,4 @@ $$BEGIN
     	JOIN ways_tmp ON nodes_ways_tmp.way_id = ways_tmp.id
     	ON CONFLICT DO NOTHING;
 END$$;
-
-ALTER PROCEDURE add_temp_map(integer) OWNER TO fiedler;
 

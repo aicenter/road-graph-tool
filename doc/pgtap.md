@@ -34,52 +34,9 @@
 To install pgtap for PostgreSQL on Windows, follow these steps:
 
 1. Clone the [pgtap repository](https://github.com/theory/pgtap)
-
-
-2. **Open Command Prompt as Administrator**
-
-Run `cmd.exe` as an Administrator to ensure you have the necessary permissions to copy files into the `ProgramFiles` directory.
-
-3. **Set up environment variables**
-
-Define the following variables at the beginning of your script or command prompt session. Adjust the paths according to your system:
-
-```powershell
-$PostgreSQLDir = "C:\Program Files\PostgreSQL\16"
-$PgTapDir = "C:\path\to\pgtap"
-$PgTapVersion = "1.3.4"  # Update this to the version you're installing
-$OS = "win64"
-```
-
-4. **Prepare and copy the necessary files**
-
-Execute the following commands:
-
-```powershell
-# Change to the pgtap directory
-cd $PgTapDir
-
-# Copy and rename pgtap.sql
-Copy-Item "sql\pgtap.sql.in" "sql\pgtap.sql"
-
-# Replace placeholders in pgtap.sql
-(Get-Content "sql\pgtap.sql") | 
-   ForEach-Object {$_ -replace "TAPSCHEMA", "tap"} |
-   ForEach-Object {$_ -replace "__OS__", "$OS"} |
-   ForEach-Object {$_ -replace "__VERSION__", "0.24"} |
-   ForEach-Object {$_ -replace "^-- ## ", ""} |
-   Set-Content "sql\pgtap.sql"
-
-# Copy files to PostgreSQL directories
-Copy-Item "sql\pgtap.sql" "$PostgreSQLDir\share\extension"
-Copy-Item "contrib\pgtap.spec" "$PostgreSQLDir\contrib"
-Copy-Item "pgtap.control" "$PostgreSQLDir\share\extension"
-
-# Rename pgtap.sql to include version number
-Rename-Item "$PostgreSQLDir\share\extension\pgtap.sql" "pgtap--$PgTapVersion.sql"
-```
-
-**Note:** If you encounter an error like "error: extension "pgtap" has no installation script nor update path for version "{version}", modify the last step to rename the file to `pgtap--{version}.sql`, replacing `{version}` with the appropriate version number.
+2. Open PowerShell (`pwsh`) as an Administrator
+    - it is necessary to copy files into the `ProgramFiles` directory.
+1. run the `pgtap_install.ps1` script as an administrator
 
 These instructions were adapted from [issue#192](https://github.com/theory/pgtap/issues/192#issuecomment-960033060) of the pgtap repository.
 
