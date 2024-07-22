@@ -193,6 +193,7 @@ DECLARE
     seq_name text;
     col_name text;
     test text;
+    object RECORD;
 BEGIN
     -- schema should exist already as a prerequisite
     -- check that given schema name is not empty
@@ -216,37 +217,27 @@ BEGIN
             EXECUTE format('CREATE TABLE %I.%I (LIKE public.%I INCLUDING ALL)',
                        test_scheme_name, table_name_i, table_name_i);
 
-        -- Handle sequences
-        FOR col_name, seq_name IN
-            SELECT column_name, REPLACE(REPLACE(pg_get_serial_sequence('public.' || table_name_i, column_name), ' ', '_'), '"', '')
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = table_name_i
-              AND column_default LIKE 'nextval%'
-        LOOP
-                IF seq_name IS NOT NULL THEN
-                -- Create new sequence
-                EXECUTE format('CREATE SEQUENCE %I.%I',
-                               test_scheme_name,
-                               replace(seq_name, 'public.', ''));
-
-                -- Set sequence owned by
-                EXECUTE format('ALTER SEQUENCE %I.%I OWNED BY %I.%I.%I',
-                               test_scheme_name,
-                               replace(seq_name, 'public.', ''),
-                               test_scheme_name,
-                               table_name_i,
-                               col_name);
-
-                -- Set default value for the column
-                EXECUTE format('ALTER TABLE %I.%I ALTER COLUMN %I SET DEFAULT nextval(%L::regclass)',
-                               test_scheme_name,
-                               table_name_i,
-                               col_name,
-                               test_scheme_name || '.' || replace(seq_name, 'public.', ''));
-                END IF;
-            END LOOP;
         END LOOP;
+
+
+    -- Copy sequences
+    FOR object IN
+        SELECT sequence_name::text FROM information_schema.sequences
+        WHERE sequence_schema = 'public'
+        LOOP
+            EXECUTE 'CREATE SEQUENCE ' || quote_ident(test_scheme_name) || '.' || quote_ident(object.sequence_name) ||
+                    ' AS INTEGER';
+        END LOOP;
+
+--     -- Copy views
+--     FOR object IN
+--         SELECT table_name::text FROM information_schema.views
+--         WHERE table_schema = 'public'
+--         LOOP
+--             EXECUTE 'CREATE VIEW ' || quote_ident(test_scheme_name) || '.' || quote_ident(object.table_name) || ' AS ' ||
+--                     'SELECT * FROM ' || quote_ident('public') || '.' || quote_ident(object.table_name);
+--         END LOOP;
+
     -- update search path. In the end it should look like: "test_env, \"$user\", public",
     --  so it would look up the tables in test_env and routines in public
     EXECUTE format('SET search_path TO %I, %I, public', test_scheme_name, '$user');
@@ -268,6 +259,7 @@ $$
 DECLARE
     test_scheme_name TEXT := $1;
     table_name_i TEXT;
+    tmp TEXT;
 BEGIN
     -- check that given schema name is not empty and not 'public'
     IF test_scheme_name = '' OR test_scheme_name = 'public' THEN
@@ -278,6 +270,18 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
         RAISE EXCEPTION 'Schema % does not exist, thus nothing to do', test_scheme_name;
     END IF;
+
+    -- drop every sequence in test_scheme_name
+    FOR tmp IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = test_scheme_name)
+        LOOP
+            EXECUTE format('DROP SEQUENCE %I.%I', test_scheme_name, tmp);
+        END LOOP;
+
+    -- drop every view in test_scheme_name
+    FOR table_name_i IN (SELECT table_name FROM information_schema.views WHERE table_schema = test_scheme_name)
+        LOOP
+            EXECUTE format('DROP VIEW %I.%I', test_scheme_name, table_name_i);
+        END LOOP;
 
     -- drop every table in test_scheme_name
     FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = test_scheme_name)
