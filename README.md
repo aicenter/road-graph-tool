@@ -32,9 +32,12 @@ For testing the PostgreSQL procedures that are the core of the Road Graph Tool, 
 
 To run the tests, follow these steps:
 1. Install the `pgTAP` extension for your PostgreSQL database cluster according to the [pgTAP manual](./doc/pgtap.md).
-1. If you haven't already, create a new database using the script `<rgt root>/python/scripts/install_db.py`. 
-    - this script will create a new database, install all necessary extensions and create all necessary tables, procedures, and functions.
-    - the configuration for the database is loaded from the `config.ini` file.
+1. If you haven't already, create and initialize the database
+    1. create new database using `CREATE DATABASE <database_name>;`
+    1. copy the `config-EXAMPLE.ini` file to `config.ini` and fill in the necessary information
+    1. inititalize new database using the script `<rgt root>/python/scripts/install_db.py`. 
+        - this script will install all necessary extensions and create all necessary tables, procedures, and functions.
+        - the configuration for the database is loaded from the `config.ini` file.
 4. Execute the tests by running the following query in your PostgreSQL console:
     ```sql
     SELECT * FROM run_all_tests();

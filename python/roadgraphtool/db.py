@@ -150,11 +150,13 @@ class __Database:
             if not use_transactions:
                 conn.execution_options(isolation_level="AUTOCOMMIT")
             conn.execute(sqlalchemy.text(query), *args)
+            conn.commit()
 
     @connect_db_if_required
     def execute_sql_and_fetch_all_rows(self, query, *args) -> list[Row]:
-        result = self._sqlalchemy_engine.execute(query, *args).all()
-        return result
+        with self._sqlalchemy_engine.connect() as conn:
+            result = conn.execute(sqlalchemy.text(query), *args).all()
+            return result
 
     @connect_db_if_required
     def execute_script(self, script_path: Path):

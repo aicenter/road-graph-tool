@@ -36,7 +36,11 @@ To install pgtap for PostgreSQL on Windows, follow these steps:
 1. Clone the [pgtap repository](https://github.com/theory/pgtap)
 2. Open PowerShell (`pwsh`) as an Administrator
     - it is necessary to copy files into the `ProgramFiles` directory.
-1. run the `pgtap_install.ps1` script as an administrator
+1. run the `pgtap_install.ps1` script as an administrator with the following command:
+    ``` PowerShell
+    pgtap_install.ps1 <path to pgtap clone>
+    ```
+    - This script will copy the necessary files to the PostgreSQL installation directory.
 
 These instructions were adapted from [issue#192](https://github.com/theory/pgtap/issues/192#issuecomment-960033060) of the pgtap repository.
 

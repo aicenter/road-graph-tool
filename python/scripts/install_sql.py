@@ -21,11 +21,6 @@ def execute_sql_file(sql_file: Path, multistatement: bool = False):
 
 logging.basicConfig(level=logging.INFO)
 
-# create database if it doesn't exist
-sql = f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"
-if not db.execute_sql_and_fetch_all_rows(sql):
-    logging.info("Creating database %s", db_name)
-    db.execute_sql(f"CREATE DATABASE {db_name}", use_transactions=False)
 
 # initialize database if it's empty
 sql = f"""SELECT EXISTS (
