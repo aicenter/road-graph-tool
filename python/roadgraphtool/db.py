@@ -146,11 +146,11 @@ class __Database:
         """
         Execute SQL that doesn't return any value.
         """
-        with self._sqlalchemy_engine.connect() as conn:
+        with self._sqlalchemy_engine.connect() as connection:
             if not use_transactions:
-                conn.execution_options(isolation_level="AUTOCOMMIT")
-            conn.execute(sqlalchemy.text(query), *args)
-            conn.commit()
+                connection.execution_options(isolation_level="AUTOCOMMIT")
+            with connection.begin():
+                connection.execute(sqlalchemy.text(query), *args)
 
     @connect_db_if_required
     def execute_sql_and_fetch_all_rows(self, query, *args) -> list[Row]:
@@ -162,9 +162,6 @@ class __Database:
     def execute_script(self, script_path: Path):
         with open(script_path) as f:
             script = f.read()
-            # with self._sqlalchemy_engine.begin() as conn:
-            #     dbapi_conn = conn.connection
-            #     dbapi_conn.executescript(script)
             cursor = self._psycopg2_connection.cursor()
             try:
                 cursor.execute(script)
@@ -174,7 +171,6 @@ class __Database:
                 self._psycopg2_connection.rollback()
             finally:
                 cursor.close()
-
 
     @connect_db_if_required
     def execute_query_to_geopandas(self, sql: str, **kwargs) -> pd.DataFrame:
