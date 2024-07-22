@@ -190,9 +190,6 @@ $$
 DECLARE
     test_scheme_name TEXT := $1;
     table_name_i TEXT;
-    seq_name text;
-    col_name text;
-    test text;
     object RECORD;
 BEGIN
     -- schema should exist already as a prerequisite
@@ -228,15 +225,6 @@ BEGIN
             EXECUTE 'CREATE SEQUENCE ' || quote_ident(test_scheme_name) || '.' || quote_ident(object.sequence_name) ||
                     ' AS INTEGER';
         END LOOP;
-
---     -- Copy views
---     FOR object IN
---         SELECT table_name::text FROM information_schema.views
---         WHERE table_schema = 'public'
---         LOOP
---             EXECUTE 'CREATE VIEW ' || quote_ident(test_scheme_name) || '.' || quote_ident(object.table_name) || ' AS ' ||
---                     'SELECT * FROM ' || quote_ident('public') || '.' || quote_ident(object.table_name);
---         END LOOP;
 
     -- update search path. In the end it should look like: "test_env, \"$user\", public",
     --  so it would look up the tables in test_env and routines in public
