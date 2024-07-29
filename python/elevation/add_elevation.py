@@ -124,7 +124,7 @@ if __name__ == '__main__':
     # Use credentials_config from parent directory
     parent_dir = pathlib.Path(__file__).parent.parent
     sys.path.append(str(parent_dir))
-    from credentials_config import CREDENTIALS
+    from roadgraphtool.credentials_config import CREDENTIALS
     config = {
             "host": CREDENTIALS.host,
             "dbname": CREDENTIALS.db_name,

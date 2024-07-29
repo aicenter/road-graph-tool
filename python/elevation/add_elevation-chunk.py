@@ -6,35 +6,40 @@ import sys
 import time
 
 URL = 'http://localhost:8080/elevation/api'
-CHUNK_SIZE = 500
+CHUNK_SIZE = 5000
 
 
-def load_coords(config):
-    """Load node ids and coords from db to dict"""
-    elevations = list()
-    # create_table_query = """
-    # CREATE TABLE IF NOT EXISTS elevations (
-    #     node_id BIGINT NOT NULL,
-    #     elevation REAL
-    # );
-    # """
+def setup_database(config):
+    """Set up the database by ensuring the required table and column exist."""
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS elevations (
+        node_id BIGINT NOT NULL,
+        elevation REAL
+    );
+    """
     add_column_query = """ALTER TABLE nodes ADD COLUMN IF NOT EXISTS elevation REAL;"""
-    select_query = """ SELECT node_id, ST_Y(geom) AS lat, ST_X(geom) AS lon FROM nodes; """
     try:
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
                 # cur.execute(create_table_query)
                 cur.execute(add_column_query)
-                cur.execute(select_query)
-                chunk = []
-                for row in cur.fetchall():
-                    # node_id, latitude, longitude
-                    chunk.append([row[0], row[1], row[2]])
-                    if len(chunk) == CHUNK_SIZE:
-                        elevations.append(chunk)
-                        chunk = []
-                if chunk:
-                    elevations.append(chunk)
+    except (psycopg2.DatabaseError, Exception) as error:
+        print(error)
+
+
+def load_coords(config):
+    """Load node ids and coords from db to dict"""
+    elevations = list()
+    select_query = """ SELECT node_id, ST_Y(geom) AS lat, ST_X(geom) AS lon FROM nodes; """
+    try:
+        with psycopg2.connect(**config) as conn:
+            cur = conn.cursor('node_cursor')
+            cur.execute(select_query)
+            while True:
+                chunk = cur.fetchmany(CHUNK_SIZE)
+                if not chunk:
+                    break
+                elevations.append(chunk)
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
     return elevations
@@ -78,15 +83,14 @@ def store_elevations(config, elevations):
     # insert_query = """ INSERT INTO elevations (node_id, elevation) VALUES %s; """
     update_query = """ UPDATE nodes SET elevation = elevations.elevation FROM (VALUES %s) AS elevations (node_id, elevation) WHERE nodes.node_id = elevations.node_id; """
     # node_id, elevation
-    # data_tuples = [(data[0], data[3]) for chunk in elevations for data in chunk]
+    data_tuples = [(data[0], data[3]) for chunk in elevations for data in chunk]
     try:
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
-                # node_id, elevation
-                data_tuples = [(data[0], data[3]) for chunk in elevations for data in chunk]
+                cur.executemany(update_query, data_tuples)
                 # psycopg2.extras.execute_values(cur, insert_query, data_tuples)
-                psycopg2.extras.execute_values(cur, update_query, data_tuples, template='(%s, %s)')
-        conn.commit()
+                # psycopg2.extras.execute_values(cur, update_query, data_tuples, template='(%s, %s)')
+            conn.commit()
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
 
@@ -126,7 +130,7 @@ if __name__ == '__main__':
     # Use credentials_config from parent directory
     parent_dir = pathlib.Path(__file__).parent.parent
     sys.path.append(str(parent_dir))
-    from credentials_config import CREDENTIALS
+    from roadgraphtool.credentials_config import CREDENTIALS
     config = {
         "host": CREDENTIALS.host,
         "dbname": CREDENTIALS.db_name,
@@ -138,6 +142,10 @@ if __name__ == '__main__':
     start = time.time()
     # run(config)
 
+    setup_database(config)
+    e = time.time()
+    print(f"Setting up database... {e - start} seconds.")
+
     s = time.time()
     coords = load_coords(config)
     e = time.time()
@@ -148,18 +156,18 @@ if __name__ == '__main__':
     e = time.time()
     print(f"Preparing coords... {e - s} seconds.")
 
-    s = time.time()
-    json_elevations = get_elevation(json_coords)
-    e = time.time()
-    print(f"Getting coords... {e - s} seconds.")
+    # s = time.time()
+    # json_elevations = get_elevation(json_coords)
+    # e = time.time()
+    # print(f"Getting elevations... {e - s} seconds.")
 
-    s = time.time()
-    elevations = update_elevations(coords, json_elevations)
-    e = time.time()
-    print(f"Updating coords with elevations... {e - s} seconds.")
+    # s = time.time()
+    # elevations = update_elevations(coords, json_elevations)
+    # e = time.time()
+    # print(f"Updating coords with elevations... {e - s} seconds.")
 
-    s = time.time()
-    store_elevations(config, elevations)
-    e = time.time()
-    print(f"Storing elevations to table... {e - s} seconds.")
-    print(f"The program took {e - start} seconds to execute.")
+    # s = time.time()
+    # store_elevations(config, elevations)
+    # e = time.time()
+    # print(f"Storing elevations to table... {e - s} seconds.")
+    # print(f"The program took {e - start} seconds to execute.")
