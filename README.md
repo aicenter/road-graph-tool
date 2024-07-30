@@ -49,10 +49,10 @@ The road graph tool consists of a set of components that are responsible for ind
 
 ## OSM file processing
 ### Prerequisities
-Before we can process and load data into the database, we'll need to obtain and install several libraries: 
+Before we can process and load data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to obtain and install several libraries: 
 * psql (for PostgreSQL)
-* osmium: osmium-tool (on macOS `brew install osmium-tool`), libosmium (on macOS `brew install libosmium`)
-* osm2pgsql (on macOS `brew install osm2pgsql`)
+* osmium: osmium-tool (macOS `brew install osmium-tool`, Ubuntu `apt install osmium-tool`)
+* osm2pgsql (macOS `brew install osm2pgsql`, Ubuntu (1.6.0 version) `apt install osm2pgsql`)
 The PostgreSQL database needs PostGis extension in order to enable spatial and geographic capabilities within the database, which is essential for working with OSM data.
 Loading large OSM files to database is memory demanding so [documentation](https://osm2pgsql.org/doc/manual.html#system-requirements) suggests to have at least as much RAM as the PBF file with the OSM data is large.
 

@@ -5,10 +5,14 @@ import os
 import subprocess
 import requests
 from find_bbox import find_min_max
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
+logger = logging.getLogger(__name__)
 
 def display_help():
     """Function to display usage information"""
-    print("Usage: script.py [tag] [input_file] [option]")
+    print(f"Usage: {os.path.basename(__file__)} [tag] [input_file]")
     print("Tag:")
     print("  -h/--help              : Display this help message")
     print("  -id                    : Filter geographic objects based on ID")
@@ -70,28 +74,24 @@ if __name__ == '__main__':
 
     if tag == "-id":
         if len(sys.argv) < 4:
-            # TODO: logging
-            print("Error: You need to specify relation ID and input file.")
+            logger.error("You need to specify relation ID and input file.")
             exit(1)
         relation_id = sys.argv[2]
         input_file = sys.argv[3]
         if len(sys.argv) == 5 and sys.argv[4] == '-s':
-            # TODO: logging
-            print("Error: Missing specified strategy type.")
+            logger.error("Missing specified strategy type.")
             exit(1)
         strategy = sys.argv[5] if len(sys.argv) > 5 and sys.argv[4] == "-s" else None
         
         if strategy and not check_strategy(strategy):
-            # TODO: logging
-            print("Error: Invalid strategy type. Call script.py -h/--help to display help.")
+            logger.error("Invalid strategy type. Call script.py -h/--help to display help.")
             exit(1)
         
         extract_id(relation_id, input_file, strategy)
 
     elif tag == "-b":
         if len(sys.argv) < 3:
-            # TODO: logging
-            print("Error: You need to specify relation ID.")
+            logger.error("You need to specify relation ID.")
             exit(1)
         relation_id = sys.argv[2]
         input_file = sys.argv[3]
@@ -100,30 +100,25 @@ if __name__ == '__main__':
 
     elif tag == "-bos":
         if len(sys.argv) < 4:
-            # TODO: logging
-            print("Error: You need to specify either coordinates or config file with coordinates and input file.")
+            logger.error("You need to specify either coordinates or config file with coordinates and input file.")
             exit(1)
         coords = sys.argv[2]
         input_file = sys.argv[3]
         strategy = sys.argv[5] if len(sys.argv) > 5 and sys.argv[4] == "-s" else None
         
         if strategy and not check_strategy(strategy):
-            # TODO: logging
-            print("Error: Invalid strategy type. Call script.py -h/--help to display help.")
+            logger.error("Invalid strategy type. Call script.py -h/--help to display help.")
             exit(1)
         
         extract_bbox_osmium(coords, input_file, strategy)
 
     elif tag == "-t":
         if len(sys.argv) < 4:
-            # TODO: logging
-            print("Error: You need to specify expression file and input file.")
+            logger.error("You need to specify expression file and input file.")
             exit(1)
         expression_file = sys.argv[2]
         input_file = sys.argv[3]
         subprocess.run(["osmium", "tags-filter", input_file, "-e", expression_file, "-o", "filtered.osm.pbf"])
 
     else:
-        # TODO: logging
-        print("Invalid tag. Call script.py -h/--help to display help.")
-        exit(1)
+        logger.error(f"Invalid tag. Call {os.path.basename(__file__)} -h/--help to display help.")
