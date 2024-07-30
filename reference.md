@@ -35,6 +35,42 @@ This function retrieves map nodes from a database based on the area ID. It utili
 #### Return Value
 - `gpd.GeoDataFrame`: A GeoDataFrame containing the retrieved map nodes.
 
+## Generation Procedures (instance_generation.py) 
+
+### `generate_dm`
+
+#### Description
+
+This procedure generates a distance matrix for a given set of nodes and edges, which represent a road network.
+
+#### Parameters
+
+- `config` (Dict): A configuration dictionary containing necessary paths and settings.
+  - dm_filepath: (Optional) The file path where the distance matrix will be saved.
+  - area_dir: Directory path for storing the distance matrix if dm_filepath is not provided.
+  - map['path']: Directory path where the map files are located.
+- `nodes` (gpd.GeoDataFrame): A GeoDataFrame containing the nodes of the network.
+- `edges` (gpd.GeoDataFrame): A GeoDataFrame containing the edges of the network, with optional speed data.
+- `allow_zero_length_edges` (bool, default=True): A flag to allow or disallow zero-length edges in the network.
+
+#### Prerequisite
+
+Must be installed [Shortest Distances computation library](https://github.com/aicenter/shortest-distances) (`shortestPathsPreprocessor`)
+
+#### Example
+
+```
+from pathlib import Path
+from darpinstances.instance import load_instance_config
+from darpinstances.instance_generation.map import get_map
+from roadgraphtool.instance_generation import generate_dm
+
+config = load_instance_config(Path("C:/Users/sha00/Desktop/config.yaml"))
+map_nodes, map_edges = get_map(config)
+
+generate_dm(config, map_nodes, map_edges)
+```
+
 # SQL Functions
 
 ## [`get_area_for_demand`](SQL/functions/function_get_area_for_demand.sql)
