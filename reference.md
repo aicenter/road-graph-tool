@@ -25,15 +25,24 @@
 ### `get_map_nodes_from_db`
 
 #### Description
-This function retrieves map nodes from a database based on the area ID. It utilizes SQLAlchemy for database connectivity and GeoPandas for handling geographic data.
+This function retrieves map nodes from a database based on the area ID.
 
 #### Parameters
-- `config`: A dictionary containing configuration parameters for database connectivity.
-- `server_port`: The port number of the database server.
 - `area_id` (int): The ID of the area for which nodes are to be retrieved.
 
 #### Return Value
-- `gpd.GeoDataFrame`: A GeoDataFrame containing the retrieved map nodes.
+- `nodes`: A GeoDataFrame containing the retrieved map nodes.
+
+### `get_map_edges_from_db`
+
+#### Description
+This function retrieves map edges from a database based on the area ID and SRID.
+
+#### Parameters
+- `config`: A dictionary containing `area_id` and `SRID_plane`.
+
+#### Return Value
+- `edges`: A GeoDataFrame containing the retrieved map edges.
 
 ## Generation Procedures (instance_generation.py) 
 
@@ -61,9 +70,9 @@ Must be installed [Shortest Distances computation library](https://github.com/ai
 
 ```
 from pathlib import Path
-from darpinstances.instance import load_instance_config
-from darpinstances.instance_generation.map import get_map
-from roadgraphtool.instance_generation import generate_dm
+from roadgraphtool.distance_matrix_generator import load_instance_config
+from roadgraphtool.distance_matrix_generator import generate_dm
+from roadgraphtool.map import get_map
 
 config = load_instance_config(Path("C:/Users/sha00/Desktop/config.yaml"))
 map_nodes, map_edges = get_map(config)

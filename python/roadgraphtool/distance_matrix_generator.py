@@ -1,10 +1,49 @@
+import yaml
 import os.path
 import logging
 import pandas as pd
 from typing import Dict
 import geopandas as gpd
+from pathlib import Path
 
 import roadgraphtool.exec
+
+
+def _set_config_defaults(config: Dict, defaults: Dict):
+    for key, val in defaults.items():
+        if isinstance(val, dict):
+            _set_config_defaults(config[key], defaults[key])
+        else:
+            if key not in config:
+                config[key] = defaults[key]
+
+
+def load_instance_config(config_file_path: Path) -> Dict:
+    config_file_path_abs = config_file_path.absolute()
+    logging.info(f"Loading instance config from {config_file_path_abs}")
+    with open(config_file_path_abs, 'r') as config_file:
+        try:
+            config = yaml.safe_load(config_file)
+
+            defaults = {
+                'instance_dir': os.path.dirname(config_file_path),
+                'map': {
+                    'path': config_file_path.parent / 'map'
+                },
+                'demand': {
+                    'type': 'generate',
+                    'min_time': 0,
+                    'max_time': 86_400  # 24:00
+                },
+                'vehicles': {
+                    'start_time': config['demand']['min_time']
+                }
+            }
+
+            _set_config_defaults(config, defaults)
+            return config
+        except yaml.YAMLError as er:
+            logging.error(er)
 
 
 def generate_dm(config: Dict, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, allow_zero_length_edges: bool = True):
@@ -14,7 +53,8 @@ def generate_dm(config: Dict, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, 
         dm_file_path = os.path.join(config['area_dir'], 'dm')
 
     abs_path = os.path.abspath(dm_file_path)
-    if os.path.exists(abs_path):
+    abs_path_with_extension = abs_path + '.csv'
+    if os.path.exists(abs_path) or os.path.exists(abs_path_with_extension):
         logging.info('Skipping DM generation, the file is already generated.')
     else:
         logging.info(f"Generating distance matrix in {abs_path}")
