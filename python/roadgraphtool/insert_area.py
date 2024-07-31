@@ -2,17 +2,14 @@ import argparse
 import json
 import sys
 
-import psycopg2
-
 from .db import db
 
 
-def insert_area(cursor, id: int, name: str, description: str, geom: dict):
+def insert_area(id: int, name: str, description: str, geom: dict):
     """
     Insert a new area into the areas table.
 
     Args:
-    cursor: psycopg2 cursor object
     id (int): The ID of the area
     name (str): The name of the area
     description (str): The description of the area
@@ -21,9 +18,9 @@ def insert_area(cursor, id: int, name: str, description: str, geom: dict):
     Returns:
     None
     """
-    cursor.execute(
-        "SELECT insert_area(%s, %s, %s, %s)",
-        (name, json.dumps(geom), id, description),
+    # result ignored as the pgsql function returns void
+    db.execute_query_to_geopandas(
+        f"SELECT insert_area({name}, {json.dumps(geom)}, {id}, {description})"
     )
 
 
@@ -73,34 +70,20 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main():
+if __name__ == "__main__":
     args = parse_arguments()
 
     # Read the GeoJSON file
     geojson = read_json_file(args.file)
 
-    # Establish database connection
-    conn = db.get_new_psycopg2_connection()
-
+    # inserting area to db
     try:
-        with conn.cursor() as cursor:
-            # For this example, we're using a placeholder ID and description
-            # You might want to generate these dynamically or accept them as additional arguments
-            insert_area(
-                cursor,
-                id=args.id,
-                name=args.name,
-                description=args.description,
-                geom=geojson,
-            )
-        conn.commit()
+        insert_area(
+            id=args.id,
+            name=args.name,
+            description=args.description,
+            geom=geojson,
+        )
         print(f"Area '{args.name}' inserted successfully.")
-    except psycopg2.Error as e:
-        conn.rollback()
+    except Exception as e:
         print(f"Error inserting area: {e}")
-    finally:
-        conn.close()
-
-
-if __name__ == "__main__":
-    main()
