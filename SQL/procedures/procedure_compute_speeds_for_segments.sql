@@ -150,6 +150,3 @@ RAISE NOTICE 'Inserted speed for % node segments, quality %',
 DISCARD TEMPORARY;
 END$$;
 
-
-ALTER PROCEDURE compute_speeds_for_segments(smallint, smallint, smallint, smallint) OWNER TO fiedler;
-

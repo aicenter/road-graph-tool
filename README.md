@@ -14,7 +14,7 @@ The version 1.0.0 of use the following data sources:
 The processing and storage of the data are done in a PostgreSQL/PostGIS database. To manipulate the database, import data to the database, and export data from the database, the project provides a set of Python scripts. 
 
 # Quick Start Guide
-To run the tool, you need access to a local or remote PostgreSQL database with the PostGIS extension installed. The remote database can be accessed through an SSH tunnel. The SSH tunneling is done on the application level, you just need to provide the necessary configuration in the `config.ini` file (see the [`config-EXAMPLE.ini`](./config-EXAMPLE.ini) file for an example configuration).
+To run the tool, you need access to a local or remote PostgreSQL database with the PostGIS extension installed. The remote database can be accessed through an SSH tunnel. The SSH tunneling is done on the application level, you just need to provide the necessary configuration in the `config.ini` file (see the [`config-EXAMPLE.ini`](python/roadgraphtool/config-EXAMPLE.ini) file for an example configuration).
 
 Currently, only parts of the tool are functional, so the database needs to be filled with the following data: TODO
 
@@ -24,23 +24,25 @@ To skip some processing steps, comment out the lines in the `main.py` file that 
 
 Then, run the `main.py` script.
 
+
+
 # Testing
-For testing the PostgreSQL procedures that are the core of the tool, we use the `pgTAP` testing framework. To learn how to use `pgTAP`, see the [pgTAP manual](./doc/pgtap.md).
+For testing the PostgreSQL procedures that are the core of the Road Graph Tool, we use the [pgTAP testing framework](https://github.com/theory/pgtap). To learn how to use pgTAP, see the [pgTAP manual](./doc/pgtap.md).
 
 
 To run the tests, follow these steps:
-1. Install the `pgTAP` extension in your PostgreSQL database according to the [pgTAP manual](./doc/pgtap.md).
-2. Ensure all functions and procedures from the `SQL/` directory are present in your database.
-3. Create a new schema named `test_env` if it doesn't already exist. This schema will serve as the testing environment. You can create it using the following SQL command:
-```sql
-CREATE SCHEMA IF NOT EXISTS test_env;
-```
+1. Install the `pgTAP` extension for your PostgreSQL database cluster according to the [pgTAP manual](./doc/pgtap.md).
+1. If you haven't already, create and initialize the database
+    1. create new database using `CREATE DATABASE <database_name>;`
+    1. copy the `config-EXAMPLE.ini` file to `config.ini` and fill in the necessary information
+    1. inititalize new database using the script `<rgt root>/python/scripts/install_db.py`. 
+        - this script will install all necessary extensions and create all necessary tables, procedures, and functions.
+        - the configuration for the database is loaded from the `config.ini` file.
 4. Execute the tests by running the following query in your PostgreSQL console:
-```sql
-   SELECT * FROM run_all_tests();
-   ```
-
-This query will return a result set containing the execution status of each test.
+    ```sql
+    SELECT * FROM run_all_tests();
+    ```
+    - This query will return a result set containing the execution status of each test.
 
 # Components
 The road graph tool consists of a set of components that are responsible for individual processing steps, importing data, or exporting data. Each component is implemented as an PostgreSQL procedure, possibly calling other procedures or functions. Additionally, each component has its own Python wrapper script that connects to the database and calls the procedure. Currently, the following components are implemented:
