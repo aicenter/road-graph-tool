@@ -4,9 +4,9 @@ import sys
 import os
 import subprocess
 import requests
-from .find_bbox import find_min_max
+from find_bbox import find_min_max
 import logging
-from .process_osm import check_extension
+from process_osm import check_extension
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)

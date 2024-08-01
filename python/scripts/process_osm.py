@@ -3,6 +3,9 @@ import sys
 import os
 import subprocess
 import logging
+parent_dir = pathlib.Path(__file__).parent.parent
+sys.path.append(str(parent_dir))
+from roadgraphtool.credentials_config import CREDENTIALS as config
 
 # CHANGE - file path to the config file
 CONFIG_FILE = "config.ini"
@@ -76,16 +79,12 @@ if __name__ == '__main__':
     elif tag == "-u":
         style_file_path = sys.argv[3] if len(sys.argv) > 3 else "resources/lua_styles/default.lua"
         input_file = input_file
-
-        parent_dir = pathlib.Path(__file__).parent.parent
-        sys.path.append(str(parent_dir))
-        from roadgraphtool.credentials_config import CREDENTIALS as config
         db_username = config.username
         db_host = config.db_host
         db_name = config.db_name
         db_server_port = config.db_server_port
         command = ["osm2pgsql", "-d", db_name, "-U", db_username, "-W", "-H", db_host, "-P", str(db_server_port),
             "--output=flex", "-S", style_file_path, input_file, "-x"]
-        subprocess.run(command)
+        # subprocess.run(command)
     else:
         logger.error(f"Invalid tag. Call {os.path.basename(__file__)} -h/--help to display help.")

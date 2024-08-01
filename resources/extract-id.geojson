@@ -1,7 +1,7 @@
 {
     "extracts": [
         {
-            "output": "id_extract.osm.pbf",
+            "output": "resources/id_extract.osm.pbf",
             "multipolygon": {
                 "file_name": "to_extract.osm",
                 "file_type": "osm"
