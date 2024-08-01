@@ -4,8 +4,9 @@ import sys
 import os
 import subprocess
 import requests
-from find_bbox import find_min_max
+from .find_bbox import find_min_max
 import logging
+from .process_osm import check_extension
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ def display_help():
     print(f"Usage: {os.path.basename(__file__)} [tag] [input_file]")
     print("Tag:")
     print("  -h/--help              : Display this help message")
-    print("  -id                    : Filter geographic objects based on ID")
+    print("  -id                    : Filter geopythongraphic objects based on ID")
     print("  -b                     : Filter geographic objects based on bounding box (with osm2pgsql)")
     print("  -bos                   : Filter geographic objects based on bounding box (with osmium)")
     print("  -t [expression_file]   : Filter objects based on tags in expression_file")
@@ -30,7 +31,7 @@ def check_strategy(strategy):
 def extract_id(relation_id, input_file, strategy=None):
     """Function to filter out data based on input id"""
     parent_dir = pathlib.Path(__file__).parent.parent.parent
-    tmp_file = str(parent_dir) + "/resources/to-extract.osm"
+    tmp_file = str(parent_dir) + "/resources/to_extract.osm"
     path = str(parent_dir) + "/resources/extract-id.geojson"
     url = f"https://www.openstreetmap.org/api/0.6/relation/{relation_id}/full"
     
@@ -58,7 +59,7 @@ def extract_bbox_osm2pgsql(relation_id):
 def extract_bbox_osmium(coords, input_file, strategy=None):
     """Function to extract based on bounding box with osmium"""
     # should match four floats:
-    coords_regex = '^[0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?$'
+    coords_regex = '[0-9]+(.[0-9]+)?,[0-9]+(.[0-9]+)?,[0-9]+(.[0-9]+)?,[0-9]+(.[0-9]+)?'
     command = ["osmium", "extract", "-b" if re.match(coords_regex, coords) else "-c", coords, input_file, "-o", "extracted-bbox.osm.pbf"]
     
     if strategy:
@@ -78,6 +79,7 @@ if __name__ == '__main__':
             exit(1)
         relation_id = sys.argv[2]
         input_file = sys.argv[3]
+        check_extension(input_file)
         if len(sys.argv) == 5 and sys.argv[4] == '-s':
             logger.error("Missing specified strategy type.")
             exit(1)
@@ -95,6 +97,7 @@ if __name__ == '__main__':
             exit(1)
         relation_id = sys.argv[2]
         input_file = sys.argv[3]
+        check_extension(input_file)
         min_lon, min_lat, max_lon, max_lat = extract_bbox_osm2pgsql(relation_id, input_file)
         print(f"{min_lon}, {min_lat}, {max_lon}, {max_lat}")
 
@@ -104,6 +107,7 @@ if __name__ == '__main__':
             exit(1)
         coords = sys.argv[2]
         input_file = sys.argv[3]
+        check_extension(input_file)
         strategy = sys.argv[5] if len(sys.argv) > 5 and sys.argv[4] == "-s" else None
         
         if strategy and not check_strategy(strategy):
@@ -118,6 +122,7 @@ if __name__ == '__main__':
             exit(1)
         expression_file = sys.argv[2]
         input_file = sys.argv[3]
+        check_extension(input_file)
         subprocess.run(["osmium", "tags-filter", input_file, "-e", expression_file, "-o", "filtered.osm.pbf"])
 
     else:

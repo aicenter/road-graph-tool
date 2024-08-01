@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="Overpass API 0.7.62.1 084b4234">
+<note>The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.</note>
+<meta osm_base="2024-07-30T10:49:15Z" areas="2024-07-30T09:03:34Z"/>
+
+  <way id="432751852">
+    <bounds minlat="43.7395246" minlon="7.4256268" maxlat="43.7404327" maxlon="7.4271971"/>
+    <nd ref="5603089523" lat="43.7402472" lon="7.4256917"/>
+    <nd ref="9239193063" lat="43.7402767" lon="7.4256330"/>
+    <nd ref="1685108240" lat="43.7403356" lon="7.4256268"/>
+    <nd ref="9239193064" lat="43.7403840" lon="7.4256529"/>
+    <nd ref="9239193065" lat="43.7404213" lon="7.4256992"/>
+    <nd ref="1685108315" lat="43.7404282" lon="7.4257502"/>
+    <nd ref="1685108317" lat="43.7404327" lon="7.4258280"/>
+    <nd ref="4317071442" lat="43.7400458" lon="7.4265981"/>
+    <nd ref="4317071443" lat="43.7399898" lon="7.4267001"/>
+    <nd ref="4317072565" lat="43.7398575" lon="7.4269477"/>
+    <nd ref="1685108087" lat="43.7397241" lon="7.4271971"/>
+    <nd ref="9911623940" lat="43.7396576" lon="7.4271796"/>
+    <nd ref="1685108080" lat="43.7396269" lon="7.4271716"/>
+    <nd ref="1685108071" lat="43.7395623" lon="7.4271043"/>
+    <nd ref="9911623936" lat="43.7395454" lon="7.4270471"/>
+    <nd ref="1685108052" lat="43.7395246" lon="7.4269767"/>
+    <nd ref="5603089523" lat="43.7402472" lon="7.4256917"/>
+    <tag k="addr:country" v="MC"/>
+    <tag k="alt_name" v="Jardin du Casino"/>
+    <tag k="leisure" v="park"/>
+    <tag k="name" v="Jardin des Boulingrins"/>
+    <tag k="old_name" v="Pavillons des Boulingrins"/>
+  </way>
+
+  <way id="1081401612" visible="true" version="1" changeset="124093286" timestamp="2022-07-26T11:58:25Z" user="rene78" uid="257555">
+    <nd ref="9911623936"/>
+    <nd ref="9911623937"/>
+    <nd ref="9911623938"/>
+    <nd ref="9911623939"/>
+    <nd ref="9911623940"/>
+    <nd ref="1685108080"/>
+    <nd ref="1685108071"/>
+    <nd ref="9911623936"/>
+    <tag k="access" v="customers"/>
+    <tag k="amenity" v="parking"/>
+  </way>
+
+  <way id="165636046" visible="true" version="15" changeset="132600110" timestamp="2023-02-15T20:27:50Z" user="berco85" uid="2957494">
+    <nd ref="25240089"/>
+    <nd ref="3013026474"/>
+    <nd ref="4938969816"/>
+    <nd ref="4938969817"/>
+    <nd ref="4938969819"/>
+    <nd ref="4938969818"/>
+    <nd ref="252417671"/>
+    <nd ref="272637729"/>
+    <nd ref="21917308"/>
+    <tag k="highway" v="secondary"/>
+    <tag k="lanes" v="2"/>
+    <tag k="lit" v="yes"/>
+    <tag k="maxspeed" v="50"/>
+    <tag k="name" v="Boulevard des Moulins"/>
+    <tag k="sidewalk" v="both"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+
+  <node id="5603089523" visible="true" version="1" changeset="58771892" timestamp="2018-05-07T22:07:41Z" user="rene78" uid="257555" lat="43.7402472" lon="7.4256917"/>
+  <node id="9239193063" visible="true" version="1" changeset="113586775" timestamp="2021-11-09T23:13:47Z" user="Lyon-St-Clair" uid="9060372" lat="43.7402767" lon="7.4256330"/>
+  <node id="1685108240" visible="true" version="3" changeset="113586775" timestamp="2021-11-09T23:13:47Z" user="Lyon-St-Clair" uid="9060372" lat="43.7403356" lon="7.4256268"/>
+  <node id="9239193064" visible="true" version="1" changeset="113586775" timestamp="2021-11-09T23:13:47Z" user="Lyon-St-Clair" uid="9060372" lat="43.7403840" lon="7.4256529"/>
+  <node id="9239193065" visible="true" version="1" changeset="113586775" timestamp="2021-11-09T23:13:47Z" user="Lyon-St-Clair" uid="9060372" lat="43.7404213" lon="7.4256992"/>
+  <node id="1685108315" visible="true" version="3" changeset="113586775" timestamp="2021-11-09T23:13:47Z" user="Lyon-St-Clair" uid="9060372" lat="43.7404282" lon="7.4257502"/>
+  <node id="11148572585" visible="true" version="1" changeset="140460998" timestamp="2023-08-27T17:05:06Z" user="rene78" uid="257555" lat="43.7399944" lon="7.4265240">
+    <tag k="amenity" v="bar"/>
+    <tag k="name" v="Mada Lounge (Part of Mada One)"/>
+  </node>
+  <node id="11148572586" visible="true" version="1" changeset="140460998" timestamp="2023-08-27T17:05:06Z" user="rene78" uid="257555" lat="43.7398210" lon="7.4267437">
+    <tag k="artwork_type" v="sculpture"/>
+    <tag k="tourism" v="artwork"/>
+  </node>
+  <node id="21915639" visible="true" version="8" changeset="132600110" timestamp="2023-02-15T20:27:50Z" user="berco85" uid="2957494" lat="43.7404449" lon="7.4256003">
+    <tag k="highway" v="traffic_signals"/>
+  </node>
+</osm>
