@@ -19,6 +19,8 @@ setup(
 		'sqlalchemy',
 		'sshtunnel',
 		'geopandas',
+		'osmnx',
+		'networkx'
 	],
 	python_requires='>=3.8'
 )

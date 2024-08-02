@@ -59,10 +59,10 @@ def compute_speeds_for_segments(cursor, target_area_id: int, speed_records_datas
     cursor.execute('call public.compute_speeds_for_segments(%s::smallint, %s::smallint, %s::smallint, %s::smallint);',
                    (target_area_id, speed_records_dataset, hour, day_of_week))
 
+
 def compute_speeds_from_neighborhood_segments(cursor, target_area_id: int, target_area_srid: int):
     cursor.execute('call public.compute_speeds_from_neighborhood_segments(%s::smallint, %s::int);',
                    (target_area_id, target_area_srid))
-
 
 
 if __name__ == '__main__':

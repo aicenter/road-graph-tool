@@ -1,5 +1,6 @@
 import atexit
 import logging
+from pathlib import Path
 
 import pandas as pd
 import geopandas as gpd
@@ -7,8 +8,10 @@ import psycopg2
 import psycopg2.errors
 import sqlalchemy
 import sshtunnel
+from sqlalchemy.engine import Row
+from sqlalchemy.orm import sessionmaker
 
-from .credentials_config import CREDENTIALS
+from roadgraphtool.credentials_config import CREDENTIALS
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
 
@@ -20,7 +23,8 @@ def connect_db_if_required(db_function):
 
     def wrapper(*args, **kwargs):
         db = args[0]
-        db.start_or_restart_ssh_connection_if_needed()
+        if hasattr(db, 'server'):
+            db.start_or_restart_ssh_connection_if_needed()
         if not db.is_connected():
             db.set_up_db_connections()
         return db_function(*args, **kwargs)
@@ -44,8 +48,12 @@ class __Database:
         self.db_server_port = self.config.db_server_port
         self.db_name = self.config.db_name
         self.ssh_tunnel_local_port = 1113
-        self.server = self.config.server
-        self.ssh_server = None
+        if hasattr(self.config, 'server'):
+            self.server = self.config.server
+            self.ssh_server = None
+            self.host = self.config.host
+        else:
+            self.host = self.config.db_host
 
         self._sqlalchemy_engine = None
         self._psycopg2_connection = None
@@ -107,7 +115,7 @@ class __Database:
         sql_alchemy_engine_str = 'postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}'.format(
             user=self.config.username,
             password=self.config.db_password,
-            host=self.config.host,
+            host=self.host,
             port=self.db_server_port,
             dbname=self.db_name)
 
@@ -132,6 +140,37 @@ class __Database:
             logging.error(str(er))
             logging.info("Tunnel status: %s", str(self.ssh_server.tunnel_is_up))
             return None
+
+    @connect_db_if_required
+    def execute_sql(self, query, *args, use_transactions=True) -> None:
+        """
+        Execute SQL that doesn't return any value.
+        """
+        with self._sqlalchemy_engine.connect() as connection:
+            if not use_transactions:
+                connection.execution_options(isolation_level="AUTOCOMMIT")
+            with connection.begin():
+                connection.execute(sqlalchemy.text(query), *args)
+
+    @connect_db_if_required
+    def execute_sql_and_fetch_all_rows(self, query, *args) -> list[Row]:
+        with self._sqlalchemy_engine.connect() as conn:
+            result = conn.execute(sqlalchemy.text(query), *args).all()
+            return result
+
+    @connect_db_if_required
+    def execute_script(self, script_path: Path):
+        with open(script_path) as f:
+            script = f.read()
+            cursor = self._psycopg2_connection.cursor()
+            try:
+                cursor.execute(script)
+                self._psycopg2_connection.commit()
+            except Exception as e:
+                logging.error(f"Error executing script {script_path}: {e}")
+                self._psycopg2_connection.rollback()
+            finally:
+                cursor.close()
 
     @connect_db_if_required
     def execute_query_to_geopandas(self, sql: str, **kwargs) -> pd.DataFrame:

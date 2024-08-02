@@ -1,4 +1,4 @@
-create function get_ways_in_target_area(target_area_id smallint)
+create OR REPLACE function get_ways_in_target_area(target_area_id smallint)
     returns TABLE(id bigint, tags hstore, geom geometry, area integer, "from" bigint, "to" bigint, oneway boolean)
     language sql
 as
