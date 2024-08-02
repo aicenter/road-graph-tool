@@ -18,14 +18,17 @@ def insert_area(id: int | None, name: str, description: str | None, geom: dict):
     Returns:
     None
     """
-    if id is None:
-        id: str = "NULL"
     if description is None:
         description = ""
     # result ignored as the pgsql function returns void
-    db.execute_query_to_geopandas(
-        f"SELECT insert_area('{name}', '{json.dumps(geom)}', {id}, '{description}')"
-    )
+    if id is None:
+        db.execute_sql(
+            f"SELECT insert_area('{name}', '{json.dumps(geom)}', NULL, '{description}')"
+        )
+    else:
+        db.execute_sql(
+            f"SELECT insert_area('{name}', '{json.dumps(geom)}', {id}, '{description}')"
+        )
 
 
 def read_json_file(file_path: str) -> dict:
