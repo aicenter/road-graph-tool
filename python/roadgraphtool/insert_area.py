@@ -5,7 +5,7 @@ import sys
 from .db import db
 
 
-def insert_area(id: int, name: str, description: str, geom: dict):
+def insert_area(id: int | None, name: str, description: str | None, geom: dict):
     """
     Insert a new area into the areas table.
 
@@ -18,9 +18,13 @@ def insert_area(id: int, name: str, description: str, geom: dict):
     Returns:
     None
     """
+    if id is None:
+        id: str = "NULL"
+    if description is None:
+        description = ""
     # result ignored as the pgsql function returns void
     db.execute_query_to_geopandas(
-        f"SELECT insert_area({name}, {json.dumps(geom)}, {id}, {description})"
+        f"SELECT insert_area('{name}', '{json.dumps(geom)}', {id}, '{description}')"
     )
 
 
