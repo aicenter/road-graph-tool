@@ -1,4 +1,4 @@
 .idea/
 roadgraphtool.egg-info/
 __pycache__/
-python/roadgraphtool/config.ini
+config.ini
