@@ -30,27 +30,44 @@ class CredentialsConfig:
 
         database = config["database"]
 
-        if (
-            "username" not in database
-            or "db_host" not in database
-            or "db_name" not in database
-        ):
-            raise Exception(
-                'Either "username", "db_host" or "db_name" is missing from config.ini!'
-            )
-
         self.db_server_port = int(database.get("db_server_port", "5432"))
-        self.username = database["username"]
+        self.username = database.get("username", None)
         self.db_password = database.get("db_password", "")
-        self.db_host = database["db_host"]
-        self.db_name = database["db_name"]
+        self.db_host = database.get("db_host", "localhost")
+        self.db_name = database.get("db_name", None)
 
         if "ssh" in config:
-            self.server_username = config["ssh"].get("server_username", None)
-            self.private_key_path = config["ssh"].get("private_key_path", None)
-            self.private_key_phrase = config["ssh"].get("private_key_passphrase", None)
-            self.host = config["ssh"].get("host", "localhost")
-            self.server = config["ssh"].get("server", None)
+            ssh = config["ssh"]
+            self.server_username = ssh.get("server_username", None)
+            self.private_key_path = ssh.get("private_key_path", None)
+            self.private_key_phrase = ssh.get("private_key_passphrase", None)
+            self.host = ssh.get("host", "localhost")
+            self.server = ssh.get("server", None)
+
+        if "username" not in database or "db_name" not in database:
+            raise RuntimeError(
+                'Database critical credentials ("username" or/and "db_name") not found in config file. Parsed credentials are:\n{}'.format(
+                    self
+                )
+            )
+
+    def __str__(self):
+        return "\n".join(
+            [
+                "Database credentials:",
+                "   db_server_port: {}".format(self.db_server_port),
+                "   username: {}".format(self.username),
+                "   db_password: {}".format(self.db_password),
+                "   db_host: {}".format(self.db_host),
+                "   db_name: {}".format(self.db_name),
+                "SSH credentials:",
+                "   server_username: {}".format(self.server_username),
+                "   private_key_path: {}".format(self.private_key_path),
+                "   private_key_phrase: {}".format(self.private_key_phrase),
+                "   host: {}".format(self.host),
+                "   server: {}".format(self.server),
+            ]
+        )
 
 
 CREDENTIALS = CredentialsConfig()
