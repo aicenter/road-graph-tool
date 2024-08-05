@@ -23,7 +23,7 @@ def read_config(config_paths):
 
 
 class CredentialsConfig:
-    CONFIG_PATHS = [f"{pathlib.Path(__file__).parent}/config.ini"]
+    CONFIG_PATHS = [f"{pathlib.Path(__file__).parent.parent.parent}/config.ini"]
 
     def __init__(self):
         config = read_config(self.CONFIG_PATHS)
