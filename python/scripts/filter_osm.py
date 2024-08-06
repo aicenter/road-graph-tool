@@ -4,8 +4,6 @@ import sys
 import os
 import subprocess
 import requests
-from scripts.find_bbox import find_min_max
-from scripts.process_osm import check_extension
 
 class InvalidInputError(Exception):
     pass
@@ -19,11 +17,15 @@ def display_help():
     print("Tag:")
     print("  -h/--help              : Display this help message")
     print("  -id                    : Filter geographic objects based on relation ID")
-    print("  -b                     : Get bounding box of geographic objects from given relation ID (forwared to process_osm)")
-    print("  -bos                   : Filter geographic objects based on bounding box (with osmium)")
+    print("  -b                     : Filter geographic objects based on bounding box (with osmium)")
     print("  -t [expression_file]   : Filter objects based on tags in expression_file")
     print("Option:")
     print("  -s                     : Specify strategy type (optional for: -id, -b)")
+
+# Function to check if the file has a valid extension
+def is_valid_extension(file):
+    valid_extensions = ["osm", "osm.pbf", "osm.bz2"]
+    return any(file.endswith(f".{ext}") for ext in valid_extensions)
 
 def check_strategy(strategy):
     """Function to check strategy type"""
@@ -54,13 +56,7 @@ def extract_id(relation_id, input_file, strategy=None):
     subprocess.run(command)
     os.remove(tmp_file)
 
-def extract_bbox_osm2pgsql(relation_id):
-    """Function to extract based on bounding box with osm2pgsql"""
-    content = load_multigon_by_id(relation_id)
-    min_lon, min_lat, max_lon, max_lat = find_min_max(content)
-    return min_lon, min_lat, max_lon, max_lat
-
-def extract_bbox_osmium(coords, input_file, strategy=None):
+def extract_bbox(coords, input_file, strategy=None):
     """Function to extract based on bounding box with osmium"""
     # should match four floats:
     coords_regex = '[0-9]+(.[0-9]+)?,[0-9]+(.[0-9]+)?,[0-9]+(.[0-9]+)?,[0-9]+(.[0-9]+)?'
@@ -89,7 +85,8 @@ if __name__ == '__main__':
 
         relation_id = sys.argv[2]
         input_file = sys.argv[3]
-        check_extension(input_file)
+        if not is_valid_extension(input_file):
+            raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
         if len(sys.argv) == 5 and sys.argv[4] == '-s':
             raise MissingInputError("Missing specified strategy type.")
         strategy = sys.argv[5] if len(sys.argv) > 5 and sys.argv[4] == "-s" else None
@@ -100,32 +97,25 @@ if __name__ == '__main__':
         extract_id(relation_id, input_file, strategy)
 
     elif tag == "-b":
-        if len(sys.argv) < 3:
-            raise MissingInputError("You need to specify relation ID.")
-        relation_id = sys.argv[2]
-        input_file = sys.argv[3]
-        check_extension(input_file)
-        min_lon, min_lat, max_lon, max_lat = extract_bbox_osm2pgsql(relation_id, input_file)
-        print(f"{min_lon}, {min_lat}, {max_lon}, {max_lat}")
-
-    elif tag == "-bos":
         if len(sys.argv) < 4:
             raise MissingInputError("You need to specify either coordinates or config file with coordinates and input file.")
         coords = sys.argv[2]
         input_file = sys.argv[3]
-        check_extension(input_file)
+        if not is_valid_extension(input_file):
+            raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
         strategy = sys.argv[5] if len(sys.argv) > 5 and sys.argv[4] == "-s" else None
         
         if strategy and not check_strategy(strategy):
             raise InvalidInputError("Invalid strategy type. Call script.py -h/--help to display help.")
-        extract_bbox_osmium(coords, input_file, strategy)
+        extract_bbox(coords, input_file, strategy)
 
     elif tag == "-t":
         if len(sys.argv) < 4:
             raise MissingInputError("You need to specify expression file and input file.")
         expression_file = sys.argv[2]
         input_file = sys.argv[3]
-        check_extension(input_file)
+        if not is_valid_extension(input_file):
+            raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
         subprocess.run(["osmium", "tags-filter", input_file, "-e", expression_file, "-o", "filtered.osm.pbf"])
 
     else:

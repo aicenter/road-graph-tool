@@ -1,14 +1,19 @@
-import pathlib
 import sys
 import os
 import subprocess
 import logging
-parent_dir = pathlib.Path(__file__).parent.parent
-sys.path.append(str(parent_dir))
 from roadgraphtool.credentials_config import CREDENTIALS as config
+from scripts.filter_osm import InvalidInputError, MissingInputError, load_multigon_by_id, is_valid_extension
+from scripts.find_bbox import find_min_max
 
 # CHANGE - file path to the config file
 CONFIG_FILE = "config.ini"
+
+class InvalidInputError(Exception):
+    pass
+
+class MissingInputError(Exception):
+    pass
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
@@ -29,34 +34,29 @@ def display_help():
     print("  Tag: ")
     print("   -u        : Upload OSM file to PostgreSQL database using osm2pgsql with the specified style file")
     print("               (Optional: specify style file path - default.lua is used otherwise)")
+    print(f"Usage: {os.path.basename(__file__)} -b [input_file] [relation_id] [style_file_path]")
+    print("   -b        : Extract bounding box from given relation ID of input_file and upload to PostgreSQL database using osm2pgsql.")
 
-
-# Function to check if the file has a valid extension
-def check_extension(file):
-    valid_extensions = ["osm", "osm.pbf", "osm.bz2"]
-    if not any(file.endswith(f".{ext}") for ext in valid_extensions):
-        logger.error(f"File must have one of the following extensions: {', '.join(f'.{ext}' for ext in valid_extensions)}.")
-        exit(1)
+def extract_bbox(relation_id):
+    """Function to determine bounding box"""
+    content = load_multigon_by_id(relation_id)
+    min_lon, min_lat, max_lon, max_lat = find_min_max(content)
+    return min_lon, min_lat, max_lon, max_lat
 
 if __name__ == '__main__':
    # If no tag is used OR script is called with -h/--help
     if len(sys.argv) < 2 or (tag:=sys.argv[1]) in ["-h", "--help"]:
         display_help()
-        exit(0)
 
-    if len(sys.argv) < 3:
-        logger.error("Insufficient arguments. Use \"process_osm.py -h/--help\" for hint.")
+    elif len(sys.argv) < 3:
+        logger.error(f"Insufficient arguments. Use \"{os.path.basename(__file__)} -h/--help\" for hint.")
         exit(1)
-    
-    input_file = sys.argv[2]
-
-    # Check if input file exists
-    if not os.path.exists(input_file):
+    elif not os.path.exists((input_file:=sys.argv[2])):
         raise FileNotFoundError(f"File '{input_file}' does not exist.")
-
-    check_extension(input_file)
-
-    if tag == "-d":
+    elif not is_valid_extension(input_file):
+        raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
+    
+    elif tag == "-d":
         subprocess.run(["osmium", "show", input_file])
     elif tag == "-i":
         subprocess.run(["osmium", "fileinfo", input_file])
@@ -67,15 +67,34 @@ if __name__ == '__main__':
             logger.error("An output file must be specified with '-o' tag.")
             exit(1)
         output_file = sys.argv[4]
-        check_extension(output_file)
+        if not is_valid_extension(output_file):
+            raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
         subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
     elif tag == "-s":
         if len(sys.argv) < 5 or sys.argv[3] != "-o":
             logger.error("An output file must be specified with '-o' tag.")
             exit(1)
         output_file = sys.argv[4]
-        check_extension(output_file)
+        if not is_valid_extension(output_file):
+            raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
         subprocess.run(["osmium", "sort", input_file, "-o", output_file])
+    elif tag == "-b":
+        if len(sys.argv) < 4:
+            raise MissingInputError("You need to specify input file and relation ID.")
+        relation_id = sys.argv[3]
+        min_lon, min_lat, max_lon, max_lat = extract_bbox(relation_id)
+        coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
+
+        style_file_path = sys.argv[4] if len(sys.argv) > 4 else "resources/lua_styles/default.lua"
+        input_file = input_file
+        db_username = config.username
+        db_host = config.db_host
+        db_name = config.db_name
+        db_server_port = config.db_server_port
+        command = ["osm2pgsql", "-d", db_name, "-U", db_username, "-W", "-H", db_host, "-P", str(db_server_port),
+            "-b", coords, "--output=flex", "-S", style_file_path, input_file, "-x"]
+        # subprocess.run(command)
+
     elif tag == "-u":
         style_file_path = sys.argv[3] if len(sys.argv) > 3 else "resources/lua_styles/default.lua"
         input_file = input_file
@@ -85,6 +104,6 @@ if __name__ == '__main__':
         db_server_port = config.db_server_port
         command = ["osm2pgsql", "-d", db_name, "-U", db_username, "-W", "-H", db_host, "-P", str(db_server_port),
             "--output=flex", "-S", style_file_path, input_file, "-x"]
-        # subprocess.run(command)
+        subprocess.run(command)
     else:
         logger.error(f"Invalid tag. Call {os.path.basename(__file__)} -h/--help to display help.")
