@@ -113,26 +113,22 @@ Both osmium and osm2pgsql filter data inside the bounding box (bottom-left/minlo
 - These commands process osm file using bounding box coordinates to filter data within the bounding box. File `resources/extracted-bbox.osm.pbf` is created and can be futher processed with Flex output.
 ```bash
 # bounding box specified directly
-./filter_osm.sh -bos [left],[bottom],[right],[top] [input_file] 
+./filter_osm.sh -b [left],[bottom],[right],[top] [input_file] 
 # bounding box specified in config file:
-./filter_osm.sh -bos [config_file] [input_file]
+./filter_osm.sh -b [config_file] [input_file]
 ```
 - E.g. extract bounding box of Lithuania OSM file:
 ```bash
-./filter_osm.sh -bos 25.12,54.57,25.43,54.75 lithuania-latest.osm.pbf
+./filter_osm.sh -b 25.12,54.57,25.43,54.75 lithuania-latest.osm.pbf
 # or:
-./filter_osm.sh -bos resources/extract-bbox.geojson lithuania-latest.osm.pbf
+./filter_osm.sh -b resources/extract-bbox.geojson lithuania-latest.osm.pbf
 ```
 
 ##### Flex output
-- We can calculate the bounding box coordinates using `./filter_osm.sh -b` based on the ID of relation (mentioned in 3.1.2) that specifies the area of interest (e.g. Vilnius - capital of Lithuania). 
+- We can calculate the greatest bounding box coordinates using `./process_osm.sh -b` based on the ID of relation (mentioned in 3.1.2) that specifies the area of interest (e.g. Vilnius - capital of Lithuania). This command processes osm file using calculated bounding box coordinates with Flex output and imports the bounded data into database.
 ```bash
 # find bbox (uses Python script find_bbox.py)
-./filter_osm.sh -b [relation_id] [input_file] # output: minlon,minlat,maxlon,maxlan
-```
-- This command processes osm file using bounding box coordinates with Flex output.
-```bash
-osm2pgsql -d [dbname] -b minlon,minlat,maxlon,maxlan [input_file] 
+./filter_osm.sh -b [input_file] [relation_id] [style_file]
 ```
 
 - E.g. these commands find bounding box coordinates based on relation ID and extract data bounded by it from Lithuania OSM file:

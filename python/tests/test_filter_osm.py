@@ -5,7 +5,7 @@ import requests
 import xml.etree.ElementTree as ET
 import tempfile
 import json
-from scripts.filter_osm import check_strategy, extract_id, load_multigon_by_id, extract_bbox_osmium, InvalidInputError
+from scripts.filter_osm import check_strategy, extract_id, load_multigon_by_id, extract_bbox, InvalidInputError
 
 def test_check_strategy():
     assert check_strategy("simple") == True
@@ -15,9 +15,8 @@ def test_check_strategy():
     
 @pytest.fixture
 def expected_multipolygon_id():
-    # Path to the file containing expected content
-    parent_dir = pathlib.Path(__file__).parent.parent
-    file_path = str(parent_dir) + "/tests/data/expected_multipolygon_id.osm"
+    parent_dir = pathlib.Path(__file__).parent
+    file_path = str(parent_dir) + "/data/expected_multipolygon_id.osm"
     with open(file_path, 'rb') as f:
         return f.read()
 
@@ -135,8 +134,8 @@ def test_extract_id_contains_id(mocker, expected_multipolygon_id, setup_geojson_
     mocker.patch('scripts.filter_osm.load_multigon_by_id', return_value=expected_multipolygon_id)
     mock_subprocess = mocker.patch('subprocess.run')
 
-    parent_dir = pathlib.Path(__file__).parent.parent
-    input_file = str(parent_dir) + "/tests/data/park.osm"
+    parent_dir = pathlib.Path(__file__).parent
+    input_file = str(parent_dir) + "/data/park.osm"
 
     assert os.path.exists(input_file), "Input file does not exist"
 
@@ -167,7 +166,7 @@ def test_extract_id_contains_id(mocker, expected_multipolygon_id, setup_geojson_
 def test_valid_bbox_coords(mock_subprocess_run):
     coords = "12.3456,78.9012,34.5678,90.1234"
     input_file = "test.osm.pbf"
-    extract_bbox_osmium(coords, input_file)
+    extract_bbox(coords, input_file)
     expected_command = [
         "osmium", "extract", "-b", coords, input_file, "-o", "extracted-bbox.osm.pbf"
     ]
@@ -177,7 +176,7 @@ def test_valid_bbox_config(mock_subprocess_run, mock_os_path_isfile, mock_open):
     coords = "path/to/config/file.geojson"
     input_file = "test.osm.pbf"
     mock_os_path_isfile.return_value = True
-    extract_bbox_osmium(coords, input_file)
+    extract_bbox(coords, input_file)
     expected_command = [
         "osmium", "extract", "-c", coords, input_file]
     mock_subprocess_run.assert_called_once_with(expected_command)
@@ -188,7 +187,5 @@ def test_invalid_coords_and_non_existent_file(mock_subprocess_run, mock_os_path_
     input_file = "test.osm.pbf"
     mock_os_path_isfile.return_value = False
     with pytest.raises(InvalidInputError, match="Invalid coordinates or config file."):
-        extract_bbox_osmium(coords, input_file)
+        extract_bbox(coords, input_file)
     mock_subprocess_run.assert_not_called()
-
-# TODO: test_tags_filter
