@@ -199,7 +199,6 @@ class __Database:
         kwargs are the same as for the pd.read_sql_query(), notably
         index_col=None
         """
-        # with self._psycopg2_connection as con:
         data = pd.read_sql_query(sql, self._sqlalchemy_engine, **kwargs)
         return data
 
