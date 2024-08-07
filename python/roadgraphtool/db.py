@@ -1,15 +1,13 @@
 import atexit
 import logging
-from pathlib import Path
-
-import pandas as pd
-import geopandas as gpd
 import psycopg2
-import psycopg2.errors
-import sqlalchemy
 import sshtunnel
+import sqlalchemy
+import pandas as pd
+import psycopg2.errors
+import geopandas as gpd
+from pathlib import Path
 from sqlalchemy.engine import Row
-from sqlalchemy.orm import sessionmaker
 
 from roadgraphtool.credentials_config import CREDENTIALS
 
@@ -182,6 +180,43 @@ class __Database:
         """
         data = gpd.read_postgis(sql, self._sqlalchemy_engine, **kwargs)
         return data
+
+    @connect_db_if_required
+    def execute_count_query(self, query: str) -> int:
+        data = self.execute_sql_and_fetch_all_rows(query)
+        return data[0][0]
+
+    @connect_db_if_required
+    def drop_table_if_exists(self, table_name: str) -> None:
+        drop_sql = f"DROP TABLE IF EXISTS {table_name}"
+        self.execute_sql(drop_sql)
+
+    @connect_db_if_required
+    def execute_query_to_pandas(self, sql: str, **kwargs) -> pd.DataFrame:
+        """
+        Execute sql and load the result to Pandas DataFrame
+
+        kwargs are the same as for the pd.read_sql_query(), notably
+        index_col=None
+        """
+        data = pd.read_sql_query(sql, self._sqlalchemy_engine, **kwargs)
+        return data
+
+    @connect_db_if_required
+    def dataframe_to_db_table(self, df: pd.DataFrame, table_name: str, **kwargs) -> None:
+        """
+        Save DataFrame to a new table in the database
+
+        the dataframe method cannot accept psycopg2 connection, only SQLAlchemy
+        connections or connection strings.
+
+        https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_sql.html
+        """
+        df.to_sql(table_name, con=self._sqlalchemy_engine, if_exists='append', index=False)
+
+    @connect_db_if_required
+    def db_table_to_pandas(self, table_name: str, **kwargs) -> pd.DataFrame:
+        return pd.read_sql_table(table_name, con=self._sqlalchemy_engine, **kwargs)
 
 
 # db singleton
