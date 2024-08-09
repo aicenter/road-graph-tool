@@ -81,7 +81,7 @@ Renumbering starts at index 1.
 The `process_osm.sh` script also allows to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we specify the flex style file (Lua script) that has all the logic for processing data in OSM file.
 
 
-The default style file for this project is `resources/lua_styles/default.lua`, that processes and all nodes, ways and relations with tags without creating additional attributes (columns).
+The default style file for this project is `resources/lua_styles/default.lua`, which processes and all nodes, ways and relations without creating additional attributes (based on tags) into following tables: `nodes` (node_id, geom, tags), `ways` (way_id, geom, tags, nodes), `relations` (relation_id, tags, members).
 
 ```bash
 ./process_osm.sh -l [input_file] [style_file]

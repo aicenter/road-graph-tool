@@ -23,6 +23,7 @@ def display_help():
     print("  Tag: ")
     print("   -r        : Renumber object IDs in OSM file (Requires specifying output file with '-o' tag)")
     print("   -s        : Sort OSM file based on IDs (Requires specifying output file with '-o' tag)")
+    print("   -sr        : Sort and renumber objects in OSM file (Requires specifying output file with '-o' tag)")
     print(f"Usage: {os.path.basename(__file__)} -u [input_file] [style_file]")
     print("  Tag: ")
     print("   -u        : Upload OSM file to PostgreSQL database using osm2pgsql with the specified style file")
@@ -37,6 +38,29 @@ def extract_bbox(relation_id):
     min_lon, min_lat, max_lon, max_lat = find_min_max(content)
     return min_lon, min_lat, max_lon, max_lat
 
+def process_osm_command(tag, input_file, output_file):
+    if len(sys.argv) < 5 or sys.argv[3] != "-o":
+        raise MissingInputError("An output file must be specified with '-o' tag.")
+    if not is_valid_extension(output_file):
+        raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
+    if tag == '-r':
+        subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
+    elif tag == '-s':
+        subprocess.run(["osmium", "sort", input_file, "-o", output_file])
+    elif tag == '-sr':
+        tmp_file = 'tmp.osm'
+        subprocess.run(["osmium", "sort", input_file, "-o", tmp_file])
+        subprocess.run(["osmium", "renumber", tmp_file, "-o", output_file])
+        os.remove(tmp_file)
+    else:
+        raise ValueError(f"Unsupported tag: {tag}")
+
+def build_osm2pgsql(config, style_file_path, input_file, coords=None):
+    command = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
+               "-P", str(config.db_server_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
+    if coords:
+        command.extend(["-b", coords])
+    subprocess.run(command)
 if __name__ == '__main__':
    # If no tag is used OR script is called with -h/--help
     if len(sys.argv) < 2 or (tag:=sys.argv[1]) in ["-h", "--help"]:
@@ -48,7 +72,6 @@ if __name__ == '__main__':
         raise FileNotFoundError(f"File '{input_file}' does not exist.")
     elif not is_valid_extension(input_file):
         raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-    
     elif tag == "-d":
         subprocess.run(["osmium", "show", input_file])
     elif tag == "-i":
@@ -56,45 +79,23 @@ if __name__ == '__main__':
     elif tag == "-ie":
         subprocess.run(["osmium", "fileinfo", "-e", input_file])
     elif tag == "-r":
-        if len(sys.argv) < 5 or sys.argv[3] != "-o":
-            raise MissingInputError("An output file must be specified with '-o' tag.")
-        output_file = sys.argv[4]
-        if not is_valid_extension(output_file):
-            raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-        subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
+        process_osm_command(tag, input_file, sys.argv[4])
     elif tag == "-s":
-        if len(sys.argv) < 5 or sys.argv[3] != "-o":
-            raise MissingInputError("An output file must be specified with '-o' tag.")
-        output_file = sys.argv[4]
-        if not is_valid_extension(output_file):
-            raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-        subprocess.run(["osmium", "sort", input_file, "-o", output_file])
+        process_osm_command(tag, input_file, sys.argv[4])
+    elif tag == "-sr":
+        process_osm_command(tag, input_file, sys.argv[4])
     elif tag == "-b":
         if len(sys.argv) < 4:
             raise MissingInputError("You need to specify input file and relation ID.")
         relation_id = sys.argv[3]
         min_lon, min_lat, max_lon, max_lat = extract_bbox(relation_id)
         coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
-        # print(coords)
+
         style_file_path = sys.argv[4] if len(sys.argv) > 4 else "resources/lua_styles/default.lua"
-        input_file = input_file
-        db_username = config.username
-        db_host = config.db_host
-        db_name = config.db_name
-        db_server_port = config.db_server_port
-        command = ["osm2pgsql", "-d", db_name, "-U", db_username, "-W", "-H", db_host, "-P", str(db_server_port),
-            "-b", coords, "--output=flex", "-S", style_file_path, input_file, "-x"]
-        # subprocess.run(command)
+        build_osm2pgsql(config, style_file_path, input_file, coords)
 
     elif tag == "-u":
         style_file_path = sys.argv[3] if len(sys.argv) > 3 else "resources/lua_styles/default.lua"
-        input_file = input_file
-        db_username = config.username
-        db_host = config.db_host
-        db_name = config.db_name
-        db_server_port = config.db_server_port
-        command = ["osm2pgsql", "-d", db_name, "-U", db_username, "-W", "-H", db_host, "-P", str(db_server_port),
-            "--output=flex", "-S", style_file_path, input_file, "-x"]
-        subprocess.run(command)
+        build_osm2pgsql(config, style_file_path, input_file)
     else:
         raise InvalidInputError(f"Invalid tag. Call {os.path.basename(__file__)} -h/--help to display help.")
