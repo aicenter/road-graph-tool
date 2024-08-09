@@ -23,7 +23,7 @@ The main runner script is `scripts/main.py`.
 To skip some processing steps, comment out the lines in the `main.py` file that are not needed.
 
 Then, run the `main.py` script.
-
+- If you want to import OSM file to the database (details specified in `config.ini`), run the script with additional tag: `main.py -i` or `main.py --import`. It expects the OSM file to be `resources/to_import.*` where * is one of the following extensions: osm, osm.pbf, osm.bz2. It also uses [`default.lua`](resources/lua_styles/default.lua) as its default style file.
 
 
 # Testing

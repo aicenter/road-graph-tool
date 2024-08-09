@@ -59,6 +59,18 @@ def build_osm2pgsql(config, style_file_path, input_file, coords=None):
     if coords:
         command.extend(["-b", coords])
     subprocess.run(command)
+
+def import_osm_to_db():
+    input_files = ["resources/to_import.osm", "resources/to_import.osm.pbf", "resources/to_import.osm.bz2"]
+    input_file = None
+    for file in input_files:
+        if os.path.exists(file) and is_valid_extension(file):
+            input_file = file
+    if not input_file:
+        raise FileNotFoundError("There is no file to import.")
+    style_file_path = "resources/lua_styles/default.lua"
+    build_osm2pgsql(config, style_file_path, input_file)
+
 if __name__ == '__main__':
    # If no tag is used OR script is called with -h/--help
     if len(sys.argv) < 2 or (tag:=sys.argv[1]) in ["-h", "--help"]:
@@ -97,7 +109,6 @@ if __name__ == '__main__':
 
         style_file_path = sys.argv[4] if len(sys.argv) > 4 else "resources/lua_styles/default.lua"
         build_osm2pgsql(config, style_file_path, input_file, coords)
-
     elif tag == "-u":
         style_file_path = sys.argv[3] if len(sys.argv) > 3 else "resources/lua_styles/default.lua"
         build_osm2pgsql(config, style_file_path, input_file)
