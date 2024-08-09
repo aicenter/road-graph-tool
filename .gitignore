@@ -1,9 +1,9 @@
 .idea/
 roadgraphtool.egg-info/
 __pycache__/
-python/roadgraphtool/config.ini
 python/scripts/lithuania-latest.osm.pbf
 python/scripts/monaco-latest.osm.pbf
 resources/lua_styles/mydef.lua
 .pytest_cache
 tests/data/redbullring.osm
+config.ini

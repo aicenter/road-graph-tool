@@ -7,6 +7,7 @@
 2. [SQL Functions](#sql-functions)
    - [get_area_for_demand](#get_area_for_demand)
    - [get_ways_in_target_area](#get_ways_in_target_area)
+   - [insert_area](#insert_area)
    - [select_network_nodes_in_area](#select_network_nodes_in_area)
 
 3. [SQL Procedures](#sql-procedures)
@@ -140,6 +141,52 @@ Table in the format:
 ### Example
 ```sql
 SELECT * FROM get_ways_in_target_area(18::smallint);
+```
+
+## [`insert_area`](SQL/functions/function_insert_area.sql)
+
+### Description
+
+The `insert_area` inserts new area with given geo data in the format of __geojson__.
+
+### Parameters
+
+- `id` (integer): The id of the area (optional).
+- `name` (varchar): The name of the area.
+- `description` (varchar): The description of the given area (optional).
+- `geom` (json): The geometry of the area, should be in geojson format.
+
+### Return Value
+
+This function does not return.
+
+### Example
+
+```sql
+-- All parameters
+SELECT insert_area(1, 'Area Name', 'Description','{
+        "type": "MultiPolygon",
+        "coordinates": [
+            [
+                [
+                    [100.0, 0.0],
+                    [101.0, 0.0],
+                    [101.0, 1.0],
+                    [100.0, 1.0],
+                    [100.0, 0.0]
+                ]
+            ],
+            [
+                [
+                    [102.0, 2.0],
+                    [103.0, 2.0],
+                    [103.0, 3.0],
+                    [102.0, 3.0],
+                    [102.0, 2.0]
+                ]
+            ]
+        ]
+    }');
 ```
 
 ## [`select_network_nodes_in_area`](SQL/functions/function_select_network_nodes_in_area.sql)
