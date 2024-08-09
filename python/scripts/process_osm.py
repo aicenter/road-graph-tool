@@ -39,8 +39,6 @@ def extract_bbox(relation_id):
     return min_lon, min_lat, max_lon, max_lat
 
 def process_osm_command(tag, input_file, output_file):
-    if len(sys.argv) < 5 or sys.argv[3] != "-o":
-        raise MissingInputError("An output file must be specified with '-o' tag.")
     if not is_valid_extension(output_file):
         raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
     if tag == '-r':
@@ -79,10 +77,16 @@ if __name__ == '__main__':
     elif tag == "-ie":
         subprocess.run(["osmium", "fileinfo", "-e", input_file])
     elif tag == "-r":
+        if len(sys.argv) < 5 or sys.argv[3] != "-o":
+            raise MissingInputError("An output file must be specified with '-o' tag.")
         process_osm_command(tag, input_file, sys.argv[4])
     elif tag == "-s":
+        if len(sys.argv) < 5 or sys.argv[3] != "-o":
+            raise MissingInputError("An output file must be specified with '-o' tag.")
         process_osm_command(tag, input_file, sys.argv[4])
     elif tag == "-sr":
+        if len(sys.argv) < 5 or sys.argv[3] != "-o":
+            raise MissingInputError("An output file must be specified with '-o' tag.")
         process_osm_command(tag, input_file, sys.argv[4])
     elif tag == "-b":
         if len(sys.argv) < 4:
