@@ -1,11 +1,8 @@
 import os
 import pathlib
 import pytest
-import requests
 import xml.etree.ElementTree as ET
-import tempfile
-import json
-from scripts.filter_osm import check_strategy, extract_id, load_multigon_by_id, extract_bbox, InvalidInputError
+from scripts.filter_osm import check_strategy, extract_id, load_multipolygon_by_id, extract_bbox, InvalidInputError
 
 def test_check_strategy():
     assert check_strategy("simple") == True
@@ -26,56 +23,15 @@ def mock_subprocess_run(mocker):
 
 @pytest.fixture
 def mock_os_path_isfile(mocker):
-    return mocker.patch("os.path.isfile")
+    return mocker.patch("os.path.isfile", return_value=True)
 
 @pytest.fixture
 def mock_open(mocker):
-    return mocker.patch("builtins.open", mocker.mock_open(read_data=json.dumps({
-        "extracts": [
-            {
-                "output": "resources/extracted-bbox.osm.pbf",
-                "bbox": [25.12, 54.57, 25.43, 54.75]
-            }
-        ]
-    })))
+    return mocker.patch("builtins.open", mocker.mock_open())
 
 @pytest.fixture
-def setup_geojson_config(expected_multipolygon_id):
-    parent_dir = pathlib.Path(__file__).parent.parent.parent
-    path_geojson = parent_dir / "resources" / "extract-id.geojson"
-    path_tmp_file = parent_dir / "resources" / "to_extract.osm"
-    path_output_file = parent_dir / "resources" / "id_extract.osm"
-
-    geojson_content = {
-        "extracts": [
-            {
-                "output": str(path_output_file.relative_to(parent_dir)),
-                "multipolygon": {
-                    "file_name": str(path_tmp_file.relative_to(parent_dir)),
-                    "file_type": "osm"
-                }
-            }
-        ]
-    }
-    
-    # Ensure directories exist
-    path_geojson.parent.mkdir(parents=True, exist_ok=True)
-    path_tmp_file.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Write the geojson file
-    with open(path_geojson, 'w') as f:
-        json.dump(geojson_content, f, indent=4)
-    
-    # Write the temporary file with mock content
-    with open(path_tmp_file, 'wb') as f:
-        f.write(expected_multipolygon_id)
-
-    # Clean up: Remove the output file if it already exists
-    if path_output_file.exists():
-        path_output_file.unlink()
-    
-    return path_geojson, path_output_file
-
+def mock_remove(mocker):
+    return mocker.patch("os.remove")
 
 def test_load_multigon_by_id_url(mocker,expected_multipolygon_id):
     relation_id = 5986438
@@ -87,18 +43,18 @@ def test_load_multigon_by_id_url(mocker,expected_multipolygon_id):
     mock_get.return_value.status_code = 200
     mock_get.return_value.content = expected_multipolygon_id
 
-    result = load_multigon_by_id(relation_id)
+    result = load_multipolygon_by_id(relation_id)
     mock_get.assert_called_once_with(url)
     assert result == expected_multipolygon_id
 
-def test_load_multigon_by_id_contains_id(mocker,expected_multipolygon_id):
+def test_load_multigon_by_id_contains_id(mocker, expected_multipolygon_id):
     relation_id = 5986438
 
     mock_get = mocker.patch('requests.get')
     mock_get.return_value.status_code = 200
     mock_get.return_value.content = expected_multipolygon_id
 
-    result = load_multigon_by_id(relation_id)
+    result = load_multipolygon_by_id(relation_id)
 
     # Check if the result contains the relation_id
     tree = ET.ElementTree(ET.fromstring(result))
@@ -112,56 +68,46 @@ def test_load_multigon_by_id_contains_id(mocker,expected_multipolygon_id):
 
     assert contains_relation_id, f"Result does not contain the relation_id {relation_id}"
 
-def test_extract_id_remove_file(mocker):
+def test_extract_id_remove_file(mocker, expected_multipolygon_id, mock_open, mock_remove):
     relation_id = 5986438
-    input_file = "tests/data/park.osm"
-    
-    # Test that tmp_file is not in folder
     parent_dir = pathlib.Path(__file__).parent.parent.parent
-    tmp_file = str(parent_dir) + "/resources/to_extract.osm"
-    mock_remove = mocker.patch("os.remove")
-    mocker.patch("os.path.isfile", return_value=False)
-    
+    input_file = str(parent_dir / "python/tests/data/park.osm")
+
+    mocker.patch("scripts.filter_osm.load_multigon_by_id", return_value=expected_multipolygon_id)
     extract_id(relation_id, input_file)
+
+    # Check that tmp_file was created with expected content
+    tmp_file = str(parent_dir / "resources/to_extract.osm")
+    mock_open.assert_called_once_with(tmp_file, 'wb')
+    mock_open().write.assert_called_once_with(expected_multipolygon_id)
+
+    # Check that tmp_file was removed
     mock_remove.assert_called_once_with(tmp_file)
-    assert not os.path.isfile(tmp_file)
-
-# TODO: finish it
-def test_extract_id_contains_id(mocker, expected_multipolygon_id, setup_geojson_config):
+    
+def test_extract_id_contains_id():
     relation_id = 5986438
-    path_geojson, path_output_file = setup_geojson_config
+    parent_dir = pathlib.Path(__file__).parent.parent.parent
+    input_file = str(parent_dir) + "/python/tests/data/park.osm"
+    output_file = str(parent_dir) +  "/resources/id_extract.osm"
 
-    mocker.patch('scripts.filter_osm.load_multigon_by_id', return_value=expected_multipolygon_id)
-    mock_subprocess = mocker.patch('subprocess.run')
+    extract_id(relation_id, input_file)
 
-    parent_dir = pathlib.Path(__file__).parent
-    input_file = str(parent_dir) + "/data/park.osm"
+    # Check that output file was created
+    assert os.path.exists(output_file), "Output file was not created"
 
-    assert os.path.exists(input_file), "Input file does not exist"
+    # Check that output file contains relation_id
+    with open(output_file, 'rb') as f:
+        tree = ET.ElementTree(ET.fromstring(f.read()))
+        root = tree.getroot()
+        relation_id_str = str(relation_id)
 
-    try:
-        extract_id(relation_id, input_file)
+        contains_relation_id = any(
+            relation.attrib.get('id') == relation_id_str
+            for relation in root.findall('relation')
+        )
+        assert contains_relation_id, f"File content does not contain the relation_id {relation_id_str}"
 
-        mock_subprocess.assert_called_once_with(["osmium", "extract", "-c", str(path_geojson), input_file])
-        
-        assert os.path.exists(path_output_file), "Output file was not created"
-
-        # # Parse XML content from the file
-        # tree = ET.ElementTree(ET.fromstring(file_content))
-        # root = tree.getroot()
-        # relation_id_str = str(5986438)  # Convert the relation ID to string
-
-        # contains_relation_id = any(
-        #     relation.attrib.get('id') == relation_id_str
-        #     for relation in root.findall('relation')
-        # )
-        
-        # assert contains_relation_id, f"File content does not contain the relation_id {relation_id_str}"
-
-    finally:
-        # Clean up the temporary file
-        if os.path.exists(path_output_file):
-            os.remove(path_output_file)
+    os.remove(output_file)
 
 def test_valid_bbox_coords(mock_subprocess_run):
     coords = "12.3456,78.9012,34.5678,90.1234"
@@ -172,7 +118,7 @@ def test_valid_bbox_coords(mock_subprocess_run):
     ]
     mock_subprocess_run.assert_called_once_with(expected_command)
 
-def test_valid_bbox_config(mock_subprocess_run, mock_os_path_isfile, mock_open):
+def test_valid_bbox_config(mock_subprocess_run, mock_os_path_isfile):
     coords = "path/to/config/file.geojson"
     input_file = "test.osm.pbf"
     mock_os_path_isfile.return_value = True

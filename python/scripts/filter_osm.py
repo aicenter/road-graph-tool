@@ -32,7 +32,7 @@ def check_strategy(strategy):
     valid_strategies = ["simple", "complete_ways", "smart"]
     return strategy in valid_strategies
 
-def load_multigon_by_id(relation_id):
+def load_multipolygon_by_id(relation_id):
     """Function to load multigon content by relation id"""
     url = f"https://www.openstreetmap.org/api/0.6/relation/{relation_id}/full"
     response = requests.get(url)
@@ -45,7 +45,7 @@ def extract_id(relation_id, input_file, strategy=None):
     tmp_file = str(parent_dir) + "/resources/to_extract.osm"
     config_path = str(parent_dir) + "/resources/extract-id.geojson"
 
-    content = load_multigon_by_id(relation_id)
+    content = load_multipolygon_by_id(relation_id)
     with open(tmp_file, 'wb') as f:
         f.write(content)
     

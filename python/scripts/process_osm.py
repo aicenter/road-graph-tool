@@ -2,7 +2,7 @@ import sys
 import os
 import subprocess
 from roadgraphtool.credentials_config import CREDENTIALS as config
-from scripts.filter_osm import InvalidInputError, MissingInputError, load_multigon_by_id, is_valid_extension
+from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension
 from scripts.find_bbox import find_min_max
 
 class InvalidInputError(Exception):
@@ -33,7 +33,7 @@ def display_help():
 
 def extract_bbox(relation_id):
     """Function to determine bounding box"""
-    content = load_multigon_by_id(relation_id)
+    content = load_multipolygon_by_id(relation_id)
     min_lon, min_lat, max_lon, max_lat = find_min_max(content)
     return min_lon, min_lat, max_lon, max_lat
 

@@ -3,7 +3,7 @@
         {
             "output": "resources/id_extract.osm",
             "multipolygon": {
-                "file_name": "resources/to_extract.osm",
+                "file_name": "to_extract.osm",
                 "file_type": "osm"
             }
         }
