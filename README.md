@@ -65,16 +65,18 @@ Preprocessing an OSM file with osmium aims to enhance importing efficiency and s
 ```
 Call `./process_osm.sh -h` or `./process_osm.sh --help` for more information.
 
-#### Sorting:
-Sorts objects based on IDs.
+- Sorting: Sorts objects based on IDs in ascending order.
 ```bash
 ./process_osm.sh -s [input_file] -o [output_file]
 ```
-#### Renumbering:
-Negative IDs usually represent inofficial non-OSM data (no clashes with OSM data), osm2pgsql can only handle positive IDs (negative IDs are used internally for geometries).
-Renumbering starts at index 1. 
+- Renumbering: Negative IDs usually represent inofficial non-OSM data (no clashes with OSM data), osm2pgsql can only handle positive sorted IDs (negative IDs are used internally for geometries).
+Renumbering starts at index 1 and goes in ascending order.
 ```bash
 ./process_osm.sh -r [input_file] -o [output_file]
+```
+- Sorting and renumbering: Sorts and renumbers IDs in ascending order starting from index 1.
+```bash
+./process_osm.sh -sr [input_file] -o [output_file]
 ```
 
 ### 2. Importing to database using Flex output
@@ -200,18 +202,6 @@ osmium tags-filter lithuania-latest.osm.pbf nwr/highway -o osmium-highway.osm.pb
 ```bash
 ./process_osm.sh -f lithuania-latest.osm.pbf resources/lua_styles/filter-highway.lua
 ```
-
-### Testing
-
-Testing of the functionality of both scripts is done via `pytest` module.
-- Make sure to have it installed: `pip install -U pytest` (Ubuntu/MacOS)
-Test scripts and data used by them are saved in `/python/tests/` directory. Run all the tests from top directory in command line with:
-```bash
-pytest python/tests/
-```
-Testing script `test_process_osm.py` uses connection to database specified in `config.ini` file, so make sure to check that the database connection details are correct and that the database server is running.
-If the server database requires password, store it to your home directory `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format:
-`hostname:port:database:username:password`.
 
 ## Graph Contraction 
 This script contracts the road graph within a specified area. 
