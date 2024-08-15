@@ -13,24 +13,25 @@ class MissingInputError(Exception):
 
 # Function to display usage information
 def display_help():
-    print(f"Usage: {os.path.basename(__file__)} [tag] [input_file]")
-    print("  Tag: ")
-    print("   -h/--help : Display this help message")
-    print("   -d        : Display OSM file")
-    print("   -i        : Display information about OSM file")
-    print("   -ie       : Display extended information about OSM file")
-    print(f"Usage: {os.path.basename(__file__)}[tag] [input_file] -o [output_file]")
-    print("  Tag: ")
-    print("   -r        : Renumber object IDs in OSM file (Requires specifying output file with '-o' tag)")
-    print("   -s        : Sort OSM file based on IDs (Requires specifying output file with '-o' tag)")
-    print("   -sr        : Sort and renumber objects in OSM file (Requires specifying output file with '-o' tag)")
-    print(f"Usage: {os.path.basename(__file__)} -u [input_file] [style_file]")
-    print("  Tag: ")
-    print("   -u        : Upload OSM file to PostgreSQL database using osm2pgsql with the specified style file")
-    print("               (Optional: specify style file - default.lua is used otherwise)")
-    print(f"Usage: {os.path.basename(__file__)} -b [input_file] [relation_id] [style_file]")
-    print("   -b        : Extract greatest bounding box from given relation ID of input_file and upload to PostgreSQL database using osm2pgsql.")
-    print("               (Optional: specify style file - default.lua is used otherwise)")
+    help_text = f"""Usage: {os.path.basename(__file__)} [tag] [input_file]
+ Tag:
+    -h/--help : Display this help message
+    -d        : Display OSM file
+    -i        : Display information about OSM file
+    -ie       : Display extended information about OSM file
+Usage: {os.path.basename(__file__)} [tag] [input_file] -o [output_file]
+ Tag:
+    -s        : Sort OSM file based on IDs (Requires specifying output file with '-o' tag)
+    -r        : Renumber object IDs in OSM file (Requires specifying output file with '-o' tag)
+    -sr       : Sort and renumber objects in OSM file (Requires specifying output file with '-o' tag)
+Usage: {os.path.basename(__file__)} -u [input_file] [style_file]
+ Tag:
+    -u        : Upload OSM file to PostgreSQL database using osm2pgsql.
+            (Optional: specify style file - default.lua is used otherwise)
+Usage: {os.path.basename(__file__)} -b [input_file] [relation_id] [style_file]
+    -b        : Extract greatest bounding box from given relation ID of input_file and upload to PostgreSQL database using osm2pgsql.
+            (Optional: specify style file - default.lua is used otherwise)"""
+    print(help_text)
 
 def extract_bbox(relation_id):
     """Function to determine bounding box"""
@@ -38,7 +39,7 @@ def extract_bbox(relation_id):
     min_lon, min_lat, max_lon, max_lat = find_min_max(content)
     return min_lon, min_lat, max_lon, max_lat
 
-def process_osm_command(tag, input_file, output_file):
+def run_osmium(tag, input_file, output_file):
     if not is_valid_extension(output_file):
         raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
     if tag == '-r':
@@ -61,6 +62,10 @@ def build_osm2pgsql(config, style_file_path, input_file, coords=None):
     subprocess.run(command)
 
 def import_osm_to_db():
+    """Function to import OSM file do database specified in config.ini file.
+    The function expects the OSM file to be saved as resources/to_import.*.
+    The default.lua style file is used.
+    """
     input_files = ["resources/to_import.osm", "resources/to_import.osm.pbf", "resources/to_import.osm.bz2"]
     input_file = None
     for file in input_files:
@@ -91,15 +96,15 @@ if __name__ == '__main__':
     elif tag == "-r":
         if len(sys.argv) < 5 or sys.argv[3] != "-o":
             raise MissingInputError("An output file must be specified with '-o' tag.")
-        process_osm_command(tag, input_file, sys.argv[4])
+        run_osmium(tag, input_file, sys.argv[4])
     elif tag == "-s":
         if len(sys.argv) < 5 or sys.argv[3] != "-o":
             raise MissingInputError("An output file must be specified with '-o' tag.")
-        process_osm_command(tag, input_file, sys.argv[4])
+        run_osmium(tag, input_file, sys.argv[4])
     elif tag == "-sr":
         if len(sys.argv) < 5 or sys.argv[3] != "-o":
             raise MissingInputError("An output file must be specified with '-o' tag.")
-        process_osm_command(tag, input_file, sys.argv[4])
+        run_osmium(tag, input_file, sys.argv[4])
     elif tag == "-b":
         if len(sys.argv) < 4:
             raise MissingInputError("You need to specify input file and relation ID.")

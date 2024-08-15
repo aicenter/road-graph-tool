@@ -13,14 +13,16 @@ class MissingInputError(Exception):
 
 def display_help():
     """Function to display usage information"""
-    print(f"Usage: {os.path.basename(__file__)} [tag] [input_file]")
-    print("Tag:")
-    print("  -h/--help              : Display this help message")
-    print("  -id                    : Filter geographic objects based on relation ID")
-    print("  -b                     : Filter geographic objects based on bounding box (with osmium)")
-    print("  -t [expression_file]   : Filter objects based on tags in expression_file")
-    print("Option:")
-    print("  -s                     : Specify strategy type (optional for: -id, -b)")
+    help_text = f"""Usage: {os.path.basename(__file__)} [tag] [input_file] [option]
+ Tag:
+    -h/--help              : Display this help message
+    -id                    : Filter geographic objects based on relation ID
+    -b                     : Filter geographic objects based on bounding box (with osmium)
+                            (Bounding box is specified directly or in config geojson file)
+    -t [expression_file]   : Filter objects based on tags in expression_file
+ Option:
+    -s [strategy]          : Specify strategy type (optional for: -id, -b)"""
+    print(help_text)
 
 # Function to check if the file has a valid extension
 def is_valid_extension(file):

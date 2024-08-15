@@ -71,7 +71,7 @@ def test_load_multigon_by_id_contains_id(mocker, expected_multipolygon_id):
 def test_extract_id_remove_file(mocker, expected_multipolygon_id, mock_open, mock_remove):
     relation_id = 5986438
     parent_dir = pathlib.Path(__file__).parent.parent.parent
-    input_file = str(parent_dir) +  "/python/tests/data/park.osm"
+    input_file = str(parent_dir) +  "/python/tests/data/id_test.osm"
 
     mocker.patch("scripts.filter_osm.load_multigon_by_id", return_value=expected_multipolygon_id)
     extract_id(relation_id, input_file)
@@ -87,7 +87,7 @@ def test_extract_id_remove_file(mocker, expected_multipolygon_id, mock_open, moc
 def test_extract_id_contains_id():
     relation_id = 5986438
     parent_dir = pathlib.Path(__file__).parent.parent.parent
-    input_file = str(parent_dir) + "/python/tests/data/park.osm"
+    input_file = str(parent_dir) + "/python/tests/data/id_test.osm"
     output_file = str(parent_dir) +  "/resources/id_extract.osm"
 
     extract_id(relation_id, input_file)

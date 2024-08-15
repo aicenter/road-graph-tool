@@ -5,5 +5,7 @@ python/scripts/lithuania-latest.osm.pbf
 python/scripts/monaco-latest.osm.pbf
 resources/lua_styles/mydef.lua
 .pytest_cache
-tests/data/redbullring.osm
 config.ini
+czechia.osm.pbf
+germany.osm
+resources/to_import.osm.pbf
