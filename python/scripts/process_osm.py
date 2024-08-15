@@ -1,6 +1,7 @@
 import sys
 import os
 import subprocess
+
 from roadgraphtool.credentials_config import CREDENTIALS as config
 from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension
 from scripts.find_bbox import find_min_max
@@ -34,15 +35,22 @@ Usage: {os.path.basename(__file__)} -b [input_file] [relation_id] [style_file]
     print(help_text)
 
 def extract_bbox(relation_id):
-    """Function to determine bounding box"""
+    """Function to determine bounding box coordinations."""
     content = load_multipolygon_by_id(relation_id)
     min_lon, min_lat, max_lon, max_lat = find_min_max(content)
     return min_lon, min_lat, max_lon, max_lat
 
-def run_osmium(tag, input_file, output_file):
-    if not is_valid_extension(output_file):
-        raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-    if tag == '-r':
+def run_osmium_command(tag, input_file, output_file=None):
+    """Function to run osmium command based on tag."""
+    if output_file and not is_valid_extension(output_file):
+        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
+    if  tag == "-d":
+        subprocess.run(["osmium", "show", input_file])
+    elif tag == "-i":
+        subprocess.run(["osmium", "fileinfo", input_file])
+    elif tag == "-ie":
+        subprocess.run(["osmium", "fileinfo", "-e", input_file])
+    elif tag == '-r':
         subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
     elif tag == '-s':
         subprocess.run(["osmium", "sort", input_file, "-o", output_file])
@@ -52,9 +60,10 @@ def run_osmium(tag, input_file, output_file):
         subprocess.run(["osmium", "renumber", tmp_file, "-o", output_file])
         os.remove(tmp_file)
     else:
-        raise ValueError(f"Unsupported tag: {tag}")
+        raise InvalidInputError(f"Invalid tag: {tag}. Call {os.path.basename(__file__)} -h/--help to display help.")
 
-def build_osm2pgsql(config, style_file_path, input_file, coords=None):
+def run_osm2pgsql_command(config, style_file_path, input_file, coords=None):
+    """Function to run osm2pgsql command."""
     command = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
                "-P", str(config.db_server_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
     if coords:
@@ -74,11 +83,11 @@ def import_osm_to_db():
     if not input_file:
         raise FileNotFoundError("There is no file to import.")
     style_file_path = "resources/lua_styles/default.lua"
-    build_osm2pgsql(config, style_file_path, input_file)
+    run_osm2pgsql_command(config, style_file_path, input_file)
 
 if __name__ == '__main__':
-   # If no tag is used OR script is called with -h/--help
     if len(sys.argv) < 2 or (tag:=sys.argv[1]) in ["-h", "--help"]:
+        # If no tag is used OR script is called with -h/--help
         display_help()
 
     elif len(sys.argv) < 3:
@@ -88,24 +97,31 @@ if __name__ == '__main__':
     elif not is_valid_extension(input_file):
         raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
     elif tag == "-d":
-        subprocess.run(["osmium", "show", input_file])
+        # Display content of OSM file
+        run_osmium_command(tag, input_file)
     elif tag == "-i":
-        subprocess.run(["osmium", "fileinfo", input_file])
+        # Display information about OSM file
+        run_osmium_command(tag, input_file)
     elif tag == "-ie":
-        subprocess.run(["osmium", "fileinfo", "-e", input_file])
-    elif tag == "-r":
-        if len(sys.argv) < 5 or sys.argv[3] != "-o":
-            raise MissingInputError("An output file must be specified with '-o' tag.")
-        run_osmium(tag, input_file, sys.argv[4])
+        # Display extended information about OSM file
+        run_osmium_command(tag, input_file)
     elif tag == "-s":
+        # Sort OSM file
         if len(sys.argv) < 5 or sys.argv[3] != "-o":
             raise MissingInputError("An output file must be specified with '-o' tag.")
-        run_osmium(tag, input_file, sys.argv[4])
+        run_osmium_command(tag, input_file, sys.argv[4])
+    elif tag == "-r":
+        # Renumber OSM file
+        if len(sys.argv) < 5 or sys.argv[3] != "-o":
+            raise MissingInputError("An output file must be specified with '-o' tag.")
+        run_osmium_command(tag, input_file, sys.argv[4])
     elif tag == "-sr":
+        # Sort and renumber OSM file
         if len(sys.argv) < 5 or sys.argv[3] != "-o":
             raise MissingInputError("An output file must be specified with '-o' tag.")
-        run_osmium(tag, input_file, sys.argv[4])
+        run_osmium_command(tag, input_file, sys.argv[4])
     elif tag == "-b":
+        # Extract bounding box based on relation ID and import to PostgreSQL
         if len(sys.argv) < 4:
             raise MissingInputError("You need to specify input file and relation ID.")
         relation_id = sys.argv[3]
@@ -113,9 +129,10 @@ if __name__ == '__main__':
         coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
 
         style_file_path = sys.argv[4] if len(sys.argv) > 4 else "resources/lua_styles/default.lua"
-        build_osm2pgsql(config, style_file_path, input_file, coords)
+        run_osm2pgsql_command(config, style_file_path, input_file, coords)
     elif tag == "-u":
+        # Upload OSM file to PostgreSQL database
         style_file_path = sys.argv[3] if len(sys.argv) > 3 else "resources/lua_styles/default.lua"
-        build_osm2pgsql(config, style_file_path, input_file)
+        run_osm2pgsql_command(config, style_file_path, input_file)
     else:
         raise InvalidInputError(f"Invalid tag. Call {os.path.basename(__file__)} -h/--help to display help.")
