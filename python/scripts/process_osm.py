@@ -1,5 +1,4 @@
 import argparse
-import sys
 import os
 import subprocess
 
@@ -37,21 +36,22 @@ def run_osmium_command(tag, input_file, output_file=None):
     """Function to run osmium command based on tag."""
     if output_file and not is_valid_extension(output_file):
         raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-    if  tag == "d":
-        subprocess.run(["osmium", "show", input_file])
-    elif tag == "i":
-        subprocess.run(["osmium", "fileinfo", input_file])
-    elif tag == "ie":
-        subprocess.run(["osmium", "fileinfo", "-e", input_file])
-    elif tag == 'r':
-        subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
-    elif tag == 's':
-        subprocess.run(["osmium", "sort", input_file, "-o", output_file])
-    elif tag == 'sr':
-        tmp_file = 'tmp.osm'
-        subprocess.run(["osmium", "sort", input_file, "-o", tmp_file])
-        subprocess.run(["osmium", "renumber", tmp_file, "-o", output_file])
-        os.remove(tmp_file)
+    match tag:
+        case "d":
+            subprocess.run(["osmium", "show", input_file])
+        case "i":
+            subprocess.run(["osmium", "fileinfo", input_file])
+        case "ie":
+            subprocess.run(["osmium", "fileinfo", "-e", input_file])
+        case 'r':
+            subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
+        case 's':
+            subprocess.run(["osmium", "sort", input_file, "-o", output_file])
+        case 'sr':
+            tmp_file = 'tmp.osm'
+            subprocess.run(["osmium", "sort", input_file, "-o", tmp_file])
+            subprocess.run(["osmium", "renumber", tmp_file, "-o", output_file])
+            os.remove(tmp_file)
 
 def run_osm2pgsql_command(config, style_file_path, input_file, coords=None):
     """Function to run osm2pgsql command."""

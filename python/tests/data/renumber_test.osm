@@ -4,7 +4,7 @@
   <node id="32" lat="15.0" lon="25.0"/>
   <node id="33" lat="5.0" lon="30.0"/>
   <node id="49" lat="12.0" lon="22.0"/>
-  <node id="51" lat="15.0" lon="15.0"/>
+  <node id="45" lat="15.0" lon="15.0"/>
   <node id="64" lat="10.0" lon="17.0"/>
   <relation id="1234">
     <member type="node" ref="1"/>

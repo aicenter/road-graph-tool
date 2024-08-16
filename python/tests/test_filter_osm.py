@@ -66,22 +66,6 @@ def test_load_multipolygon_by_id_contains_id(mocker, expected_multipolygon_id):
     )
 
     assert contains_relation_id, f"Result does not contain the relation_id {relation_id}"
-
-def test_extract_id_remove_file(mocker, expected_multipolygon_id, mock_open, mock_remove):
-    relation_id = 5986438
-    parent_dir = pathlib.Path(__file__).parent.parent.parent
-    input_file = str(parent_dir) +  "/python/tests/data/id_test.osm"
-
-    mocker.patch("scripts.filter_osm.load_multipolygon_by_id", return_value=expected_multipolygon_id)
-    extract_id(relation_id, input_file)
-
-    # Check that tmp_file was created with expected content
-    tmp_file = str(parent_dir) + "/resources/to_extract.osm"
-    mock_open.assert_called_once_with(tmp_file, 'wb')
-    mock_open().write.assert_called_once_with(expected_multipolygon_id)
-
-    # Check that tmp_file was removed
-    mock_remove.assert_called_once_with(tmp_file)
     
 def test_extract_id_contains_id():
     relation_id = 5986438

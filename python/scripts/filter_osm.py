@@ -1,9 +1,8 @@
 import argparse
-import pathlib
 import re
-import sys
 import os
 import subprocess
+import tempfile
 import requests
 
 class InvalidInputError(Exception):
@@ -47,20 +46,15 @@ def load_multipolygon_by_id(relation_id):
 
 def extract_id(relation_id, input_file, strategy=None):
     """Function to filter out data based on relation ID."""
-    parent_dir = pathlib.Path(__file__).parent.parent.parent
-    tmp_file = str(parent_dir) + "/resources/to_extract.osm"
-    config_path = str(parent_dir) + "/resources/extract-id.geojson"
-
     content = load_multipolygon_by_id(relation_id)
-    with open(tmp_file, 'wb') as f:
-        f.write(content)
-    
-    command = ["osmium", "extract", "-c", config_path, input_file]
-    if strategy:
-        command.extend(["-s", strategy])
-    
-    subprocess.run(command)
-    os.remove(tmp_file)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".osm") as tmp_file:
+        tmp_file.write(content)
+        tmp_file_path = tmp_file.name
+        command = ["osmium", "extract", "-p", tmp_file_path, input_file, "-o", "resources/id_extract.osm"]
+        if strategy:
+            command.extend(["-s", strategy])
+        subprocess.run(command)
 
 def extract_bbox(coords, input_file, strategy=None):
     """Function to extract based on bounding box with osmium"""
