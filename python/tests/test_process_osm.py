@@ -6,7 +6,7 @@ import psycopg2
 import xml.etree.ElementTree as ET
 from scripts.find_bbox import find_min_max
 from roadgraphtool.credentials_config import CREDENTIALS as config
-from scripts.process_osm import process_osm_command
+from scripts.process_osm import run_osmium_command
 
 @pytest.fixture
 def mock_subprocess_run(mocker):
@@ -19,7 +19,7 @@ def mock_os_path_isfile(mocker):
 @pytest.fixture
 def bounding_box():
     parent_dir = pathlib.Path(__file__).parent
-    file_path = str(parent_dir) + "/data/test.osm"
+    file_path = str(parent_dir) + "/data/bbox_test.osm"
     with open(file_path, 'rb') as f:
         return f.read()
 
@@ -129,7 +129,7 @@ def test_command_execution_and_db_verification(db_connection):
 
 def test_process_osm_command_renumber(renumber_test_files):
     input_file, output_file = renumber_test_files
-    process_osm_command('-r', input_file, output_file)
+    run_osmium_command('r', input_file, output_file)
     assert os.path.exists(output_file)
 
     with open(output_file, 'r') as f:
@@ -143,7 +143,7 @@ def test_process_osm_command_renumber(renumber_test_files):
 
 def test_process_osm_command_sort(sort_test_files):
     input_file, output_file = sort_test_files
-    process_osm_command('-s', str(input_file), str(output_file))
+    run_osmium_command('s', str(input_file), str(output_file))
     assert os.path.exists(output_file)
 
     with open(output_file, 'r') as f:

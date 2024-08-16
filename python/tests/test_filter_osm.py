@@ -33,10 +33,9 @@ def mock_open(mocker):
 def mock_remove(mocker):
     return mocker.patch("os.remove")
 
-def test_load_multigon_by_id_url(mocker,expected_multipolygon_id):
+def test_load_multipolygon_by_id_url(mocker,expected_multipolygon_id):
     relation_id = 5986438
     url = f"https://www.openstreetmap.org/api/0.6/relation/{relation_id}/full"
-    # https://www.openstreetmap.org/api/0.6/relation/5986438/full
 
     # Check HTTP handling
     mock_get = mocker.patch('requests.get')
@@ -47,7 +46,7 @@ def test_load_multigon_by_id_url(mocker,expected_multipolygon_id):
     mock_get.assert_called_once_with(url)
     assert result == expected_multipolygon_id
 
-def test_load_multigon_by_id_contains_id(mocker, expected_multipolygon_id):
+def test_load_multipolygon_by_id_contains_id(mocker, expected_multipolygon_id):
     relation_id = 5986438
 
     mock_get = mocker.patch('requests.get')
@@ -73,7 +72,7 @@ def test_extract_id_remove_file(mocker, expected_multipolygon_id, mock_open, moc
     parent_dir = pathlib.Path(__file__).parent.parent.parent
     input_file = str(parent_dir) +  "/python/tests/data/id_test.osm"
 
-    mocker.patch("scripts.filter_osm.load_multigon_by_id", return_value=expected_multipolygon_id)
+    mocker.patch("scripts.filter_osm.load_multipolygon_by_id", return_value=expected_multipolygon_id)
     extract_id(relation_id, input_file)
 
     # Check that tmp_file was created with expected content

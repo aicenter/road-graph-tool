@@ -1,3 +1,4 @@
+import argparse
 import sys
 import os
 import subprocess
@@ -6,32 +7,24 @@ from roadgraphtool.credentials_config import CREDENTIALS as config
 from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension
 from scripts.find_bbox import find_min_max
 
-class InvalidInputError(Exception):
-    pass
-
-class MissingInputError(Exception):
-    pass
-
-# Function to display usage information
 def display_help():
-    help_text = f"""Usage: {os.path.basename(__file__)} [tag] [input_file]
- Tag:
-    -h/--help : Display this help message
-    -d        : Display OSM file
-    -i        : Display information about OSM file
-    -ie       : Display extended information about OSM file
-Usage: {os.path.basename(__file__)} [tag] [input_file] -o [output_file]
- Tag:
-    -s        : Sort OSM file based on IDs (Requires specifying output file with '-o' tag)
-    -r        : Renumber object IDs in OSM file (Requires specifying output file with '-o' tag)
-    -sr       : Sort and renumber objects in OSM file (Requires specifying output file with '-o' tag)
-Usage: {os.path.basename(__file__)} -u [input_file] [style_file]
- Tag:
-    -u        : Upload OSM file to PostgreSQL database using osm2pgsql.
-            (Optional: specify style file - default.lua is used otherwise)
-Usage: {os.path.basename(__file__)} -b [input_file] [relation_id] [style_file]
-    -b        : Extract greatest bounding box from given relation ID of input_file and upload to PostgreSQL database using osm2pgsql.
-            (Optional: specify style file - default.lua is used otherwise)"""
+    """Function to display help information instead of parser's default"""
+    help_text = f"""Usage: {os.path.basename(__file__)} [tag] [input_file] [option]
+Tag:
+    -h/--help        : Display this help message
+    d                : Display OSM file
+    i                : Display information about OSM file
+    ie               : Display extended information about OSM file
+    s                : Sort OSM file based on IDs
+    r                : Renumber object IDs in OSM file
+    sr               : Sort and renumber objects in OSM file
+    u                : Upload OSM file to PostgreSQL database using osm2pgsql.
+    b                : Extract greatest bounding box from given relation ID of input_file 
+                       and upload to PostgreSQL database using osm2pgsql
+Option:
+    [relation_id]    : Specify relation_id (required for 'b' tag)
+    -l [style_file]  : Specify style_file (optional for: 'u', 'b' tag) - default.lua is used otherwise
+    -o [output_file] : Specify output_file (required for 's', 'r', 'sr' tags)"""
     print(help_text)
 
 def extract_bbox(relation_id):
@@ -44,23 +37,21 @@ def run_osmium_command(tag, input_file, output_file=None):
     """Function to run osmium command based on tag."""
     if output_file and not is_valid_extension(output_file):
         raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-    if  tag == "-d":
+    if  tag == "d":
         subprocess.run(["osmium", "show", input_file])
-    elif tag == "-i":
+    elif tag == "i":
         subprocess.run(["osmium", "fileinfo", input_file])
-    elif tag == "-ie":
+    elif tag == "ie":
         subprocess.run(["osmium", "fileinfo", "-e", input_file])
-    elif tag == '-r':
+    elif tag == 'r':
         subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
-    elif tag == '-s':
+    elif tag == 's':
         subprocess.run(["osmium", "sort", input_file, "-o", output_file])
-    elif tag == '-sr':
+    elif tag == 'sr':
         tmp_file = 'tmp.osm'
         subprocess.run(["osmium", "sort", input_file, "-o", tmp_file])
         subprocess.run(["osmium", "renumber", tmp_file, "-o", output_file])
         os.remove(tmp_file)
-    else:
-        raise InvalidInputError(f"Invalid tag: {tag}. Call {os.path.basename(__file__)} -h/--help to display help.")
 
 def run_osm2pgsql_command(config, style_file_path, input_file, coords=None):
     """Function to run osm2pgsql command."""
@@ -86,53 +77,45 @@ def import_osm_to_db():
     run_osm2pgsql_command(config, style_file_path, input_file)
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2 or (tag:=sys.argv[1]) in ["-h", "--help"]:
-        # If no tag is used OR script is called with -h/--help
-        display_help()
+    parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.")
 
-    elif len(sys.argv) < 3:
-        raise MissingInputError(f"Insufficient arguments. Use \"{os.path.basename(__file__)} -h/--help\" for hint.")
-    elif not os.path.exists((input_file:=sys.argv[2])):
-        raise FileNotFoundError(f"File '{input_file}' does not exist.")
-    elif not is_valid_extension(input_file):
+    parser.add_argument("tag", choices=["d", "i", "ie", "s", "r", "sr", "b", "u"])
+    parser.add_argument('input_file', nargs='?', help='Path to input OSM file')
+    parser.add_argument("relation_id", nargs="?", help="Relation ID (required for 'b' tag)")
+    parser.add_argument("-l", dest="style_file", default='resources/lua_styles/default.lua', help="Path to style file (optional for 'b', 'u' tag)")
+    parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' tag)")
+
+    parser.format_help = lambda: display_help()
+    args = parser.parse_args()
+
+    if not args.input_file:
+        raise InvalidInputError(f"Input file not provided.")
+    elif not os.path.exists(args.input_file):
+        raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
+    elif not is_valid_extension(args.input_file):
         raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-    elif tag == "-d":
-        # Display content of OSM file
-        run_osmium_command(tag, input_file)
-    elif tag == "-i":
-        # Display information about OSM file
-        run_osmium_command(tag, input_file)
-    elif tag == "-ie":
-        # Display extended information about OSM file
-        run_osmium_command(tag, input_file)
-    elif tag == "-s":
-        # Sort OSM file
-        if len(sys.argv) < 5 or sys.argv[3] != "-o":
+    
+    if args.tag in ['d', 'i', 'ie']:
+        # Display content or (extended) information of OSM file
+        run_osmium_command(args.tag, args.input_file)
+
+    elif args.tag in ['s', 'r', 'sr']:
+        # Sort, renumber OSM file or do both
+        if not args.output_file:
             raise MissingInputError("An output file must be specified with '-o' tag.")
-        run_osmium_command(tag, input_file, sys.argv[4])
-    elif tag == "-r":
-        # Renumber OSM file
-        if len(sys.argv) < 5 or sys.argv[3] != "-o":
-            raise MissingInputError("An output file must be specified with '-o' tag.")
-        run_osmium_command(tag, input_file, sys.argv[4])
-    elif tag == "-sr":
-        # Sort and renumber OSM file
-        if len(sys.argv) < 5 or sys.argv[3] != "-o":
-            raise MissingInputError("An output file must be specified with '-o' tag.")
-        run_osmium_command(tag, input_file, sys.argv[4])
-    elif tag == "-b":
+        run_osmium_command(args.tag, args.input_file, args.output_file)
+    
+    elif args.tag == "u":
+        # Upload OSM file to PostgreSQL database
+        run_osm2pgsql_command(config, args.style_file, args.input_file)
+
+    elif args.tag == "b":
         # Extract bounding box based on relation ID and import to PostgreSQL
-        if len(sys.argv) < 4:
-            raise MissingInputError("You need to specify input file and relation ID.")
-        relation_id = sys.argv[3]
-        min_lon, min_lat, max_lon, max_lat = extract_bbox(relation_id)
+        if not args.relation_id:
+            raise MissingInputError("You need to specify relation ID.")
+
+        min_lon, min_lat, max_lon, max_lat = extract_bbox(args.relation_id)
         coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
 
-        style_file_path = sys.argv[4] if len(sys.argv) > 4 else "resources/lua_styles/default.lua"
-        run_osm2pgsql_command(config, style_file_path, input_file, coords)
-    elif tag == "-u":
-        # Upload OSM file to PostgreSQL database
-        style_file_path = sys.argv[3] if len(sys.argv) > 3 else "resources/lua_styles/default.lua"
-        run_osm2pgsql_command(config, style_file_path, input_file)
-    else:
-        raise InvalidInputError(f"Invalid tag. Call {os.path.basename(__file__)} -h/--help to display help.")
+        run_osm2pgsql_command(config, args.style_file, args.input_file, coords)
+    

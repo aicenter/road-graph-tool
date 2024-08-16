@@ -1,3 +1,4 @@
+import argparse
 import pathlib
 import re
 import sys
@@ -12,16 +13,19 @@ class MissingInputError(Exception):
     pass
 
 def display_help():
-    """Function to display usage information"""
+    """Function to display help information instead of parser's default"""
     help_text = f"""Usage: {os.path.basename(__file__)} [tag] [input_file] [option]
  Tag:
-    -h/--help              : Display this help message
-    -id                    : Filter geographic objects based on relation ID
-    -b                     : Filter geographic objects based on bounding box (with osmium)
-                            (Bounding box is specified directly or in config geojson file)
-    -t [expression_file]   : Filter objects based on tags in expression_file
+    -h/--help         : Display this help message
+    id                : Filter geographic objects based on relation ID
+    b                 : Filter geographic objects based on bounding box (with osmium)
+    t                 : Filter objects based on tags in expression_file
  Option:
-    -s [strategy]          : Specify strategy type (optional for: -id, -b)"""
+    [relation_id]     : Specify relation_id (required for 'id' tag)
+    [bbox]            : Specify bouding box (required for 'b' tag)
+                        (Bounding box is specified directly or in config geojson file)
+    [expression_file] : Specify path to expression file
+    -s [strategy]     : Specify strategy type (optional for: 'id', 'b')"""
     print(help_text)
 
 def is_valid_extension(file):
@@ -75,51 +79,52 @@ def extract_bbox(coords, input_file, strategy=None):
     
     subprocess.run(command)
 
+def run_osmium_filter(input_file, expression_file):
+    """Function to filter objects based on tags in expression file."""
+    subprocess.run(["osmium", "tags-filter", input_file, "-e", expression_file, "-o", "filtered.osm.pbf"])
+
 if __name__ == '__main__':
-    # If no tag is used OR script is called with -h/--help
-    if len(sys.argv) < 2 or (tag:=sys.argv[1]) in ("-h", "--help"):
-        display_help()
-    elif tag == "-id":
+    parser = argparse.ArgumentParser(description="Filter OSM files with various operations.", formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument("tag", choices=["id", "b", "t"])
+    parser.add_argument('input_file', nargs='?', help='Path to input OSM file')
+    parser.add_argument("relation_id", nargs="?", help="relation ID (required for 'b' tag)")
+    parser.add_argument("expression_file", nargs="?", help="Path to expression file for filtering tags (required for 't' tag)")
+    parser.add_argument("coords",nargs="?",help="Bounding box coordinates or path to config file (required for 'b' tag)")
+    parser.add_argument("-s", dest="strategy", help="Strategy type (optional for 'id', 'b' tags)")
+
+    parser.format_help = lambda: display_help()
+    args = parser.parse_args()
+
+    if not args.input_file:
+        raise InvalidInputError(f"Input file not provided.")
+    elif not os.path.exists(args.input_file):
+        raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
+    elif not is_valid_extension(args.input_file):
+        raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
+    
+    if args.tag == "id":
         # Filter geographic objects based on relation ID
-        if len(sys.argv) < 4:
-            raise MissingInputError("You need to specify relation ID and input file.")
-
-        relation_id = sys.argv[2]
-        input_file = sys.argv[3]
-        if not is_valid_extension(input_file):
-            raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-        if len(sys.argv) == 5 and sys.argv[4] == '-s':
-            raise MissingInputError("Missing specified strategy type.")
-        strategy = sys.argv[5] if len(sys.argv) > 5 and sys.argv[4] == "-s" else None
+        if not args.relation_id:
+            raise MissingInputError("You need to specify relation ID.")
         
-        if strategy and not check_strategy(strategy):
-            raise InvalidInputError("Invalid strategy type. Call script.py -h/--help to display help.")
+        if args.strategy and not check_strategy(args.strategy):
+            raise InvalidInputError(f"Invalid strategy type. Call {os.path.basename(__file__)}  -h/--help to display help.")
         
-        extract_id(relation_id, input_file, strategy)
+        extract_id(args.relation_id, args.input_file, args.strategy)
 
-    elif tag == "-b":
+    elif args.tag == "b":
         # Filter geographic objects based on bounding box (with osmium)
-        if len(sys.argv) < 4:
-            raise MissingInputError("You need to specify either coordinates or config file with coordinates and input file.")
-        coords = sys.argv[2]
-        input_file = sys.argv[3]
-        if not is_valid_extension(input_file):
-            raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-        strategy = sys.argv[5] if len(sys.argv) > 5 and sys.argv[4] == "-s" else None
+        if not args.coords:
+            raise MissingInputError("You need to specify coordinates or a config file with the 'b' tag.")
         
-        if strategy and not check_strategy(strategy):
-            raise InvalidInputError("Invalid strategy type. Call script.py -h/--help to display help.")
-        extract_bbox(coords, input_file, strategy)
+        if args.strategy and not check_strategy(args.strategy):
+            raise InvalidInputError(f"Invalid strategy type. Call {os.path.basename(__file__)} -h/--help to display help.")
+        extract_bbox(args.coords, args.input_file, args.strategy)
 
-    elif tag == "-t":
+    elif args.tag == "t":
         # Filter objects based on tags in expression_file
-        if len(sys.argv) < 4:
-            raise MissingInputError("You need to specify expression file and input file.")
-        expression_file = sys.argv[2]
-        input_file = sys.argv[3]
-        if not is_valid_extension(input_file):
-            raise InvalidInputError(f"File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-        subprocess.run(["osmium", "tags-filter", input_file, "-e", expression_file, "-o", "filtered.osm.pbf"])
+        if not args.expression_file:
+            raise MissingInputError("You need to specify expression file.")
 
-    else:
-        raise InvalidInputError(f"Invalid tag: {tag}. Call {os.path.basename(__file__)} -h/--help to display help.")
+        run_osmium_filter(args.input_file, args.expression_file)
