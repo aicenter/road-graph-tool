@@ -67,41 +67,40 @@ Call `python3 process_osm.py -h` or `python3 process_osm.py --help` for more inf
 
 - Sorting: Sorts objects based on IDs in ascending order.
 ```bash
-python3 process_osm.py -s [input_file] -o [output_file]
+python3 process_osm.py s [input_file] -o [output_file]
 ```
 - Renumbering: Negative IDs usually represent inofficial non-OSM data (no clashes with OSM data), osm2pgsql can only handle positive sorted IDs (negative IDs are used internally for geometries).
 Renumbering starts at index 1 and goes in ascending order.
 ```bash
-python3 process_osm.py -r [input_file] -o [output_file]
+python3 process_osm.py s [input_file] -o [output_file]
 ```
 - Sorting and renumbering: Sorts and renumbers IDs in ascending order starting from index 1.
 ```bash
-python3 process_osm.py -sr [input_file] -o [output_file]
+python3 process_osm.py sr [input_file] -o [output_file]
 ```
 
 ### 2. Importing to database using Flex output
-The `process_osm.py` script also allows to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we specify the flex style file (Lua script) that has all the logic for processing data in OSM file.
+The `process_osm.py` script also allows to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we specify the Flex style file (Lua script) that has all the logic for processing data in OSM file.
 
 The default style file for this project is `resources/lua_styles/default.lua`, which processes and all nodes, ways and relations without creating additional attributes (based on tags) into following tables: `nodes` (node_id, geom, tags), `ways` (way_id, geom, tags, nodes), `relations` (relation_id, tags, members).
 
 ```bash
-python3 process_osm.py -u [input_file] [style_file]
+python3 process_osm.py u [input_file] [-l style_file]
 ```
 
 * E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
 ```bash
 # runs with default.lua
-python3 process_osm.py -u lithuania-latest.osm.pbf
+python3 process_osm.py u lithuania-latest.osm.pbf
 # runs with highway.lua script
-python3 process_osm.py -u lithuania-latest.osm.pbf resources/lua_styles/highway.lua
+python3 process_osm.py u lithuania-latest.osm.pbf -l resources/lua_styles/highway.lua
 ```
 
 **Nodes in Lithuania:**
 
 ![Nodes in Lithuania in QGIS](doc/images/default-nodes.png)
 
-
-More examples of various flex configurations can be found in oficial [osm2pgsql GitHub project](https://github.com/osm2pgsql-dev/osm2pgsql/tree/master/flex-config).
+It should be noted that `process_osm.py u` and `process_osm.py b` both run osm2pgsql with `-x` tag (extra attributes) which adds OSM attributes such as version, timestamp, uid, etc. to the OSM objects processed in osm2pgsql since normally objects without tags would not be processed.
 
 ### 3. Filtering and extraction
 Data are often huge and lot of times we only need certain extracts or objects of interest in our database. So it's better practice to filter out only what we need and work with that in our database.
@@ -119,27 +118,27 @@ Both osmium and osm2pgsql filter data inside the bounding box of following forma
 - These commands process OSM file using bounding box coordinates to filter data within the bounding box. File `resources/extracted-bbox.osm.pbf` is created and can be futher processed with Flex output.
 ```bash
 # bounding box specified directly
-python3 filter_osm.py -b [left],[bottom],[right],[top] [input_file] 
+python3 filter_osm.py b [input_file] -c [left],[bottom],[right],[top]
 # bounding box specified in config file:
-python3 filter_osm.py -b [config_file] [input_file]
+python3 filter_osm.py b [input_file] -c [config_file]
 ```
 - E.g. extract bounding box of Lithuania OSM file:
 ```bash
-python3 filter_osm.py -b 25.12,54.57,25.43,54.75 lithuania-latest.osm.pbf
+python3 filter_osm.py b lithuania-latest.osm.pbf -c 25.12,54.57,25.43,54.75
 # or:
-python3 filter_osm.py -b resources/extract-bbox.geojson lithuania-latest.osm.pbf
+python3 filter_osm.py b lithuania-latest.osm.pbf -c resources/extract-bbox.geojson
 ```
 
 ##### Flex output
-- We can calculate the greatest bounding box coordinates using `python3 process_osm.py -b` based on the ID of relation (mentioned in [3.1.2](#3.1.2)) that specifies the area of interest (e.g. Vilnius - capital of Lithuania). This command processes OSM file using calculated bounding box coordinates with Flex output and imports the bounded data into database.
+- We can calculate the greatest bounding box coordinates using `python3 process_osm.py b` based on the ID of relation (mentioned in [3.1.2](#3.1.2-multipolygon/id-extracts-(osmium))) that specifies the area of interest (e.g. Vilnius - capital of Lithuania). This command processes OSM file using calculated bounding box coordinates with Flex output and imports the bounded data into database.
 ```bash
 # find bbox (uses Python script find_bbox.py)
-python3 filter_osm.py -b [input_file] [relation_id] [style_file]
+python3 process_osm.py b [input_file] -r [relation_id] -s [style_file]
 ```
 
 - E.g. this command extracts greatest bounding box from given relation ID of Lithuania OSM file and uploads it to PostgreSQL database using osm2pgsql:
 ```bash
-python3 process_osm.py -b 1529146 lithuania-latest.osm.pbf
+python3 process_osm.py b lithuania-latest.osm.pbf -r 1529146
 ```
 
 #### 3.1.2 Multipolygon/ID extracts (osmium)
@@ -152,31 +151,33 @@ It's better to filter out only what we need with osmium (before processing with 
 ![Ways inside multipolygon of Vilnius in QGIS](doc/images/multi-ways.png)
 
 ##### Osmium
-- ID can be found by specific filtering (or on OpenStreetMap) - e.g. to find relation ID that bounds Vilnius city (ID: 1529146), run double [tag filtration](#3.2):
+- ID can be found by specific filtering using `resources/expression-example.txt` or on OpenStreetMap - [more on how to filter](#3.2-filter-tags)
+    - note: `admin_level=*` expression represents administrative level of feature (borders of territorial political entities) - each country (even county) can have different numbering
+    - use `name:en` for easiest filtering
+- e.g. to find relation ID that bounds Vilnius city (ID: 1529146), run double [tag filtration](#3.2-filter-tags):
 ```bash
-# expressions-example.txt contains: r/type=boundary
-python3 filter_osm.py -t expressions-example.txt lithuania-latest.osm.pbf
-# expressions-example.txt contains: r/name:en=Vilnius
-python3 filter_osm.py -t expressions-example.txt lithuania-latest.osm.pbf
+# expressions-example.txt should contain: r/type=boundary
+python3 filter_osm.py f lithuania-latest.osm.pbf -e expressions-example.txt
+# expressions-example.txt should contain: r/name:en=Vilnius
+python3 filter_osm.py f lithuania-latest.osm.pbf -e expressions-example.txt
 ```
-	- note: `admin_level=*` expression represents administrative level of feature (borders of territorial political entities) - each country (even county) can have different numbering
-	- use `name:en` for easiest filtering
-- get multipolygon (using `filter_osm.py` script) extract that can be further processed with Flex output:
+- get multipolygon extract that can be further processed with Flex output:
 ```bash
-python3 filter_osm.py -id [relation_id] [input_file] [strategy]
+python3 filter_osm.py id [input_file] -r [relation_id] [-s strategy] 
 # E.g. extract multipolygon based on relation ID of Vilnius city:
-python3 filter_osm.py -id 1529146 lithuania-latest.osm.pbf
+python3 filter_osm.py id lithuania-latest.osm.pbf -r 1529146 # creates: id_extract.osm
+python3 process_osm.py u id_extract.osm
 ```
-	- strategies: `-s [strategy]` to set strategy:
-		- simple: faster, doesn't include complete ways (ways out of multipolygon)
-		- complete ways: ways are reference-complete
-		- smart: ways and multipolygon relations (by default) are reference-complete
+- Strategies (optional for `id` and `b` tags in `filter_osm.py`) are used to extract region in certain way: use `[-s strategy]`to set strategy:
+    - simple: faster, doesn't include complete ways (ways out of multipolygon)
+    - complete ways: ways are reference-complete
+    - smart: ways and multipolygon relations (by default) are reference-complete
 
 #### 3.2 Filter tags
 Filter specific objects based on tags.
 - common tags: 
 	- amenity, building, highway, leisure, natural, boundary
-	- ([find more tags](https://wiki.openstreetmap.org/wiki/Main_Page))
+	- [find more tags here](https://wiki.openstreetmap.org/wiki/Main_Page)
 
 **Ways with highway tag in Lithuania:**
 
@@ -188,15 +189,16 @@ Filter specific objects based on tags.
     * `object_type`: n (nodes), w (ways), r (relations) - can be combined
     * `expression`: what it should match against
 ```bash
-python3 filter_osm.py -t [input_file] [expression_file]
+python3 filter_osm.py t [input_file] -e [expression_file] [-R]
 ```
+- Optional `-R` tag: nodes referenced in ways and members referenced in relations will not be added to output if `-R` tag is used
 #### 3.2.2 Flex output
-- `resources/lua_styles/filter-highway.lua`:
-	- filters nodes, ways and relations with highway tag
-- E.g.
+- Use lua style files to filter out desired objects.
+    - e.g.`resources/lua_styles/filter-highway.lua` filters nodes, ways and relations with highway tag
 ```bash
-python3 process_osm.py -u lithuania-latest.osm.pbf resources/lua_styles/filter-highway.lua
+python3 process_osm.py u lithuania-latest.osm.pbf -s resources/lua_styles/filter-highway.lua
 ```
+- More examples of various Flex configurations can be found in oficial [osm2pgsql GitHub project](https://github.com/osm2pgsql-dev/osm2pgsql/tree/master/flex-config).
 
 ## Graph Contraction 
 This script contracts the road graph within a specified area. 
