@@ -99,9 +99,12 @@ def main(arg_list: list[str] | None = None):
     elif not os.path.exists(args.input_file):
         raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
     elif not is_valid_extension(args.input_file):
-        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-    elif args.style_file and not os.path.exists(args.style_file):
-        raise FileNotFoundError(f"File '{args.style_file}' does not exist.")
+        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2.")
+    elif args.style_file:
+        if not os.path.exists(args.style_file):
+            raise FileNotFoundError(f"File '{args.style_file}' does not exist.")
+        elif not args.style_file.endswith(".lua"):
+            raise InvalidInputError("File must have the '.lua' extension.")
     
     if args.tag in ['d', 'i', 'ie']:
         # Display content or (extended) information of OSM file

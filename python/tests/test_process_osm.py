@@ -165,24 +165,24 @@ def test_import_to_db_valid(mocker):
     import_osm_to_db()
     mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'resources/to_import.osm', 'resources/lua_styles/default.lua')
 
-def test_missing_input():
+def test_main_missing_inputfile():
     arg_list = ["d"]
     with pytest.raises(MissingInputError, match="Input file not provided."):
         main(arg_list)
 
-def test_invalid_input():
+def test_main_invalid_inputfile():
     arg_list = ["d", "invalid_file.osm"]
     with pytest.raises(FileNotFoundError, match="File 'invalid_file.osm' does not exist."):
         main(arg_list)
 
-def test_invalid_extension():
+def test_invalid_inputfile_extension():
     with tempfile.NamedTemporaryFile(suffix=".txt") as tmp_file:
         arg_list = ["d", tmp_file.name]
         with pytest.raises(InvalidInputError, match="File must have one of the following extensions: osm, osm.pbf, osm.bz2"):
             main(arg_list)
 
 @pytest.mark.parametrize("test_input", ["d", "i", "ie"])
-def test_main_valid_diie(mocker, test_input):
+def test_main_diie_valid(mocker, test_input):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = [test_input, tmp_file.name]
         mock_run_osmium_cmd = mocker.patch('scripts.process_osm.run_osmium_cmd')
@@ -190,41 +190,47 @@ def test_main_valid_diie(mocker, test_input):
         mock_run_osmium_cmd.assert_called_once_with(arg_list[0], arg_list[1])
 
 @pytest.mark.parametrize("test_input", ["s", "r", "sr"])
-def test_main_invalid_srsr(test_input):
+def test_main_srsr_invalid(test_input):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = [test_input, tmp_file.name]
         with pytest.raises(MissingInputError, match="An output file must be specified with '-o' tag."):
             main(arg_list)
 
 @pytest.mark.parametrize("test_input", ["s", "r", "sr"])
-def test_main_valid_srsr(mocker, test_input):
+def test_main_srsr_valid(mocker, test_input):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = [test_input, tmp_file.name, "-o", " output.osm"]
         mock_run_osmium_cmd = mocker.patch('scripts.process_osm.run_osmium_cmd')
         main(arg_list)
         mock_run_osmium_cmd.assert_called_once_with(arg_list[0], arg_list[1], arg_list[3])
 
-def test_main_valid_default_style(mocker):
+def test_main_default_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = ["u", tmp_file.name]
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
         mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], "resources/lua_styles/default.lua")
 
-def test_main_valid_input_style(mocker):
+def test_main_input_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
         arg_list = ["u", tmp_input.name, "-l", tmp_lua.name]
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
         mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], arg_list[3])
 
-def test_main_invalid_style_file():
+def test_main_style_file_invalid():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = ["u", tmp_file.name, "-l", "invalid_style.lua"]
         with pytest.raises(FileNotFoundError, match="File 'invalid_style.lua' does not exist."):
             main(arg_list)
 
-def test_main_valid_bbox(mocker):
+def test_main_style_file_extension_invalid():
+    with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file, tempfile.NamedTemporaryFile(suffix=".txt") as invalid_lua:
+        arg_list = ["u", tmp_file.name, "-l", invalid_lua.name]
+        with pytest.raises(InvalidInputError, match="File must have the '.lua' extension."):
+            main(arg_list)
+
+def test_main_bbox_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = ["b", tmp_file.name, "-r", "1234"]
         mock_extract_bbox = mocker.patch('scripts.process_osm.extract_bbox', return_value=(10, 20, 30, 40))
@@ -233,8 +239,8 @@ def test_main_valid_bbox(mocker):
         mock_extract_bbox.assert_called_once_with(arg_list[3])
         mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], "resources/lua_styles/default.lua", "10,20,30,40")
 
-def test_main_invalid_bbox():
-    # relation_id missing
+# relation_id missing
+def test_main_bbox_id_missing():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = ["b", tmp_file.name]
         with pytest.raises(MissingInputError, match="Existing relation ID must be specified."):
