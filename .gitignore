@@ -6,7 +6,4 @@ python/scripts/monaco-latest.osm.pbf
 resources/lua_styles/mydef.lua
 .pytest_cache
 config.ini
-czechia.osm.pbf
-germany.osm
 resources/to_import.osm.pbf
-fuck.py
