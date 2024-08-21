@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS public.demand (
 CREATE TABLE IF NOT EXISTS public.nodes (
     id bigint NOT NULL,
     geom public.geometry(Point,4326) NOT NULL,
-    area integer NOT NULL,
+    area integer,
     contracted boolean DEFAULT false NOT NULL
 );
 
@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS public.nodes (
 -- Name: COLUMN nodes.area; Type: COMMENT; Schema: public
 --
 
-COMMENT ON COLUMN public.nodes.area IS 'Area with which was the node imported to the databas';
+COMMENT ON COLUMN public.nodes.area IS 'Area with which was the node imported to the database';
 
 
 --
@@ -273,7 +273,7 @@ CREATE TABLE IF NOT EXISTS public.nodes_ways (
     way_id integer NOT NULL,
     node_id bigint NOT NULL,
     "position" smallint NOT NULL,
-    area smallint NOT NULL,
+    area smallint,
     id integer NOT NULL
 );
 
@@ -415,7 +415,8 @@ ALTER TABLE ONLY public.relation_members ALTER COLUMN sequence_id SET (n_distinc
 
 CREATE TABLE IF NOT EXISTS public.relations (
     id bigint NOT NULL,
-    tags public.hstore
+    tags public.hstore,
+    members jsonb
 );
 
 
@@ -574,7 +575,7 @@ CREATE TABLE IF NOT EXISTS public.ways (
     id bigint NOT NULL,
     tags public.hstore,
     geom public.geometry(Geometry,4326) NOT NULL,
-    area integer NOT NULL,
+    area integer,
     "from" bigint NOT NULL,
     "to" bigint NOT NULL,
     oneway boolean NOT NULL
