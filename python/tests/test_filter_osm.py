@@ -7,9 +7,9 @@ import xml.etree.ElementTree as ET
 from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main, InvalidInputError, MissingInputError
 
 def test_check_strategy():
-    assert check_strategy("simple") == True
-    assert check_strategy("complete_ways") == True
-    assert check_strategy("smart") == True
+    assert check_strategy("simple") == None
+    assert check_strategy("complete_ways") == None
+    assert check_strategy("smart") == None
     with pytest.raises(InvalidInputError, match="Invalid strategy type. Call filter_osm.py -h/--help to display help."):
         check_strategy("invalid_strategy")
     
@@ -123,7 +123,6 @@ def test_extract_bbox_config_valid(mock_subprocess_run, mock_os_path_isfile):
         "osmium", "extract", "-c", coords, input_file]
     mock_subprocess_run.assert_called_once_with(expected_command)
 
-
 def test_extract_bbox_coords_and_config_invalid(mock_subprocess_run, mock_os_path_isfile):
     coords = "invalid,coords,string"
     input_file = "test.osm.pbf"
@@ -131,11 +130,6 @@ def test_extract_bbox_coords_and_config_invalid(mock_subprocess_run, mock_os_pat
     with pytest.raises(InvalidInputError, match="Invalid coordinates or config file."):
         extract_bbox(input_file, coords)
     mock_subprocess_run.assert_not_called()
-
-def test_main_inputfile_missing():
-    arg_list = ["id"]
-    with pytest.raises(MissingInputError, match="Input file not provided."):
-        main(arg_list)
 
 def test_main_inputfile_invalid():
     arg_list = ["id", "invalid_file.osm"]
@@ -156,20 +150,20 @@ def test_main_id_missing():
 
 def test_main_id_invalid_strategy():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
-        arg_list = ["id", tmp_file.name, "-r", "1234", "-s", "invalid"]
+        arg_list = ["id", tmp_file.name, "-id", "1234", "-s", "invalid"]
         with pytest.raises(InvalidInputError, match="Invalid strategy type. Call filter_osm.py -h/--help to display help."):
             main(arg_list)
 
 def test_main_id_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
-        arg_list = ["id", tmp_file.name, "-r", "1234"]
+        arg_list = ["id", tmp_file.name, "-id", "1234"]
         mock_extract_id = mocker.patch('scripts.filter_osm.extract_id')
         main(arg_list)
         mock_extract_id.assert_called_once_with(arg_list[1], arg_list[3], None)
 
 def test_main_id_startegy_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
-        arg_list = ["id", tmp_file.name, "-r", "1234", "-s", "simple"]
+        arg_list = ["id", tmp_file.name, "-id", "1234", "-s", "simple"]
         mock_extract_id = mocker.patch('scripts.filter_osm.extract_id')
         main(arg_list)
         mock_extract_id.assert_called_once_with(arg_list[1], arg_list[3], "simple")

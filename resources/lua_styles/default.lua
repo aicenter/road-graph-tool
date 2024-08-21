@@ -50,9 +50,10 @@ end
 
 -- Process every way in the input
 function osm2pgsql.process_way(object)
-    if clean_tags(object.tags) then
-        return
-    end
+    -- if clean_tags(object.tags) then
+    --     return
+    -- end
+    clean_tags(object.tags)
 
     tables.ways:insert({
         geom = object:as_linestring(),
@@ -64,9 +65,10 @@ end
 
 -- Process every relation in the input
 function osm2pgsql.process_relation(object)
-    if clean_tags(object.tags) then
-        return
-    end
+    -- if clean_tags(object.tags) then
+    --     return
+    -- end
+    clean_tags(object.tags)
 
     tables.relations:insert({
         tags = object.tags,

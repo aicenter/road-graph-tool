@@ -133,12 +133,12 @@ python3 filter_osm.py b lithuania-latest.osm.pbf -c resources/extract-bbox.geojs
 - We can calculate the greatest bounding box coordinates using `python3 process_osm.py b` based on the ID of relation (mentioned in [3.1.2](#3.1.2-multipolygon/id-extracts-(osmium))) that specifies the area of interest (e.g. Vilnius - capital of Lithuania). This command processes OSM file using calculated bounding box coordinates with Flex output and imports the bounded data into database.
 ```bash
 # find bbox (uses Python script find_bbox.py)
-python3 process_osm.py b [input_file] -r [relation_id] -s [style_file]
+python3 process_osm.py b [input_file] -id [relation_id] -s [style_file]
 ```
 
 - E.g. this command extracts greatest bounding box from given relation ID of Lithuania OSM file and uploads it to PostgreSQL database using osm2pgsql:
 ```bash
-python3 process_osm.py b lithuania-latest.osm.pbf -r 1529146
+python3 process_osm.py b lithuania-latest.osm.pbf -id 1529146
 ```
 
 #### 3.1.2 Multipolygon/ID extracts (osmium)
@@ -163,9 +163,9 @@ python3 filter_osm.py f lithuania-latest.osm.pbf -e expressions-example.txt
 ```
 - get multipolygon extract that can be further processed with Flex output:
 ```bash
-python3 filter_osm.py id [input_file] -r [relation_id] [-s strategy] 
+python3 filter_osm.py id [input_file] -id [relation_id] [-s strategy] 
 # E.g. extract multipolygon based on relation ID of Vilnius city:
-python3 filter_osm.py id lithuania-latest.osm.pbf -r 1529146 # creates: id_extract.osm
+python3 filter_osm.py id lithuania-latest.osm.pbf -id 1529146 # creates: id_extract.osm
 python3 process_osm.py u id_extract.osm
 ```
 - Strategies (optional for `id` and `b` tags in `filter_osm.py`) are used to extract region in certain way: use `[-s strategy]`to set strategy:

@@ -6,26 +6,6 @@ from roadgraphtool.credentials_config import CREDENTIALS as config, CredentialsC
 from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension
 from scripts.find_bbox import find_min_max
 
-def display_help():
-    """Function to display help information instead of parser's default"""
-    help_text = f"""Usage: {os.path.basename(__file__)} [tag] [input_file] [option]
-Tag:
-    -h/--help        : Display this help message
-    d                : Display OSM file
-    i                : Display information about OSM file
-    ie               : Display extended information about OSM file
-    s                : Sort OSM file based on IDs
-    r                : Renumber object IDs in OSM file
-    sr               : Sort and renumber objects in OSM file
-    u                : Upload OSM file to PostgreSQL database using osm2pgsql.
-    b                : Extract greatest bounding box from given relation ID of input_file 
-                       and upload to PostgreSQL database using osm2pgsql
-Option:
-    -r [relation_id] : Specify relation_id (required for 'b' tag)
-    -l [style_file]  : Specify style_file (optional for: 'u', 'b' tag) - default.lua is used otherwise
-    -o [output_file] : Specify output_file (required for 's', 'r', 'sr' tags)"""
-    print(help_text)
-
 def extract_bbox(relation_id: int):
     """Function to determine bounding box coordinations."""
     content = load_multipolygon_by_id(relation_id)
@@ -77,26 +57,33 @@ def import_osm_to_db():
     run_osm2pgsql_cmd(config, input_file, style_file_path)
 
 def parse_args(arg_list: list[str] | None):
-    parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.")
+    parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.", formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument("tag", choices=["d", "i", "ie", "s", "r", "sr", "b", "u"])
+    parser.add_argument("tag", choices=["d", "i", "ie", "s", "r", "sr", "b", "u"], metavar="tag",
+                        help="""
+d  : Display OSM file
+i  : Display information about OSM file
+ie : Display extended information about OSM file
+s  : Sort OSM file based on IDs
+r  : Renumber object IDs in OSM file
+sr : Sort and renumber objects in OSM file
+b  : Upload OSM file to PostgreSQL database using osm2pgsql
+u  : Extract greatest bounding box from given relation ID of 
+     input_file and upload to PostgreSQL database using osm2pgsql"""
+)
     parser.add_argument('input_file', nargs='?', help="Path to input OSM file")
-    parser.add_argument("-r", dest="relation_id", nargs="?", help="Relation ID (required for 'b' tag)")
+    parser.add_argument("-id", dest="relation_id", nargs="?", help="Relation ID (required for 'b' tag)")
     parser.add_argument("-l", dest="style_file", default="resources/lua_styles/default.lua", help="Path to style file (optional for 'b', 'u' tag)")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' tag)")
 
-    parser.format_help = lambda: display_help()
     args = parser.parse_args(arg_list)
 
     return args
 
-
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
 
-    if not args.input_file:
-        raise MissingInputError("Input file not provided.")
-    elif not os.path.exists(args.input_file):
+    if not os.path.exists(args.input_file):
         raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
     elif not is_valid_extension(args.input_file):
         raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2.")
@@ -106,28 +93,29 @@ def main(arg_list: list[str] | None = None):
         elif not args.style_file.endswith(".lua"):
             raise InvalidInputError("File must have the '.lua' extension.")
     
-    if args.tag in ['d', 'i', 'ie']:
-        # Display content or (extended) information of OSM file
-        run_osmium_cmd(args.tag, args.input_file)
+    match args.tag:
+        case 'd' | 'i' | 'ie':
+            # Display content or (extended) information of OSM file
+            run_osmium_cmd(args.tag, args.input_file)
 
-    elif args.tag in ['s', 'r', 'sr']:
-        # Sort, renumber OSM file or do both
-        if not args.output_file:
-            raise MissingInputError("An output file must be specified with '-o' tag.")
-        run_osmium_cmd(args.tag, args.input_file, args.output_file)
+        case 's' | 'r' | 'sr':
+            # Sort, renumber OSM file or do both
+            if not args.output_file:
+                raise MissingInputError("An output file must be specified with '-o' tag.")
+            run_osmium_cmd(args.tag, args.input_file, args.output_file)
     
-    elif args.tag == "u":
-        # Upload OSM file to PostgreSQL database
-        run_osm2pgsql_cmd(config, args.input_file, args.style_file)
-    elif args.tag == "b":
-        # Extract bounding box based on relation ID and import to PostgreSQL
-        if not args.relation_id:
-            raise MissingInputError("Existing relation ID must be specified.")
+        case "u":
+            # Upload OSM file to PostgreSQL database
+            run_osm2pgsql_cmd(config, args.input_file, args.style_file)
+        case "b":
+            # Extract bounding box based on relation ID and import to PostgreSQL
+            if not args.relation_id:
+                raise MissingInputError("Existing relation ID must be specified.")
 
-        min_lon, min_lat, max_lon, max_lat = extract_bbox(args.relation_id)
-        coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
+            min_lon, min_lat, max_lon, max_lat = extract_bbox(args.relation_id)
+            coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
 
-        run_osm2pgsql_cmd(config, args.input_file, args.style_file, coords)
+            run_osm2pgsql_cmd(config, args.input_file, args.style_file, coords)
     
 if __name__ == '__main__':
     main()
