@@ -123,13 +123,6 @@ CREATE SEQUENCE IF NOT EXISTS public.dataset_id_seq
     CACHE 1;
 
 --
--- Name: dataset_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.dataset_id_seq OWNED BY public.areas.id;
-
-
---
 -- Name: dataset; Type: TABLE; Schema: public
 --
 
@@ -219,13 +212,6 @@ CREATE SEQUENCE IF NOT EXISTS public.demand_id_seq
 
 
 --
--- Name: demand_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.demand_id_seq OWNED BY public.demand.id;
-
-
---
 -- Name: edges; Type: TABLE; Schema: public
 --
 
@@ -256,13 +242,6 @@ CREATE SEQUENCE IF NOT EXISTS public.edge_id_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-
---
--- Name: edge_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.edge_id_seq OWNED BY public.edges.id;
 
 
 --
@@ -342,13 +321,6 @@ CREATE SEQUENCE IF NOT EXISTS public.nodes_tmp_seq
 
 
 --
--- Name: nodes_tmp_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.nodes_tmp_seq OWNED BY public.nodes_tmp.id;
-
-
---
 -- Name: nodes_ways_id_seq; Type: SEQUENCE; Schema: public
 --
 
@@ -359,13 +331,6 @@ CREATE SEQUENCE IF NOT EXISTS public.nodes_ways_id_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-
---
--- Name: nodes_ways_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.nodes_ways_id_seq OWNED BY public.nodes_ways.id;
 
 
 --
@@ -520,13 +485,6 @@ CREATE SEQUENCE IF NOT EXISTS public.trip_location_sets_id_seq
 
 
 --
--- Name: trip_location_sets_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.trip_location_sets_id_seq OWNED BY public.trip_location_sets.id;
-
-
---
 -- Name: trip_time_sets; Type: TABLE; Schema: public
 --
 
@@ -547,13 +505,6 @@ CREATE SEQUENCE IF NOT EXISTS public.trip_time_sets_id_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-
---
--- Name: trip_time_sets_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.trip_time_sets_id_seq OWNED BY public.trip_time_sets.id;
 
 
 --
@@ -618,13 +569,6 @@ CREATE SEQUENCE IF NOT EXISTS public."zone level_id_seq"
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-
---
--- Name: zone level_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public."zone level_id_seq" OWNED BY public.zone_type.id;
 
 
 --
