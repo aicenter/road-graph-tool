@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS public.edges (
     id integer NOT NULL,
     geom public.geometry(MultiLineString) NOT NULL,
     area smallint NOT NULL,
-    speed double precision NOT NULL
+    speed double precision 
 );
 
 

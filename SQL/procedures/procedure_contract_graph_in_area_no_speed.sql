@@ -40,13 +40,12 @@ WHERE id IN (
 
 -- edges for non contracted road segments
 RAISE NOTICE 'Creating edges for non-contracted road segments';
-INSERT INTO edges ("from", "to", geom, area, speed)
+INSERT INTO edges ("from", "to", geom, area)
 SELECT
 	road_segments.from_node,
 	road_segments.to_node,
 	st_multi(st_makeline(from_nodes.geom, to_nodes.geom)) as geom,
 	target_area_id AS area,
-	-1 AS speed -- TODO change value to indicate that the speed is not available
 	FROM road_segments
 		JOIN nodes from_nodes ON from_nodes.id  = from_node AND from_nodes.contracted = FALSE
 		JOIN nodes to_nodes ON to_nodes.id  = to_node AND to_nodes.contracted = FALSE
@@ -90,13 +89,12 @@ RAISE NOTICE '% contraction segments generated', (SELECT count(*) FROM contracti
 
 -- edges for contracted road segments
 RAISE NOTICE 'Creating edges for contracted road segments';
-INSERT INTO edges ("from", "to", area, geom, speed)
+INSERT INTO edges ("from", "to", area, geom)
 SELECT
 	max(source) AS "from",
 	max(target) AS "to",
 	target_area_id AS area,
 	st_transform(st_multi(st_union(geom)), 4326) AS geom,
-	-1 AS speed -- TODO change value to indicate that the speed is not available
 	FROM contractions
 	    JOIN contraction_segments ON contraction_segments.id = contractions.id
 	GROUP BY contractions.id;
