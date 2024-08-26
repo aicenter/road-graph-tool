@@ -45,7 +45,7 @@ SELECT
 	road_segments.from_node,
 	road_segments.to_node,
 	st_multi(st_makeline(from_nodes.geom, to_nodes.geom)) as geom,
-	target_area_id AS area,
+	target_area_id AS area
 	FROM road_segments
 		JOIN nodes from_nodes ON from_nodes.id  = from_node AND from_nodes.contracted = FALSE
 		JOIN nodes to_nodes ON to_nodes.id  = to_node AND to_nodes.contracted = FALSE
@@ -94,7 +94,7 @@ SELECT
 	max(source) AS "from",
 	max(target) AS "to",
 	target_area_id AS area,
-	st_transform(st_multi(st_union(geom)), 4326) AS geom,
+	st_transform(st_multi(st_union(geom)), 4326) AS geom
 	FROM contractions
 	    JOIN contraction_segments ON contraction_segments.id = contractions.id
 	GROUP BY contractions.id;
