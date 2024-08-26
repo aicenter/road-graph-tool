@@ -1,5 +1,5 @@
 create function select_node_segments_in_area_no_speed(target_area_id smallint, target_area_srid integer)
-    returns TABLE(from_id bigint, to_id bigint, from_node bigint, to_node bigint, from_position smallint, to_position smallint, way_id bigint, geom geometry)
+    returns TABLE(from_id integer, to_id integer, from_node integer, to_node integer, from_position smallint, to_position smallint, way_id integer, geom geometry)
     language plpgsql
 as
 $$

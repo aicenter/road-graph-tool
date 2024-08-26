@@ -19,9 +19,9 @@ tables.ways = osm2pgsql.define_table({
 	columns = {
 		{ column = "tags", type = "hstore" },
 		{ column = "geom", type = "geometry", not_null = true, projection = srid },
-		{ column = "area", type = "integer", create_only = true },
-		{ column = "from", type = "bigint", not_null = true },
-		{ column = "to", type = "bigint", not_null = true },
+		{ column = "area", type = "smallint", create_only = true },
+		{ column = "from", type = "integer", not_null = true },
+		{ column = "to", type = "integer", not_null = true },
 		{ column = "oneway", type = "boolean" },
 	},
 })
@@ -39,9 +39,9 @@ tables.nodes_ways = osm2pgsql.define_table({
 	name = "nodes_ways",
 	ids = { type = "way", id_column = "way_id" },
 	columns = {
-		{ column = "id", sql_type = "bigserial", create_only = true },
+		{ column = "id", sql_type = "serial", create_only = true },
 		-- { column = "way_id", type = "bigint" },
-		{ column = "node_id", type = "bigint" },
+		{ column = "node_id", type = "integer" },
 		{ column = "position", type = "smallint" },
 		{ column = "area", type = "smallint", create_only = true },
 	},
