@@ -115,9 +115,13 @@ def get_db_table_size(config: dict) -> dict:
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT table_name, pg_size_pretty(pg_total_relation_size(table_name::text))
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public';
+                    SELECT table_name, pg_size_pretty(size) 
+                    FROM (
+                        SELECT table_name, pg_total_relation_size(table_name::text) AS size
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                    ) AS subquery
+                    WHERE size > 0;
                 """)
                 rows = cur.fetchall()
                 table_sizes = {row[0]: row[1] for row in rows}
