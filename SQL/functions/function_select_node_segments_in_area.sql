@@ -3,14 +3,12 @@ RETURNS TABLE
 (
 	from_id   integer,
 	to_id     integer,
-	from_node bigint,
-	to_node   bigint,
+	from_node integer,
+	to_node   integer,
 	from_position smallint,
 	to_position smallint,
 	way_id    integer,
-	geom      geometry,
-	speed     float,
-	quality   smallint
+	geom      geometry
 )
 LANGUAGE plpgsql
 AS $$
@@ -29,9 +27,7 @@ SELECT
 	from_nodes_ways.position AS from_position,
 	to_node_ways.position AS to_position,
 	to_node_ways.way_id AS way_id,
-	st_transform(st_makeline(from_nodes.geom, to_nodes.geom), target_area_srid) AS geom,
-	nodes_ways_speeds.speed AS speed,
-	nodes_ways_speeds.quality AS quality
+	st_transform(st_makeline(from_nodes.geom, to_nodes.geom), target_area_srid) AS geom
 	FROM
 		nodes_ways from_nodes_ways
 			JOIN target_ways ON from_nodes_ways.way_id = target_ways.id
@@ -41,9 +37,6 @@ SELECT
 								from_nodes_ways.position = to_node_ways.position - 1
 							OR (from_nodes_ways.position = to_node_ways.position + 1 AND target_ways.oneway = false)
 						)
-			JOIN nodes_ways_speeds ON
-					from_nodes_ways.id = nodes_ways_speeds.from_node_ways_id
-				AND to_node_ways.id = nodes_ways_speeds.to_node_ways_id
 			JOIN nodes from_nodes ON from_nodes_ways.node_id = from_nodes.id
 			JOIN nodes to_nodes ON to_node_ways.node_id = to_nodes.id
 			-- ensure that nodes are within the target area, even if the way reaches outside
