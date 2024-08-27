@@ -53,7 +53,7 @@ def test_set_config_defaults_complex():
 
 # generate_dm
 @pytest.fixture
-def nodes():
+def sample_nodes():
     return gpd.GeoDataFrame({
         'db_id': [1, 2],
         'x': [0.0, 1.0],
@@ -62,7 +62,7 @@ def nodes():
 
 
 @pytest.fixture
-def edges():
+def sample_edges():
     return gpd.GeoDataFrame({
         'u': [1.0, -1.0],
         'v': [0.0, 0.0],
@@ -73,50 +73,46 @@ def edges():
 
 
 @pytest.fixture
-def config():
+def config(tmp_path):
     return {
-        'area_dir': './',
+        'area_dir': tmp_path,
         'map': {
-            'path': './'
-        },
+            'path': tmp_path
+        }
     }
 
 
-def test_simple_area_dir(config, nodes, edges):
-    generate_dm(config, nodes, edges)
+def test_simple_area_dir(config, sample_nodes, sample_edges, tmp_path):
+    generate_dm(config, sample_nodes, sample_edges)
 
-    assert os.path.exists('./dm.csv')
+    assert (tmp_path / 'dm.csv').exists()
 
 
-def test_simple_dm_filepath(nodes, edges):
+def test_simple_dm_filepath(sample_nodes, sample_edges, tmp_path):
     config = {
-        'dm_filepath': './dm1',
-        'area_dir': './',
+        'dm_filepath': tmp_path / 'dm1',
+        'area_dir': tmp_path,
         'map': {
-            'path': './'
+            'path': tmp_path
         },
     }
 
-    generate_dm(config, nodes, edges)
+    generate_dm(config, sample_nodes, sample_edges)
 
-    assert os.path.exists('./dm1.csv')
+    assert (tmp_path / 'dm1.csv').exists()
 
 
-def test_generate_dm_skip_generation(caplog, config, nodes, edges):
-    generate_dm(config, nodes, edges)
+def test_generate_dm_skip_generation(caplog, config, sample_nodes, sample_edges):
+    generate_dm(config, sample_nodes, sample_edges)
 
     with caplog.at_level(logging.INFO):
-        generate_dm(config, nodes, edges)
+        generate_dm(config, sample_nodes, sample_edges)
 
     assert 'Skipping DM generation, the file is already generated.' in caplog.text
 
 
-def test_generate_dm_travel_time(config, nodes, edges):
-
-    if os.path.exists('./dm.csv'):
-        os.remove('./dm.csv')
-
-    generate_dm(config, nodes, edges)
-    assert 'travel_time' in edges.columns
-    assert edges['travel_time'].at[0] == 0
-    assert edges['travel_time'].at[1] == 0
+def test_generate_dm_travel_time(config, sample_nodes, sample_edges):
+    generate_dm(config, sample_nodes, sample_edges)
+    assert 'travel_time' in sample_edges.columns
+    assert sample_edges['travel_time'].at[0] == 0
+    assert sample_edges['travel_time'].at[1] == 0
