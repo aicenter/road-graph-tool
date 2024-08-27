@@ -9,8 +9,8 @@ import json
 from scripts.process_osm import import_osm_to_db
 from roadgraphtool.credentials_config import CREDENTIALS
 
-markdown_file = "performance_report.md"
-json_file = "performance_report.json"
+markdown_file = "resources/performance_report.md"
+json_file = "resources/performance_report.json"
 
 def json_exists() -> bool:
     return os.path.isfile(json_file)
@@ -35,19 +35,15 @@ def generate_markdown_row(location: str, data: dict) -> str:
     db_table_sizes = data.get("db_table_sizes", {})
 
     time = format_time(performance_metrics.get("total_time", 0))
-    # hdd_used = f"{round(performance_metrics.get('hdd_used', 0), 2)} GB"
-    
     nodes_size = db_table_sizes.get("nodes", "N/A")
     ways_size = db_table_sizes.get("ways", "N/A")
     relations_size = db_table_sizes.get("relations", "N/A")
 
     return f"| {location} | {time} | {nodes_size} | {ways_size} | {relations_size} |"
-    # return f"| {location} | {time} | {hdd_used} | {nodes_size} | {ways_size} | {relations_size} |"
 
 def generate_markdown_table(json_data: dict) -> str:
     """Generates a complete markdown table for all locations."""
     headers = ["Location", "Speed", "Nodes size", "Ways size", "Relations size"]
-    # headers = ["Location", "Speed", "HDD used", "Nodes size", "Ways size", "Relations size"]
     
     # Create table header
     table = ["| " + " | ".join(headers) + " |"]
@@ -132,19 +128,15 @@ def get_db_table_size(config: dict) -> dict:
 def monitor_performance(config: dict, store_table_sizes: bool) -> dict:
     """Function to monitor time, HDD usage, and run the import_osm_to_db function."""
     start_time = time.time()
-    # disk_usage_before = psutil.disk_usage('/').used / (1024 ** 3)  # GB
 
     # Run the import function
     import_osm_to_db()
 
-    # Calculate time and resource usage
     elapsed_time = time.time() - start_time
-    # disk_usage_after = psutil.disk_usage('/').used / (1024 ** 3)  # GB
 
     # Log time and resource usage
     performance_metrics = {"performance_metrics":
         {"total_time": elapsed_time,
-        # "hdd_used": disk_usage_after - disk_usage_before,
         "test_runs": 1}}
     
     # Get DB table sizes
@@ -219,13 +211,10 @@ def compare_and_update(current: dict, old: dict, location: str):
         updated["test_runs"] += 1
         test_count = updated["test_runs"]
         total_time = updated["total_time"] + current['performance_metrics']["total_time"]
-        hdd_used = updated["hdd_used"] + current['performance_metrics']["hdd_used"]
 
         avg_time = total_time / test_count
-        avg_hdd = hdd_used / test_count
 
         updated["total_time"] = avg_time
-        updated["hdd_used"] = avg_hdd
 
 def parse_args(arg_list: list[str] | None):
     """Parse command-line arguments."""
