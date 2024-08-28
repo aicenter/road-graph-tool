@@ -40,7 +40,6 @@ tables.nodes_ways = osm2pgsql.define_table({
 	ids = { type = "way", id_column = "way_id" },
 	columns = {
 		{ column = "id", sql_type = "serial", create_only = true },
-		-- { column = "way_id", type = "bigint" },
 		{ column = "node_id", type = "integer" },
 		{ column = "position", type = "smallint" },
 		{ column = "area", type = "smallint", create_only = true },
@@ -60,10 +59,6 @@ end
 
 -- Process every node in the input
 function osm2pgsql.process_node(object)
-	-- if clean_tags(object.tags) then
-	--     return
-	-- end
-	-- clean_tags(object.tags)
 	-- no need to clean tags, as we do not pass them to db
 
 	tables.nodes:insert({
@@ -74,15 +69,12 @@ end
 
 -- Process every way in the input
 function osm2pgsql.process_way(object)
-	-- if clean_tags(object.tags) then
-	--     return
-	-- end
 	clean_tags(object.tags)
 
 	local nodes = object.nodes
 	-- add to ways
 	tables.ways:insert({
-		geom = object:as_linestring(), -- TODO: under question, scheme needs it to be simple geometry
+		geom = object:as_linestring(),
 		tags = object.tags, -- TODO: we may need to remove `oneway` tag as there is a column for that
 		oneway = object.tags.oneway == "yes",
 		-- nodes = object.nodes,
