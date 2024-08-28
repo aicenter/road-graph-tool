@@ -3,6 +3,7 @@ import logging
 
 import psycopg2.errors
 
+import roadgraphtool.log
 from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.db import db
 from roadgraphtool.export import get_map_nodes_from_db
