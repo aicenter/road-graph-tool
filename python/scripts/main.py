@@ -115,7 +115,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         "-s",
         "--area_srid",
         type=int,
-        help="Postgis srid.",
+        help="Postgis srid. Default is set to 4326.",
         default=4326,
         required=False,
     )
@@ -124,7 +124,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         "--fill-speed",
         type=bool,
         choices=[True, False],
-        help="An option indicating if specific functions should process speed data.",
+        help="An option indicating if specific functions should process speed data. Default is set to False.",
         default=False,
         required=False,
     )
