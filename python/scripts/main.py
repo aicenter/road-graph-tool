@@ -82,7 +82,6 @@ def compute_speeds_from_neighborhood_segments(target_area_id: int, target_area_s
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Filter OSM files with various operations.")
-    # parser = argparse.ArgumentParser(description="Filter OSM files with various operations.", formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-i', '--import', dest='importing', action="store_true", help='Import OSM data to database specified in config.ini')
 
     args = parser.parse_args(arg_list)
