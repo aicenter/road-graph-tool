@@ -163,9 +163,9 @@ python3 filter_osm.py f lithuania-latest.osm.pbf -e expressions-example.txt
 ```
 - get multipolygon extract that can be further processed with Flex output:
 ```bash
-python3 filter_osm.py id [input_file] -id [relation_id] [-s strategy] 
+python3 filter_osm.py id [input_file] -rid [relation_id] [-s strategy] 
 # E.g. extract multipolygon based on relation ID of Vilnius city:
-python3 filter_osm.py id lithuania-latest.osm.pbf -id 1529146 # creates: id_extract.osm
+python3 filter_osm.py id lithuania-latest.osm.pbf -rid 1529146 # creates: id_extract.osm
 python3 process_osm.py u id_extract.osm
 ```
 - Strategies (optional for `id` and `b` tags in `filter_osm.py`) are used to extract region in certain way: use `[-s strategy]`to set strategy:
