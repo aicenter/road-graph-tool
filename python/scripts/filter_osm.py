@@ -80,7 +80,7 @@ f  : Filter objects based on tags in expression_file
     parser.add_argument('input_file', nargs='?', help='Path to input OSM file')
     parser.add_argument("-e", dest="expression_file", nargs="?", help="Path to expression file for filtering tags (required for 'f' tag)")
     parser.add_argument("-c", dest="coords", nargs="?",help="Bounding box coordinates or path to config file (required for 'b' tag)")
-    parser.add_argument("-id", dest="relation_id", nargs="?", help="relation ID (required for 'b' tag)")
+    parser.add_argument("-rid", dest="relation_id", nargs="?", help="relation ID (required for 'b' tag)")
     parser.add_argument("-s", dest="strategy", help="Strategy type (optional for 'id', 'b' tags)")
     parser.add_argument("-R", dest="omit_referenced", action="store_true", help="Omit referenced objects (optional for 'f' tag)")
 

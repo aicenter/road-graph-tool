@@ -4,8 +4,7 @@ local tables = {}
 
 -- define table nodes:
 tables.nodes = osm2pgsql.define_node_table('nodes', {
-    -- not_null = true: if invalid node, ignore it
-    { column = 'geom', type = 'point', projection=srid, not_null = true },
+    { column = 'geom', type = 'point', projection=srid, not_null = true }, -- not_null = true: if invalid node, ignore it
     { column = 'tags', type = 'jsonb' },
 })
 
@@ -17,7 +16,7 @@ tables.ways = osm2pgsql.define_way_table('ways', {
     { column = 'nodes', type = 'jsonb' },
 })
 
-
+-- define table relations:
 tables.relations = osm2pgsql.define_relation_table('relations', {
     { column = 'tags', type = 'jsonb' },
     { column = 'members', type = 'jsonb' },
@@ -34,12 +33,8 @@ local function clean_tags(tags)
     return next(tags) == nil
 end
 
-
 -- Process every node in the input
 function osm2pgsql.process_node(object)
-    -- if clean_tags(object.tags) then
-    --     return
-    -- end
     clean_tags(object.tags)
 
     tables.nodes:insert({
@@ -50,9 +45,6 @@ end
 
 -- Process every way in the input
 function osm2pgsql.process_way(object)
-    -- if clean_tags(object.tags) then
-    --     return
-    -- end
     clean_tags(object.tags)
 
     tables.ways:insert({
@@ -65,9 +57,6 @@ end
 
 -- Process every relation in the input
 function osm2pgsql.process_relation(object)
-    -- if clean_tags(object.tags) then
-    --     return
-    -- end
     clean_tags(object.tags)
 
     tables.relations:insert({
