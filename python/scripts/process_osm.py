@@ -56,7 +56,7 @@ def import_osm_to_db():
     style_file_path = "resources/lua_styles/default.lua"
     run_osm2pgsql_cmd(config, input_file, style_file_path)
 
-def parse_args(arg_list: list[str] | None):
+def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.", formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument("tag", choices=["d", "i", "ie", "s", "r", "sr", "b", "u"], metavar="tag",

@@ -68,7 +68,7 @@ def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bo
         cmd.extend(["-R"])
     subprocess.run(cmd)
 
-def parse_args(arg_list: list[str] | None):
+def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Filter OSM files with various operations.", formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument("tag", choices=["id", "b", "f"], metavar="tag",
