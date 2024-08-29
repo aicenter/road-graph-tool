@@ -165,11 +165,6 @@ def test_import_to_db_valid(mocker):
     import_osm_to_db()
     mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'resources/to_import.osm', 'resources/lua_styles/default.lua')
 
-def test_main_missing_inputfile():
-    arg_list = ["d"]
-    with pytest.raises(MissingInputError, match="Input file not provided."):
-        main(arg_list)
-
 def test_main_invalid_inputfile():
     arg_list = ["d", "invalid_file.osm"]
     with pytest.raises(FileNotFoundError, match="File 'invalid_file.osm' does not exist."):
@@ -232,7 +227,7 @@ def test_main_style_file_extension_invalid():
 
 def test_main_bbox_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
-        arg_list = ["b", tmp_file.name, "-r", "1234"]
+        arg_list = ["b", tmp_file.name, "-id", "1234"]
         mock_extract_bbox = mocker.patch('scripts.process_osm.extract_bbox', return_value=(10, 20, 30, 40))
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)

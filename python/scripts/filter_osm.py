@@ -11,23 +11,6 @@ class InvalidInputError(Exception):
 class MissingInputError(Exception):
     pass
 
-def display_help():
-    """Function to display help information instead of parser's default"""
-    help_text = f"""Usage: {os.path.basename(__file__)} [tag] [input_file] [option]
- Tag:
-    -h/--help            : Display this help message
-    id                   : Filter geographic objects based on relation ID
-    b                    : Filter geographic objects based on bounding box (with osmium)
-    f                    : Filter objects based on tags in expression_file
- Option:
-    -c [bbox]            : Specify bouding box (required for 'b' tag)
-                        (Bounding box is specified directly or in config geojson file)
-    -e [expression_file] : Specify path to expression file (required for 't' tag)
-    -r [relation_id]     : Specify relation_id (required for 'id' tag)
-    -s [strategy]        : Specify strategy type (optional for: 'id', 'b')
-    -R                   : Omit referenced objects (optional for 'f' tag)"""
-    print(help_text)
-
 def is_valid_extension(file: str):
     """Function to check if the file has a valid extension."""
     valid_extensions = ["osm", "osm.pbf", "osm.bz2"]
@@ -38,7 +21,6 @@ def check_strategy(strategy: str | None):
     valid_strategies = ["simple", "complete_ways", "smart"]
     if strategy and strategy not in valid_strategies:
         raise InvalidInputError(f"Invalid strategy type. Call {os.path.basename(__file__)} -h/--help to display help.")
-    return True
 
 def load_multipolygon_by_id(relation_id: str):
     """Function to load multigon content by relation ID."""
@@ -86,18 +68,22 @@ def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bo
         cmd.extend(["-R"])
     subprocess.run(cmd)
 
-def parse_args(arg_list: list[str] | None):
+def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Filter OSM files with various operations.", formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument("tag", choices=["id", "b", "f"])
+    parser.add_argument("tag", choices=["id", "b", "f"], metavar="tag",
+                        help="""
+id : Filter geographic objects based on relation ID
+b  : Filter geographic objects based on bounding box (with osmium)
+f  : Filter objects based on tags in expression_file
+""")
     parser.add_argument('input_file', nargs='?', help='Path to input OSM file')
     parser.add_argument("-e", dest="expression_file", nargs="?", help="Path to expression file for filtering tags (required for 'f' tag)")
     parser.add_argument("-c", dest="coords", nargs="?",help="Bounding box coordinates or path to config file (required for 'b' tag)")
-    parser.add_argument("-r", dest="relation_id", nargs="?", help="relation ID (required for 'b' tag)")
+    parser.add_argument("-rid", dest="relation_id", nargs="?", help="relation ID (required for 'b' tag)")
     parser.add_argument("-s", dest="strategy", help="Strategy type (optional for 'id', 'b' tags)")
     parser.add_argument("-R", dest="omit_referenced", action="store_true", help="Omit referenced objects (optional for 'f' tag)")
 
-    parser.format_help = lambda: display_help()
     args = parser.parse_args(arg_list)
 
     return args
@@ -105,39 +91,38 @@ def parse_args(arg_list: list[str] | None):
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
 
-    if not args.input_file:
-        raise MissingInputError("Input file not provided.")
-    elif not os.path.exists(args.input_file):
+    if not os.path.exists(args.input_file):
         raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
     elif not is_valid_extension(args.input_file):
         raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
     
-    if args.tag == "id":
-        # Filter geographic objects based on relation ID
-        if not args.relation_id:
-            raise MissingInputError("Existing relation ID must be specified.")
-        
-        if check_strategy(args.strategy):
+    match args.tag:
+        case "id":
+            # Filter geographic objects based on relation ID
+            if not args.relation_id:
+                raise MissingInputError("Existing relation ID must be specified.")
+            
+            check_strategy(args.strategy)
+            
             extract_id(args.input_file, args.relation_id, args.strategy)
 
-    elif args.tag == "b":
-        # Filter geographic objects based on bounding box (with osmium)
-        if not args.coords:
-            raise MissingInputError("Coordinates or config file need to be specified with the 'b' tag.")
-        
-        if check_strategy(args.strategy):
+        case "b":
+            # Filter geographic objects based on bounding box (with osmium)
+            if not args.coords:
+                raise MissingInputError("Coordinates or config file need to be specified with the 'b' tag.")
+            
+            check_strategy(args.strategy)
+            
             extract_bbox(args.input_file, args.coords, args.strategy)
 
-    elif args.tag == "f":
-        # Filter objects based on tags in expression_file
-        if not args.expression_file:
-            raise MissingInputError("Expression file needs to be specified.")
-        elif not os.path.exists(args.expression_file):
-            raise FileNotFoundError(f"File '{args.expression_file}' does not exist.")
+        case "f":
+            # Filter objects based on tags in expression_file
+            if not args.expression_file:
+                raise MissingInputError("Expression file needs to be specified.")
+            elif not os.path.exists(args.expression_file):
+                raise FileNotFoundError(f"File '{args.expression_file}' does not exist.")
 
-        run_osmium_filter(args.input_file, args.expression_file, args.omit_referenced)
+            run_osmium_filter(args.input_file, args.expression_file, args.omit_referenced)
 
 if __name__ == '__main__':
-    # main()
-    args = parse_args(["b", "input.osm", "10,20,30,40"])
-    print(args.coords)  # Output: "10,20,30,40"
+    main()

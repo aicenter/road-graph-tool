@@ -1,3 +1,4 @@
+import argparse
 import json
 import logging
 import sys
@@ -79,7 +80,17 @@ def compute_speeds_from_neighborhood_segments(target_area_id: int, target_area_s
     db.execute_sql(sql_query)
 
 
-if __name__ == '__main__':
+def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Filter OSM files with various operations.")
+    parser.add_argument('-i', '--import', dest='importing', action="store_true", help='Import OSM data to database specified in config.ini')
+
+    args = parser.parse_args(arg_list)
+
+    return args
+
+
+def main(arg_list: list[str] | None = None):
+    args = parse_args(arg_list)
 
     area_id = 13
     area_srid = 0
@@ -87,7 +98,7 @@ if __name__ == '__main__':
 
     SERVER_PORT = 22
 
-    if len(sys.argv) > 1 and sys.argv[1] in ["--import", "-i"]:
+    if args.importing:
         import_osm_to_db()
     
     logging.info('selecting nodes')
@@ -123,3 +134,6 @@ if __name__ == '__main__':
 
     logging.info('Execution of compute_speeds_from_neighborhood_segments')
     compute_speeds_from_neighborhood_segments(area_id, area_srid)
+
+if __name__ == '__main__':
+    main()
