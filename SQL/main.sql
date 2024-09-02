@@ -123,13 +123,6 @@ CREATE SEQUENCE IF NOT EXISTS public.dataset_id_seq
     CACHE 1;
 
 --
--- Name: dataset_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.dataset_id_seq OWNED BY public.areas.id;
-
-
---
 -- Name: dataset; Type: TABLE; Schema: public
 --
 
@@ -164,7 +157,7 @@ CREATE TABLE IF NOT EXISTS public.demand (
 CREATE TABLE IF NOT EXISTS public.nodes (
     id bigint NOT NULL,
     geom public.geometry(Point,4326) NOT NULL,
-    area integer NOT NULL,
+    area integer,
     contracted boolean DEFAULT false NOT NULL
 );
 
@@ -173,7 +166,7 @@ CREATE TABLE IF NOT EXISTS public.nodes (
 -- Name: COLUMN nodes.area; Type: COMMENT; Schema: public
 --
 
-COMMENT ON COLUMN public.nodes.area IS 'Area with which was the node imported to the databas';
+COMMENT ON COLUMN public.nodes.area IS 'Area with which was the node imported to the database';
 
 
 --
@@ -219,13 +212,6 @@ CREATE SEQUENCE IF NOT EXISTS public.demand_id_seq
 
 
 --
--- Name: demand_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.demand_id_seq OWNED BY public.demand.id;
-
-
---
 -- Name: edges; Type: TABLE; Schema: public
 --
 
@@ -235,7 +221,7 @@ CREATE TABLE IF NOT EXISTS public.edges (
     id integer NOT NULL,
     geom public.geometry(MultiLineString) NOT NULL,
     area smallint NOT NULL,
-    speed double precision NOT NULL
+    speed double precision 
 );
 
 
@@ -259,13 +245,6 @@ CREATE SEQUENCE IF NOT EXISTS public.edge_id_seq
 
 
 --
--- Name: edge_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.edge_id_seq OWNED BY public.edges.id;
-
-
---
 -- Name: nodes_ways; Type: TABLE; Schema: public
 --
 
@@ -273,7 +252,7 @@ CREATE TABLE IF NOT EXISTS public.nodes_ways (
     way_id integer NOT NULL,
     node_id bigint NOT NULL,
     "position" smallint NOT NULL,
-    area smallint NOT NULL,
+    area smallint,
     id integer NOT NULL
 );
 
@@ -342,13 +321,6 @@ CREATE SEQUENCE IF NOT EXISTS public.nodes_tmp_seq
 
 
 --
--- Name: nodes_tmp_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.nodes_tmp_seq OWNED BY public.nodes_tmp.id;
-
-
---
 -- Name: nodes_ways_id_seq; Type: SEQUENCE; Schema: public
 --
 
@@ -359,13 +331,6 @@ CREATE SEQUENCE IF NOT EXISTS public.nodes_ways_id_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-
---
--- Name: nodes_ways_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.nodes_ways_id_seq OWNED BY public.nodes_ways.id;
 
 
 --
@@ -415,7 +380,8 @@ ALTER TABLE ONLY public.relation_members ALTER COLUMN sequence_id SET (n_distinc
 
 CREATE TABLE IF NOT EXISTS public.relations (
     id bigint NOT NULL,
-    tags public.hstore
+    tags public.hstore,
+    members jsonb
 );
 
 
@@ -519,13 +485,6 @@ CREATE SEQUENCE IF NOT EXISTS public.trip_location_sets_id_seq
 
 
 --
--- Name: trip_location_sets_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.trip_location_sets_id_seq OWNED BY public.trip_location_sets.id;
-
-
---
 -- Name: trip_time_sets; Type: TABLE; Schema: public
 --
 
@@ -549,13 +508,6 @@ CREATE SEQUENCE IF NOT EXISTS public.trip_time_sets_id_seq
 
 
 --
--- Name: trip_time_sets_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public.trip_time_sets_id_seq OWNED BY public.trip_time_sets.id;
-
-
---
 -- Name: trip_times; Type: TABLE; Schema: public
 --
 
@@ -574,7 +526,7 @@ CREATE TABLE IF NOT EXISTS public.ways (
     id bigint NOT NULL,
     tags public.hstore,
     geom public.geometry(Geometry,4326) NOT NULL,
-    area integer NOT NULL,
+    area integer,
     "from" bigint NOT NULL,
     "to" bigint NOT NULL,
     oneway boolean NOT NULL
@@ -617,13 +569,6 @@ CREATE SEQUENCE IF NOT EXISTS public."zone level_id_seq"
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-
---
--- Name: zone level_id_seq; Type: SEQUENCE OWNED BY; Schema: public
---
-
-ALTER SEQUENCE public."zone level_id_seq" OWNED BY public.zone_type.id;
 
 
 --
