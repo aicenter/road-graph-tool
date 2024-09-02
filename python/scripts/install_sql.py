@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+import roadgraphtool.log
 from roadgraphtool.db import db
 
 db_name = db.db_name
