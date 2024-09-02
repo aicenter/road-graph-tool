@@ -1,8 +1,10 @@
+import argparse
 import json
 import logging
 
 import psycopg2.errors
 
+import roadgraphtool.log
 from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.db import db
 from roadgraphtool.export import get_map_nodes_from_db
@@ -102,13 +104,40 @@ def compute_speeds_from_neighborhood_segments(
     db.execute_sql(sql_query)
 
 
+def configure_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="File containing the main flow of your application"
+    )
+    parser.add_argument(
+        "-a", "--area_id", type=int, help="Id of the area.", required=True
+    )
+    parser.add_argument(
+        "-s",
+        "--area_srid",
+        type=int,
+        help="Postgis srid. Default is set to 4326.",
+        default=4326,
+        required=False,
+    )
+    parser.add_argument(
+        "-f",
+        "--fill-speed",
+        type=bool,
+        choices=[True, False],
+        help="An option indicating if specific functions should process speed data. Default is set to False.",
+        default=False,
+        required=False,
+    )
+    return parser
+
+
 if __name__ == "__main__":
+    parser = configure_arg_parser()
+    args = parser.parse_args()
 
-    area_id = 13
-    area_srid = 0
-    config = CREDENTIALS
-
-    SERVER_PORT = 22
+    area_id = args.area_id
+    area_srid = args.area_srid
+    fill_speed = args.fill_speed
 
     logging.info("selecting nodes")
     nodes = select_network_nodes_in_area(area_id)
@@ -116,7 +145,7 @@ if __name__ == "__main__":
     print(nodes)
 
     logging.info("contracting graph")
-    contract_graph_in_area(area_id, area_srid)
+    contract_graph_in_area(area_id, area_srid, fill_speed)
 
     logging.info("computing strong components for area_id = {}".format(area_id))
     compute_strong_components(area_id)

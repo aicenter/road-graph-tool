@@ -14,17 +14,36 @@ The version 1.0.0 of use the following data sources:
 The processing and storage of the data are done in a PostgreSQL/PostGIS database. To manipulate the database, import data to the database, and export data from the database, the project provides a set of Python scripts. 
 
 # Quick Start Guide
-To run the tool, you need access to a local or remote PostgreSQL database with the PostGIS, PgRouting and hstore (which is available by default) extensions installed. The remote database can be accessed through an SSH tunnel. The SSH tunneling is done on the application level, you just need to provide the necessary configuration in the `config.ini` file (see the [`config-EXAMPLE.ini`](./config-EXAMPLE.ini) file for an example configuration).
 
-Currently, only parts of the tool are functional, so the database needs to be filled with the following data: TODO
+To run the tool, you need access to a local or remote PostgreSQL database with the PostGIS, PgRouting, and hstore (available by default) extensions installed. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level; you only need to provide the necessary configuration in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration).
 
-The main runner script is `scripts/main.py`. 
+After setting up the configuration file, your next step is to edit the `main.py` file to execute only the steps you need. Currently, the content of `main.py` includes Python wrappers for the provided SQL functions in the `SQL/` directory, an example of an argument parser, and a main execution pipeline, which may be of interest to you.
 
-To skip some processing steps, comment out the lines in the `main.py` file that are not needed.
+To execute the configured pipeline, follow these steps:
 
-Then, run the `main.py` script.
+1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
 
+2. Next, you should import OSM data into your database. Follow the steps in [importer/README.md](./importer/README.md) to import data from your `.pbf` file.
 
+3. Importing with the tool [osm2pgsql](https://osm2pgsql.org/) can be quite tricky, which necessitates post-processing the schema of your database. If you imported the `.pbf` file with the style [pipeline.lua](./importer/styles/pipeline.lua), you will need to execute the file `SQL/after_import.sql`.
+
+4. Your database is now ready. You can execute [main.py](./python/scripts/main.py) in the `python/` directory.
+
+So in the end execution order may look like this:
+```sh
+alias py=python3
+cd python/
+echo 'Pre-processing database...'
+py scripts/install_sql.py
+cd ../importer/
+echo 'Importing with osm2pgsql...'
+osm2pgsql -d DATABASE_NAME -P 5432 -U USERNAME -x -S styles/pipeline.lua --output=flex COUNTRY.osm.pbf
+echo 'Post-processing database...'
+psql -d DATABASE_NAME -U USERNAME -f ../SQL/after_import.sql
+cd ../python/
+echo 'Executing main.py...'
+py main.py -a 1 -s 4326 -f False
+```
 
 # Testing
 For testing the PostgreSQL procedures that are the core of the Road Graph Tool, we use the [pgTAP testing framework](https://github.com/theory/pgtap). To learn how to use pgTAP, see the [pgTAP manual](./doc/pgtap.md).
