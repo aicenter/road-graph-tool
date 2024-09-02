@@ -40,7 +40,6 @@ tables.nodes_ways = osm2pgsql.define_table({
 	ids = { type = "way", id_column = "way_id" },
 	columns = {
 		{ column = "id", sql_type = "serial", create_only = true },
-		-- { column = "way_id", type = "bigint" },
 		{ column = "node_id", type = "integer" },
 		{ column = "position", type = "smallint" },
 		{ column = "area", type = "smallint", create_only = true },
@@ -81,7 +80,7 @@ function osm2pgsql.process_way(object)
 	tables.ways:insert({
 		geom = object:as_linestring(),
 		tags = object.tags,
-		oneway = oneways,
+		oneway = oneway,
 		from = nodes[1],
 		to = nodes[#nodes],
 	})
