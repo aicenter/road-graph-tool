@@ -60,12 +60,6 @@ end
 
 -- Process every node in the input
 function osm2pgsql.process_node(object)
-	-- if clean_tags(object.tags) then
-	--     return
-	-- end
-	-- clean_tags(object.tags)
-	-- no need to clean tags, as we do not pass them to db
-
 	tables.nodes:insert({
 		geom = object:as_point(),
 		contracted = false,
@@ -74,18 +68,20 @@ end
 
 -- Process every way in the input
 function osm2pgsql.process_way(object)
-	-- if clean_tags(object.tags) then
-	--     return
-	-- end
 	clean_tags(object.tags)
 
 	local nodes = object.nodes
+
+	local oneway = object.tags.oneway == "yes"
+
+	-- clean additional tags
+	object.tags.oneway = nil
+
 	-- add to ways
 	tables.ways:insert({
-		geom = object:as_linestring(), -- TODO: under question, scheme needs it to be simple geometry
-		tags = object.tags, -- TODO: we may need to remove `oneway` tag as there is a column for that
-		oneway = object.tags.oneway == "yes",
-		-- nodes = object.nodes,
+		geom = object:as_linestring(),
+		tags = object.tags,
+		oneway = oneways,
 		from = nodes[1],
 		to = nodes[#nodes],
 	})
@@ -93,7 +89,6 @@ function osm2pgsql.process_way(object)
 	-- add to nodes_ways
 	for index, value in ipairs(nodes) do
 		tables.nodes_ways:insert({
-			-- way_id = object.id,
 			node_id = value,
 			position = index,
 		})
