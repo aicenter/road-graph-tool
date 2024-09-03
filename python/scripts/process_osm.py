@@ -3,11 +3,13 @@ import os
 import subprocess
 from pathlib import Path
 
+import roadgraphtool.log
 from roadgraphtool.credentials_config import CREDENTIALS as config
 from roadgraphtool.credentials_config import CredentialsConfig
 from scripts.filter_osm import (InvalidInputError, MissingInputError,
                                 is_valid_extension, load_multipolygon_by_id)
 from scripts.find_bbox import find_min_max
+from scripts.install_sql import SQL_DIR, execute_sql_file, logging
 
 RESOURCES_DIR = Path(__file__).parent.parent.parent / "resources"
 STYLES_DIR = RESOURCES_DIR / "lua_styles"
@@ -74,6 +76,39 @@ def run_osm2pgsql_cmd(
     return subprocess.run(command).returncode
 
 
+def post_process_osm_import(style_filename: str) -> int:
+    post_proc_dict = {"pipeline.lua": "after_import.sql"}
+
+    if not post_proc_dict[style_filename]:
+        logging.warning(f"No post-processing defined for style {style_filename}")
+        return 0
+
+    sql_filepath = SQL_DIR / post_proc_dict[style_filename]
+
+    logging.info("Post-processing OSM import...")
+    retcode = subprocess.run(
+        [
+            "psql",
+            "-d",
+            config.db_name,
+            "-U",
+            config.username,
+            "-p",
+            str(config.db_server_port),
+            "-h",
+            config.db_host,
+            "-f",
+            sql_filepath,
+        ]
+    ).returncode
+    if retcode != 0:
+        logging.error(f"Error during post-processing. Return code: {retcode}")
+        return retcode
+    logging.info("Post-processing done.")
+
+    return 0
+
+
 def import_osm_to_db(filename: str | None = None, style_filename: str = "pipeline.lua"):
     """Function to import OSM file specified in config.ini file to database.
     The function expects the OSM file to be saved as resources/to_import.*.
@@ -109,7 +144,9 @@ def import_osm_to_db(filename: str | None = None, style_filename: str = "pipelin
 
     style_file_path = str(STYLES_DIR / style_filename)
 
-    return run_osm2pgsql_cmd(config, input_file, style_file_path)
+    return run_osm2pgsql_cmd(
+        config, input_file, style_file_path
+    ) or post_process_osm_import(style_filename)
 
 
 # Main flow of the current file, including functions used only within this file

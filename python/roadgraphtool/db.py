@@ -1,17 +1,22 @@
 import atexit
 import logging
-import psycopg2
-import sshtunnel
-import sqlalchemy
-import pandas as pd
-import psycopg2.errors
-import geopandas as gpd
 from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+import psycopg2
+import psycopg2.errors
+import sqlalchemy
+import sshtunnel
 from sqlalchemy.engine import Row
 
 from roadgraphtool.credentials_config import CREDENTIALS
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 
 def connect_db_if_required(db_function):
@@ -21,7 +26,7 @@ def connect_db_if_required(db_function):
 
     def wrapper(*args, **kwargs):
         db = args[0]
-        if hasattr(db, 'server'):
+        if hasattr(db, "server"):
             db.start_or_restart_ssh_connection_if_needed()
         if not db.is_connected():
             db.set_up_db_connections()
@@ -39,6 +44,7 @@ class __Database:
     Import as:
     from db import db
     """
+
     config = CREDENTIALS
 
     def __init__(self):
@@ -46,7 +52,7 @@ class __Database:
         self.db_server_port = self.config.db_server_port
         self.db_name = self.config.db_name
         self.ssh_tunnel_local_port = 1113
-        if hasattr(self.config, 'server'):
+        if hasattr(self.config, "server"):
             self.server = self.config.server
             self.ssh_server = None
             self.host = self.config.host
@@ -58,7 +64,9 @@ class __Database:
         self._sql_alchemy_engine_str = None
 
     def is_connected(self):
-        return (self._psycopg2_connection is not None) and (self._sqlalchemy_engine is not None)
+        return (self._psycopg2_connection is not None) and (
+            self._sqlalchemy_engine is not None
+        )
 
     def set_up_db_connections(self):
         # psycopg2 connection object
@@ -75,22 +83,24 @@ class __Database:
             ssh_pkey=self.config.private_key_path,
             ssh_username=self.config.server_username,
             ssh_private_key_password=self.config.private_key_phrase,
-            remote_bind_address=('localhost', self.db_server_port),
-            local_bind_address=('localhost', self.ssh_tunnel_local_port)
+            remote_bind_address=("localhost", self.db_server_port),
+            local_bind_address=("localhost", self.ssh_tunnel_local_port),
         )
         try:
             self.ssh_server = sshtunnel.open_tunnel(self.server, **ssh_kwargs)
         except sshtunnel.paramiko.SSHException as e:
             # sshtunnel dependency paramiko may attempt to use ssh-agent and crashes if it fails
             logging.warning(f"sshtunnel.paramiko.SSHException: '{e}'")
-            self.ssh_server = sshtunnel.open_tunnel(self.server, **ssh_kwargs, allow_agent=False)
+            self.ssh_server = sshtunnel.open_tunnel(
+                self.server, **ssh_kwargs, allow_agent=False
+            )
 
         self.ssh_server.start()
         logging.info(
             "SSH tunnel established from %s to %s/%s",
             self.ssh_server.local_bind_address,
             self.ssh_server.ssh_host,
-            self.db_server_port
+            self.db_server_port,
         )
 
         self.db_server_port = self.ssh_server.local_bind_port
@@ -110,12 +120,15 @@ class __Database:
                     self.ssh_server.restart()
 
     def get_sql_alchemy_engine_str(self):
-        sql_alchemy_engine_str = 'postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}'.format(
-            user=self.config.username,
-            password=self.config.db_password,
-            host=self.host,
-            port=self.db_server_port,
-            dbname=self.db_name)
+        sql_alchemy_engine_str = (
+            "postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}".format(
+                user=self.config.username,
+                password=self.config.db_password,
+                host=self.host,
+                port=self.db_server_port,
+                dbname=self.db_name,
+            )
+        )
 
         return sql_alchemy_engine_str
 
@@ -129,7 +142,7 @@ class __Database:
                 password=self.config.db_password,
                 host=self.config.db_host,
                 port=self.db_server_port,
-                dbname=self.db_name
+                dbname=self.db_name,
             )
 
             atexit.register(psycopg2_connection.close)
@@ -157,18 +170,21 @@ class __Database:
             return result
 
     @connect_db_if_required
-    def execute_script(self, script_path: Path):
+    def execute_script(self, script_path: Path) -> int:
         with open(script_path) as f:
             script = f.read()
             cursor = self._psycopg2_connection.cursor()
+            retcode = 0
             try:
                 cursor.execute(script)
                 self._psycopg2_connection.commit()
             except Exception as e:
                 logging.error(f"Error executing script {script_path}: {e}")
                 self._psycopg2_connection.rollback()
+                retcode = 1
             finally:
                 cursor.close()
+                return retcode
 
     @connect_db_if_required
     def execute_query_to_geopandas(self, sql: str, **kwargs) -> pd.DataFrame:
@@ -203,7 +219,9 @@ class __Database:
         return data
 
     @connect_db_if_required
-    def dataframe_to_db_table(self, df: pd.DataFrame, table_name: str, **kwargs) -> None:
+    def dataframe_to_db_table(
+        self, df: pd.DataFrame, table_name: str, **kwargs
+    ) -> None:
         """
         Save DataFrame to a new table in the database
 
@@ -212,7 +230,9 @@ class __Database:
 
         https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_sql.html
         """
-        df.to_sql(table_name, con=self._sqlalchemy_engine, if_exists='append', index=False)
+        df.to_sql(
+            table_name, con=self._sqlalchemy_engine, if_exists="append", index=False
+        )
 
     @connect_db_if_required
     def db_table_to_pandas(self, table_name: str, **kwargs) -> pd.DataFrame:
