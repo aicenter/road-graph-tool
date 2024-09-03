@@ -150,20 +150,20 @@ def test_main_id_missing():
 
 def test_main_id_invalid_strategy():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
-        arg_list = ["id", tmp_file.name, "-id", "1234", "-s", "invalid"]
+        arg_list = ["id", tmp_file.name, "-rid", "1234", "-s", "invalid"]
         with pytest.raises(InvalidInputError, match="Invalid strategy type. Call filter_osm.py -h/--help to display help."):
             main(arg_list)
 
 def test_main_id_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
-        arg_list = ["id", tmp_file.name, "-id", "1234"]
+        arg_list = ["id", tmp_file.name, "-rid", "1234"]
         mock_extract_id = mocker.patch('scripts.filter_osm.extract_id')
         main(arg_list)
         mock_extract_id.assert_called_once_with(arg_list[1], arg_list[3], None)
 
 def test_main_id_startegy_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
-        arg_list = ["id", tmp_file.name, "-id", "1234", "-s", "simple"]
+        arg_list = ["id", tmp_file.name, "-rid", "1234", "-s", "simple"]
         mock_extract_id = mocker.patch('scripts.filter_osm.extract_id')
         main(arg_list)
         mock_extract_id.assert_called_once_with(arg_list[1], arg_list[3], "simple")
