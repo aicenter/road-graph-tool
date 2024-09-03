@@ -23,7 +23,7 @@ To execute the configured pipeline, follow these steps:
 
 1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
 
-2. Next, you should import OSM data into your database. Follow the steps in [importer/README.md](./importer/README.md) to import data from your `.pbf` file.
+2. Next, you should import OSM data into your database. You can do so by running the `main.py` script with with additional tag - `main.py -i` or `main.py --import` - this calls [import_osm_to_db()](python/scripts/process_osm.py) function. It expects the OSM file to be `resources/to_import.*` where * is one of the following extensions: osm, osm.pbf, osm.bz2. It also uses [`default.lua`](resources/lua_styles/default.lua) as its default style file. To learn more about importing OSM data to database, go to [OSM file processing section](#osm-file-processing).
 
 3. Importing with the tool [osm2pgsql](https://osm2pgsql.org/) can be quite tricky, which necessitates post-processing the schema of your database. If you imported the `.pbf` file with the style [pipeline.lua](./importer/styles/pipeline.lua), you will need to execute the file `SQL/after_import.sql`.
 
@@ -65,7 +65,159 @@ To run the tests, follow these steps:
 
 # Components
 The road graph tool consists of a set of components that are responsible for individual processing steps, importing data, or exporting data. Each component is implemented as an PostgreSQL procedure, possibly calling other procedures or functions. Additionally, each component has its own Python wrapper script that connects to the database and calls the procedure. Currently, the following components are implemented:
+- **OSM file processing for importing to PGSQL database**: processes data from OSM file that are to be imported into PostgreSQL database for further use
 - **Graph Contraction**: simplifies the road graph by contracting nodes and creating edges between the contracted nodes.
+
+## OSM file processing
+### Prerequisities
+Before we can process and load data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to obtain and install several libraries: 
+* psql (for PostgreSQL)
+* osmium: osmium-tool (macOS `brew install osmium-tool`, Ubuntu `apt install osmium-tool`)
+* osm2pgsql (macOS `brew install osm2pgsql`, Ubuntu (1.6.0 version) `apt install osm2pgsql`)
+The PostgreSQL database needs PostGis extension in order to enable spatial and geographic capabilities within the database, which is essential for working with OSM data.
+Loading large OSM files to database is memory demanding so [documentation](https://osm2pgsql.org/doc/manual.html#system-requirements) suggests to have RAM of at least the size of the OSM file.
+
+### 1. Preprocessing of OSM file (optional)
+Preprocessing an OSM file with osmium aims to enhance importing efficiency and speed of osm2pgsql tool. The two most common actions are sorting and renumbering. For these actions, you can use the provided `process_osm.py` Python script:
+```bash
+python3 process_osm.py [action_tag] [input_file] -o [output_file]
+```
+Call `python3 process_osm.py -h` or `python3 process_osm.py --help` for more information.
+
+- Sorting: Sorts objects based on IDs in ascending order.
+```bash
+python3 process_osm.py s [input_file] -o [output_file]
+```
+- Renumbering: Negative IDs usually represent inofficial non-OSM data (no clashes with OSM data), osm2pgsql can only handle positive sorted IDs (negative IDs are used internally for geometries).
+Renumbering starts at index 1 and goes in ascending order.
+```bash
+python3 process_osm.py s [input_file] -o [output_file]
+```
+- Sorting and renumbering: Sorts and renumbers IDs in ascending order starting from index 1.
+```bash
+python3 process_osm.py sr [input_file] -o [output_file]
+```
+
+### 2. Importing to database using Flex output
+The `process_osm.py` script also allows to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we specify the Flex style file (Lua script) that has all the logic for processing data in OSM file.
+
+The default style file for this project is `resources/lua_styles/default.lua`, which processes and all nodes, ways and relations without creating additional attributes (based on tags) into following tables: `nodes` (node_id, geom, tags), `ways` (way_id, geom, tags, nodes), `relations` (relation_id, tags, members).
+
+```bash
+python3 process_osm.py u [input_file] [-l style_file]
+```
+
+* E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
+```bash
+# runs with default.lua
+python3 process_osm.py u lithuania-latest.osm.pbf
+# runs with highway.lua script
+python3 process_osm.py u lithuania-latest.osm.pbf -l resources/lua_styles/highway.lua
+```
+
+**Nodes in Lithuania:**
+
+![Nodes in Lithuania in QGIS](doc/images/default-nodes.png)
+
+It should be noted that `process_osm.py u` and `process_osm.py b` both run osm2pgsql with `-x` tag (extra attributes) which adds OSM attributes such as version, timestamp, uid, etc. to the OSM objects processed in osm2pgsql since normally objects without tags would not be processed.
+
+### 3. Filtering and extraction
+Data are often huge and lot of times we only need certain extracts or objects of interest in our database. So it's better practice to filter out only what we need and work with that in our database.
+
+#### 3.1 Geographical extracts
+
+#### 3.1.1 Box boundary extracts
+Both osmium and osm2pgsql filter data inside the bounding box of following format: `bottom-left (minlon,minlat) corner, top-right (maxlon,maxlat) corner`.
+
+**Nodes inside bounding box in Lithuania:**
+
+![Nodes inside bounding box in Lithuania in QGIS](doc/images/bb-nodes.png)
+
+##### Osmium
+- These commands process OSM file using bounding box coordinates to filter data within the bounding box. File `resources/extracted-bbox.osm.pbf` is created and can be futher processed with Flex output.
+```bash
+# bounding box specified directly
+python3 filter_osm.py b [input_file] -c [left],[bottom],[right],[top]
+# bounding box specified in config file:
+python3 filter_osm.py b [input_file] -c [config_file]
+```
+- E.g. extract bounding box of Lithuania OSM file:
+```bash
+python3 filter_osm.py b lithuania-latest.osm.pbf -c 25.12,54.57,25.43,54.75
+# or:
+python3 filter_osm.py b lithuania-latest.osm.pbf -c resources/extract-bbox.geojson
+```
+
+##### Flex output
+- We can calculate the greatest bounding box coordinates using `python3 process_osm.py b` based on the ID of relation (mentioned in [3.1.2](#312-multipolygon-id-extracts)) that specifies the area of interest (e.g. Vilnius - capital of Lithuania). This command processes OSM file using calculated bounding box coordinates with Flex output and imports the bounded data into database.
+```bash
+# find bbox (uses Python script find_bbox.py)
+python3 process_osm.py b [input_file] -id [relation_id] -s [style_file]
+```
+
+- E.g. this command extracts greatest bounding box from given relation ID of Lithuania OSM file and uploads it to PostgreSQL database using osm2pgsql:
+```bash
+python3 process_osm.py b lithuania-latest.osm.pbf -id 1529146
+```
+
+#### 3.1.2 Multipolygon ID extracts
+For more precise extraction, we define multipolygon - its specification is based on relation ID: https://www.openstreetmap.org/api/0.6/relation/RELATION-ID/full.
+
+It's better to filter out only what we need with osmium (before processing with flex output) [as suggested](https://osm2pgsql.org/examples/road-length/).
+
+**Ways inside multipolygon of Vilnius:**
+
+![Ways inside multipolygon of Vilnius in QGIS](doc/images/multi-ways.png)
+
+##### Osmium
+- ID can be found by specific filtering using `resources/expression-example.txt` or on OpenStreetMap - [more on how to filter](#32-filter-tags)
+    - note: `admin_level=*` expression represents administrative level of feature (borders of territorial political entities) - each country (even county) can have different numbering
+    - use `name:en` for easiest filtering
+- e.g. to find relation ID that bounds Vilnius city (ID: 1529146), run double [tag filtration](#32-filter-tags):
+```bash
+# expressions-example.txt should contain: r/type=boundary
+python3 filter_osm.py f lithuania-latest.osm.pbf -e expressions-example.txt
+# expressions-example.txt should contain: r/name:en=Vilnius
+python3 filter_osm.py f lithuania-latest.osm.pbf -e expressions-example.txt
+```
+- get multipolygon extract that can be further processed with Flex output:
+```bash
+python3 filter_osm.py id [input_file] -rid [relation_id] [-s strategy] 
+# E.g. extract multipolygon based on relation ID of Vilnius city:
+python3 filter_osm.py id lithuania-latest.osm.pbf -rid 1529146 # creates: id_extract.osm
+python3 process_osm.py u id_extract.osm
+```
+- Strategies (optional for `id` and `b` tags in `filter_osm.py`) are used to extract region in certain way: use `[-s strategy]`to set strategy:
+    - simple: faster, doesn't include complete ways (ways out of multipolygon)
+    - complete ways: ways are reference-complete
+    - smart: ways and multipolygon relations (by default) are reference-complete
+
+#### 3.2 Filter tags
+Filter specific objects based on tags.
+- common tags: 
+	- amenity, building, highway, leisure, natural, boundary
+	- [find more tags here](https://wiki.openstreetmap.org/wiki/Main_Page)
+
+**Ways with highway tag in Lithuania:**
+
+![Ways with highway tag in Lithuania in QGIS](doc/images/highway-ways.png)
+
+#### 3.2.1 Osmium
+<!-- https://osmcode.org/osmium-tool/manual.html#filtering-by-tags -->
+* use `resources/expressions-example.txt` to specify tags to be filtered in format: `[object_type]/[expression]` where:
+    * `object_type`: n (nodes), w (ways), r (relations) - can be combined
+    * `expression`: what it should match against
+```bash
+python3 filter_osm.py t [input_file] -e [expression_file] [-R]
+```
+- Optional `-R` tag: nodes referenced in ways and members referenced in relations will not be added to output if `-R` tag is used
+#### 3.2.2 Flex output
+- Use lua style files to filter out desired objects.
+    - e.g.`resources/lua_styles/filter-highway.lua` filters nodes, ways and relations with highway tag
+```bash
+python3 process_osm.py u lithuania-latest.osm.pbf -s resources/lua_styles/filter-highway.lua
+```
+- More examples of various Flex configurations can be found in oficial [osm2pgsql GitHub project](https://github.com/osm2pgsql-dev/osm2pgsql/tree/master/flex-config).
 
 ## Graph Contraction 
 This script contracts the road graph within a specified area. 

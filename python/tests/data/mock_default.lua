@@ -3,14 +3,14 @@ local srid = 4326
 local tables = {}
 
 -- define table nodes:
-tables.nodes = osm2pgsql.define_node_table('nodes', {
+tables.nodes = osm2pgsql.define_node_table('mocknodes', {
     -- not_null = true: if invalid node, ignore it
     { column = 'geom', type = 'point', projection=srid, not_null = true },
     { column = 'tags', type = 'jsonb' },
 })
 
 -- define table ways:
-tables.ways = osm2pgsql.define_way_table('ways', {
+tables.ways = osm2pgsql.define_way_table('mockways', {
     -- not_null = true: if invalid way, ignore it
     { column = 'geom', type = 'linestring', projection=srid, not_null = true },
     { column = 'tags', type = 'jsonb' },
@@ -18,7 +18,7 @@ tables.ways = osm2pgsql.define_way_table('ways', {
 })
 
 
-tables.relations = osm2pgsql.define_relation_table('relations', {
+tables.relations = osm2pgsql.define_relation_table('mockrelations', {
     { column = 'tags', type = 'jsonb' },
     { column = 'members', type = 'jsonb' },
 })
@@ -37,9 +37,6 @@ end
 
 -- Process every node in the input
 function osm2pgsql.process_node(object)
-    -- if clean_tags(object.tags) then
-    --     return
-    -- end
     clean_tags(object.tags)
 
     tables.nodes:insert({
@@ -50,9 +47,7 @@ end
 
 -- Process every way in the input
 function osm2pgsql.process_way(object)
-    if clean_tags(object.tags) then
-        return
-    end
+    clean_tags(object.tags)
 
     tables.ways:insert({
         geom = object:as_linestring(),
@@ -64,9 +59,7 @@ end
 
 -- Process every relation in the input
 function osm2pgsql.process_relation(object)
-    if clean_tags(object.tags) then
-        return
-    end
+    clean_tags(object.tags)
 
     tables.relations:insert({
         tags = object.tags,

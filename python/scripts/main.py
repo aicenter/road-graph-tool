@@ -1,13 +1,15 @@
 import argparse
+import argparse
 import json
 import logging
-
 import psycopg2.errors
 
-import roadgraphtool.log
 from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.db import db
+from scripts.process_osm import import_osm_to_db
 from roadgraphtool.export import get_map_nodes_from_db
+from roadgraphtool.db import db
+from scripts.process_osm import import_osm_to_db
 
 
 def get_area_for_demand(
@@ -128,13 +130,24 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         default=False,
         required=False,
     )
+    parser.add_argument(
+        '-i',
+        '--import',
+        dest='importing', 
+        action="store_true", 
+        help='Import OSM data to database specified in config.ini'
+    )
+
     return parser
 
 
-if __name__ == "__main__":
+def main(arg_list: list[str] | None = None):
     parser = configure_arg_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(arg_list)
 
+    if args.importing:
+        import_osm_to_db()
+    
     area_id = args.area_id
     area_srid = args.area_srid
     fill_speed = args.fill_speed
@@ -180,3 +193,7 @@ if __name__ == "__main__":
 
     logging.info("Execution of compute_speeds_from_neighborhood_segments")
     compute_speeds_from_neighborhood_segments(area_id, area_srid)
+
+
+if __name__ == '__main__':
+    main()
