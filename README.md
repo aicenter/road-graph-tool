@@ -14,17 +14,36 @@ The version 1.0.0 of use the following data sources:
 The processing and storage of the data are done in a PostgreSQL/PostGIS database. To manipulate the database, import data to the database, and export data from the database, the project provides a set of Python scripts. 
 
 # Quick Start Guide
-To run the tool, you need access to a local or remote PostgreSQL database with the PostGIS extension installed. The remote database can be accessed through an SSH tunnel. The SSH tunneling is done on the application level, you just need to provide the necessary configuration in the `config.ini` file (see the [`config-EXAMPLE.ini`](./config-EXAMPLE.ini) file for an example configuration).
 
-Currently, only parts of the tool are functional, so the database needs to be filled with the following data: TODO
+To run the tool, you need access to a local or remote PostgreSQL database with the PostGIS, PgRouting, and hstore (available by default) extensions installed. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level; you only need to provide the necessary configuration in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration).
 
-The main runner script is `scripts/main.py`. 
+After setting up the configuration file, your next step is to edit the `main.py` file to execute only the steps you need. Currently, the content of `main.py` includes Python wrappers for the provided SQL functions in the `SQL/` directory, an example of an argument parser, and a main execution pipeline, which may be of interest to you.
 
-To skip some processing steps, comment out the lines in the `main.py` file that are not needed.
+To execute the configured pipeline, follow these steps:
 
-Then, run the `main.py` script.
-- If you want to import OSM file to the database (details specified in `config.ini`), run the script with additional tag: `main.py -i` or `main.py --import`. It expects the OSM file to be `resources/to_import.*` where * is one of the following extensions: osm, osm.pbf, osm.bz2. It also uses [`default.lua`](resources/lua_styles/default.lua) as its default style file.
+1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
 
+2. Next, you should import OSM data into your database. You can do so by running the `main.py` script with with additional tag - `main.py -i` or `main.py --import` - this calls [import_osm_to_db()](python/scripts/process_osm.py) function. It expects the OSM file to be `resources/to_import.*` where * is one of the following extensions: osm, osm.pbf, osm.bz2. It also uses [`default.lua`](resources/lua_styles/default.lua) as its default style file. To learn more about importing OSM data to database, go to [OSM file processing section](#osm-file-processing).
+
+3. Importing with the tool [osm2pgsql](https://osm2pgsql.org/) can be quite tricky, which necessitates post-processing the schema of your database. If you imported the `.pbf` file with the style [pipeline.lua](./importer/styles/pipeline.lua), you will need to execute the file `SQL/after_import.sql`.
+
+4. Your database is now ready. You can execute [main.py](./python/scripts/main.py) in the `python/` directory.
+
+So in the end execution order may look like this:
+```sh
+alias py=python3
+cd python/
+echo 'Pre-processing database...'
+py scripts/install_sql.py
+cd ../importer/
+echo 'Importing with osm2pgsql...'
+osm2pgsql -d DATABASE_NAME -P 5432 -U USERNAME -x -S styles/pipeline.lua --output=flex COUNTRY.osm.pbf
+echo 'Post-processing database...'
+psql -d DATABASE_NAME -U USERNAME -f ../SQL/after_import.sql
+cd ../python/
+echo 'Executing main.py...'
+py main.py -a 1 -s 4326 -f False
+```
 
 # Testing
 For testing the PostgreSQL procedures that are the core of the Road Graph Tool, we use the [pgTAP testing framework](https://github.com/theory/pgtap). To learn how to use pgTAP, see the [pgTAP manual](./doc/pgtap.md).
@@ -130,7 +149,7 @@ python3 filter_osm.py b lithuania-latest.osm.pbf -c resources/extract-bbox.geojs
 ```
 
 ##### Flex output
-- We can calculate the greatest bounding box coordinates using `python3 process_osm.py b` based on the ID of relation (mentioned in [3.1.2](#3.1.2-multipolygon/id-extracts-(osmium))) that specifies the area of interest (e.g. Vilnius - capital of Lithuania). This command processes OSM file using calculated bounding box coordinates with Flex output and imports the bounded data into database.
+- We can calculate the greatest bounding box coordinates using `python3 process_osm.py b` based on the ID of relation (mentioned in [3.1.2](#312-multipolygon-id-extracts)) that specifies the area of interest (e.g. Vilnius - capital of Lithuania). This command processes OSM file using calculated bounding box coordinates with Flex output and imports the bounded data into database.
 ```bash
 # find bbox (uses Python script find_bbox.py)
 python3 process_osm.py b [input_file] -id [relation_id] -s [style_file]
@@ -141,8 +160,8 @@ python3 process_osm.py b [input_file] -id [relation_id] -s [style_file]
 python3 process_osm.py b lithuania-latest.osm.pbf -id 1529146
 ```
 
-#### 3.1.2 Multipolygon/ID extracts (osmium)
-For more precise extraction, we define multipolygon. Multipolygon can be defined in GeoJSON `extract-id.geojson` file from known specific relation ID - OSM multipolygon definition based on relation ID: https://www.openstreetmap.org/api/0.6/relation/RELATION-ID/full.
+#### 3.1.2 Multipolygon ID extracts
+For more precise extraction, we define multipolygon - its specification is based on relation ID: https://www.openstreetmap.org/api/0.6/relation/RELATION-ID/full.
 
 It's better to filter out only what we need with osmium (before processing with flex output) [as suggested](https://osm2pgsql.org/examples/road-length/).
 
@@ -151,10 +170,10 @@ It's better to filter out only what we need with osmium (before processing with 
 ![Ways inside multipolygon of Vilnius in QGIS](doc/images/multi-ways.png)
 
 ##### Osmium
-- ID can be found by specific filtering using `resources/expression-example.txt` or on OpenStreetMap - [more on how to filter](#3.2-filter-tags)
+- ID can be found by specific filtering using `resources/expression-example.txt` or on OpenStreetMap - [more on how to filter](#32-filter-tags)
     - note: `admin_level=*` expression represents administrative level of feature (borders of territorial political entities) - each country (even county) can have different numbering
     - use `name:en` for easiest filtering
-- e.g. to find relation ID that bounds Vilnius city (ID: 1529146), run double [tag filtration](#3.2-filter-tags):
+- e.g. to find relation ID that bounds Vilnius city (ID: 1529146), run double [tag filtration](#32-filter-tags):
 ```bash
 # expressions-example.txt should contain: r/type=boundary
 python3 filter_osm.py f lithuania-latest.osm.pbf -e expressions-example.txt
@@ -163,9 +182,9 @@ python3 filter_osm.py f lithuania-latest.osm.pbf -e expressions-example.txt
 ```
 - get multipolygon extract that can be further processed with Flex output:
 ```bash
-python3 filter_osm.py id [input_file] -id [relation_id] [-s strategy] 
+python3 filter_osm.py id [input_file] -rid [relation_id] [-s strategy] 
 # E.g. extract multipolygon based on relation ID of Vilnius city:
-python3 filter_osm.py id lithuania-latest.osm.pbf -id 1529146 # creates: id_extract.osm
+python3 filter_osm.py id lithuania-latest.osm.pbf -rid 1529146 # creates: id_extract.osm
 python3 process_osm.py u id_extract.osm
 ```
 - Strategies (optional for `id` and `b` tags in `filter_osm.py`) are used to extract region in certain way: use `[-s strategy]`to set strategy:
