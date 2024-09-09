@@ -9,6 +9,7 @@ from roadgraphtool.db_operations import (
     contract_graph_in_area, get_area_for_demand, insert_area,
     select_network_nodes_in_area)
 from roadgraphtool.export import get_map_nodes_from_db
+# from roadgraphtool.credentials_config import CREDENTIALS
 from scripts.process_osm import import_osm_to_db
 
 
@@ -30,8 +31,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-f",
         "--fill-speed",
-        type=bool,
-        choices=[True, False],
+        action="store_true",
         help="An option indicating if specific functions should process speed data. Default is set to False.",
         default=False,
         required=False,
@@ -43,6 +43,14 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Import OSM data to database specified in config.ini",
     )
+    parser.add_argument(
+        "-S",
+        "--Style",
+        help='Filename of the osm2pgsql style import in the directory "resources/lua_styles".'
+        + '\nDefault is set to "pipeline.lua"',
+        default="pipeline.lua",
+        required=False,
+    )
 
     return parser
 
@@ -52,7 +60,12 @@ def main(arg_list: list[str] | None = None):
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        import_osm_to_db()
+        logging.info("Importing OSM data to database...")
+        retcode = import_osm_to_db(filename=args.importing, style_filename=args.Style)
+        if retcode != 0:
+            logging.error(f"Error during OSM data import. Return code: {retcode}")
+            return retcode
+        logging.info("OSM data imported successfully.")
 
     area_id = args.area_id
     area_srid = args.area_srid
@@ -100,6 +113,8 @@ def main(arg_list: list[str] | None = None):
     logging.info("Execution of compute_speeds_from_neighborhood_segments")
     compute_speeds_from_neighborhood_segments(area_id, area_srid)
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    exit(main())
