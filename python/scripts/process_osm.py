@@ -180,7 +180,7 @@ u  : Extract greatest bounding box from given relation ID of
     parser.add_argument(
         "-l",
         dest="style_file",
-        default="default.lua",
+        default=str(STYLES_DIR / "default.lua"),
         help="Path to style file (optional for 'b', 'u' tag)",
     )
     parser.add_argument(
