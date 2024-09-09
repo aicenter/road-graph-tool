@@ -10,6 +10,7 @@ from roadgraphtool.db_operations import (
     select_network_nodes_in_area)
 from roadgraphtool.export import get_map_nodes_from_db
 # from roadgraphtool.credentials_config import CREDENTIALS
+from roadgraphtool.insert_area import read_json_file as read_area_file
 from scripts.process_osm import import_osm_to_db
 
 
@@ -42,6 +43,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         dest="importing",
         action="store_true",
         help="Import OSM data to database specified in config.ini",
+        required=False,
     )
     parser.add_argument(
         "-S",
@@ -70,6 +72,13 @@ def main(arg_list: list[str] | None = None):
     area_id = args.area_id
     area_srid = args.area_srid
     fill_speed = args.fill_speed
+
+    insert_area(
+        area_id,
+        "Insertion_area",
+        "Description of the area",
+        read_area_file("testarea.json"),
+    )
 
     # logging.info("selecting nodes")
     # nodes = select_network_nodes_in_area(area_id)
