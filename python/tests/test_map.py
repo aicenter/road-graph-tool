@@ -2,17 +2,18 @@ import os
 import pytest
 import pandas as pd
 import geopandas as gpd
-
-from roadgraphtool import map
 from shapely import LineString
 from shapely.geometry import Point
+
+from roadgraphtool import map
+from roadgraphtool.db import db
 
 
 @pytest.fixture
 def config():
     return {
         'area_dir': './',
-        'area_id': 1,
+        'area_id': 99,
         'map': {
             'path': './map',
             'SRID': 4326,
@@ -90,7 +91,7 @@ def test_save_map_csv(sample_nodes, sample_edges, csv_dir):
     pd.testing.assert_frame_equal(sample_edges, loaded_edges)
 
 
-def test_get_map(mocker, config, sample_nodes, sample_edges, shapefile_dir, csv_dir):
+def test_get_map_mocker(mocker, config, sample_nodes, sample_edges, shapefile_dir, csv_dir):
     mocker.patch('roadgraphtool.map._get_map_from_db', return_value=(sample_nodes, sample_edges))
     mocker.patch('roadgraphtool.map._get_map', return_value=(sample_nodes, sample_edges))
     mocker.patch('roadgraphtool.map._save_graph_shapefile')
@@ -106,3 +107,121 @@ def test_get_map(mocker, config, sample_nodes, sample_edges, shapefile_dir, csv_
     map._save_graph_shapefile.assert_called_once_with(nodes, edges,
                                                       os.path.join(config['map']['path'], 'shapefiles'))
     map._save_map_csv.assert_called_once_with(config['map']['path'], nodes, edges)
+
+
+def delete_component_data():
+    sql_delete_component_data = """
+            DELETE FROM component_data 
+            WHERE (component_id, node_id, area) IN (
+                (0, 100, 99),
+                (0, 101, 99)
+            );
+            """
+    db.execute_sql(sql_delete_component_data)
+
+
+def delete_nodes():
+    sql_delete_nodes = """
+        DELETE FROM nodes 
+        WHERE id IN (100, 101);
+        """
+    db.execute_sql(sql_delete_nodes)
+
+
+def delete_edges():
+    sql_delete_edge = """
+        DELETE FROM edges 
+        WHERE id = 1;
+        """
+    db.execute_sql(sql_delete_edge)
+
+
+def delete_area():
+    sql_delete_area = """
+        DELETE FROM areas 
+        WHERE id = 99;
+        """
+    db.execute_sql(sql_delete_area)
+
+
+def test_get_nodes_edges_empty_db(config):
+    delete_component_data()
+    delete_edges()
+    delete_nodes()
+    delete_area()
+
+    nodes = map.get_map_nodes_from_db(config['area_id'])
+    assert nodes.empty, "Expected no nodes in the database."
+
+    with pytest.raises(Exception) as exc_info:
+        map.get_map_edges_from_db(config)
+    assert exc_info.type is Exception
+    assert exc_info.value.args[0] == "No edges selected"
+
+
+def test_get_nodes_edges_empty_component_data(config):
+    delete_component_data()
+
+    # set up test_db
+    sql_insert_area = """
+        INSERT INTO areas (id, name) 
+        VALUES (99, 'Test_get_map')
+        ON CONFLICT (id) DO NOTHING;
+        """
+    db.execute_sql(sql_insert_area)
+
+    sql_insert_nodes = """
+        INSERT INTO nodes (id, area, geom, contracted) 
+        VALUES
+            (100, 99, ST_SetSRID(ST_MakePoint(0, 0), 4326), false),
+            (101, 99, ST_SetSRID(ST_MakePoint(1, 1), 4326), false)
+        ON CONFLICT (id) DO NOTHING;
+        """
+
+    db.execute_sql(sql_insert_nodes)
+
+    sql_insert_edge = """
+        INSERT INTO edges ("from", "to", id, geom, area, speed) 
+        VALUES
+            (100, 101, 1, ST_GeomFromText('MULTILINESTRING((0 0, 1 1))', 4326), 99, 25)
+        ON CONFLICT (id) DO NOTHING;
+        """
+
+    db.execute_sql(sql_insert_edge)
+
+    nodes = map.get_map_nodes_from_db(config['area_id'])
+    assert nodes.empty, "Expected no nodes."
+
+    with pytest.raises(Exception) as exc_info:
+        map.get_map_edges_from_db(config)
+    assert exc_info.type is Exception
+    assert exc_info.value.args[0] == "No edges selected"
+
+
+def test_get_nodes_edges_from_db(config):
+
+    # set up component_data
+    sql_insert_component_data = """
+        INSERT INTO component_data (component_id, node_id, area) 
+        VALUES
+            (0, 100, 99),
+            (0, 101, 99)
+        ON CONFLICT (node_id, area) DO NOTHING;
+        """
+    db.execute_sql(sql_insert_component_data)
+
+    nodes = map.get_map_nodes_from_db(config['area_id'])
+    edges = map.get_map_edges_from_db(config)
+
+    assert len(nodes) == 2, "Expected 2 nodes from the database."
+    assert len(edges) == 1, "Expected 1 edge from the database."
+
+
+def test_nodes_edges_data_consistency(config):
+    nodes = map.get_map_nodes_from_db(config['area_id'])
+    edges = map.get_map_edges_from_db(config)
+
+    # Check if every edge's db_id_from and db_id_to exist in the nodes' db_id
+    for index, edge in edges.iterrows():
+        assert edge['db_id_from'] in nodes['db_id'].values, f"Edge {index} has invalid db_id_from."
+        assert edge['db_id_to'] in nodes['db_id'].values, f"Edge {index} has invalid db_id_to."
