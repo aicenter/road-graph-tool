@@ -97,7 +97,7 @@ def test_find_mix_max(bounding_box):
 def test_run_osm2pgsql_cmd(db_connection):
     parent_dir = pathlib.Path(__file__).parent
     style_file_path = str(parent_dir) + "/data/mock_default.lua"
-    input_file = str(parent_dir) + "/data/test.osm"
+    input_file = str(parent_dir) + "/data/bbox_test.osm"
 
     db_username = config.username
     db_host = config.db_host
@@ -160,7 +160,8 @@ def test_run_osmium_cmd_sort(sort_test_files):
     os.remove(output_file)
 
 def test_import_to_db_valid(mocker):
-    mocker.patch('os.path.exists', side_effect=lambda path: path == "resources/to_import.osm")
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in ["resources/to_import.osm", 'resources/lua_styles/default.lua'])
+    mocker.patch('os.path.getsize', return_value=1)
     mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
     import_osm_to_db()
     mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'resources/to_import.osm', 'resources/lua_styles/default.lua')
