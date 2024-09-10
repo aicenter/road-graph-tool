@@ -8,14 +8,14 @@ from scripts.find_bbox import find_min_max
 
 DEFAULT_STYLE_FILE = "resources/lua_styles/default.lua"
 
-def extract_bbox(relation_id: int):
-    """Function to determine bounding box coordinations."""
+def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
+    """Return tuple of floats based on bounding box coordinations."""
     content = load_multipolygon_by_id(relation_id)
     min_lon, min_lat, max_lon, max_lat = find_min_max(content)
     return min_lon, min_lat, max_lon, max_lat
 
 def run_osmium_cmd(tag: str, input_file: str, output_file: str = None):
-    """Function to run osmium command based on tag."""
+    """Run osmium command based on tag."""
     if output_file and not is_valid_extension(output_file):
         raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
     match tag:
@@ -36,7 +36,7 @@ def run_osmium_cmd(tag: str, input_file: str, output_file: str = None):
             os.remove(tmp_file)
 
 def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, coords: str| list[int] = None):
-    """Function to run osm2pgsql command."""
+    """Import data from input_file using osm2pgsql."""
     command = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
                "-P", str(config.db_server_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
     if coords:
@@ -44,8 +44,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     subprocess.run(command)
 
 def import_osm_to_db(style_file_path: str = None) -> int:
-    """Imports OSM file do database specified in config.ini file and returns 
-    size of OSM file in bytes if file found.
+    """Return the size of OSM file in bytes if file found and imports OSM file do database specified in config.ini file.
 
     The **default.lua** style file is used if not specified or set otherwise.
     The function expects the OSM file to be saved as **resources/to_import.***.

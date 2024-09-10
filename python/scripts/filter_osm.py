@@ -3,6 +3,7 @@ import re
 import os
 import subprocess
 import tempfile
+from typing import Any
 import requests
 
 class InvalidInputError(Exception):
@@ -11,26 +12,26 @@ class InvalidInputError(Exception):
 class MissingInputError(Exception):
     pass
 
-def is_valid_extension(file: str):
-    """Function to check if the file has a valid extension."""
+def is_valid_extension(file: str) -> bool:
+    """Return True if if the file has a valid extension."""
     valid_extensions = ["osm", "osm.pbf", "osm.bz2"]
     return any(file.endswith(f".{ext}") for ext in valid_extensions)
 
 def check_strategy(strategy: str | None):
-    """Function to check strategy type"""
+    """Raise InvalidInputError if strategy type is not valid."""
     valid_strategies = ["simple", "complete_ways", "smart"]
     if strategy and strategy not in valid_strategies:
         raise InvalidInputError(f"Invalid strategy type. Call {os.path.basename(__file__)} -h/--help to display help.")
 
-def load_multipolygon_by_id(relation_id: str):
-    """Function to load multigon content by relation ID."""
+def load_multipolygon_by_id(relation_id: str) -> bytes | Any:
+    """Return multipolygon content based on relation ID."""
     url = f"https://www.openstreetmap.org/api/0.6/relation/{relation_id}/full"
     response = requests.get(url)
     response.raise_for_status()
     return response.content
 
 def extract_id(input_file: str, relation_id: str, strategy: str = None):
-    """Function to filter out data based on relation ID."""
+    """Filter out data based on relation ID."""
     content = load_multipolygon_by_id(relation_id)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".osm") as tmp_file:
@@ -42,7 +43,7 @@ def extract_id(input_file: str, relation_id: str, strategy: str = None):
         subprocess.run(command)
 
 def extract_bbox(input_file: str, coords: str, strategy: str = None):
-    """Function to extract based on bounding box with osmium"""
+    """Extract data based on bounding box with osmium."""
     # should match four floats:
     float_regex = r'[0-9]+(.[0-9]+)?'
     coords_regex = f'{float_regex},{float_regex},{float_regex},{float_regex}'
@@ -59,7 +60,7 @@ def extract_bbox(input_file: str, coords: str, strategy: str = None):
     subprocess.run(command)
 
 def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bool):
-    """Function to filter objects based on tags in expression file.
+    """Filter objects based on tags in expression file.
     Nodes referenced in ways and members referenced in relations will not 
     be added to output if omit_referenced set to True.
     """
