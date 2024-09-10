@@ -17,22 +17,19 @@ def file_exists(file: str) -> bool:
     """Checks if a file exists."""
     return os.path.isfile(file)
 
-def location_exists(location: str, json_data: dict) -> bool:
-    return location in json_data['locations'].keys()
-
 def format_time(seconds: float) -> str:
-    """Converts time in seconds to a more readable format (minutes, hours)."""
+    """Return time in more readable format (minutes, hours)."""
     minutes, sec = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
     if hours > 0:
-        return f"{int(hours)}h {int(minutes)}mins"
+        return f"{int(hours)}h {int(minutes)}min"
     elif minutes > 0:
-        return f"{int(minutes)}mins"
+        return f"{int(minutes)}min"
     else:
         return f"{int(sec)}s"
 
 def generate_markdown_row(location: str, data: dict) -> str:
-    """Generates a markdown table row for a specific location."""
+    """Return a generated markdown table row for a specific location."""
     performance_metrics = data.get("performance_metrics", {})
     file_size = data.get("file_size", "N/A")
     date = data.get("date_import", "N/A")
@@ -46,7 +43,7 @@ def generate_markdown_row(location: str, data: dict) -> str:
     return f"| {location.title()} | {file_size} | {date} | {time} | {nodes_size} | {ways_size} | {relations_size} |"
 
 def generate_markdown_table(data: dict) -> str:
-    """Generates a complete markdown table for all locations."""
+    """Return a complete generated markdown table for all locations."""
     headers = ["Location", "File size", "Date of import", "Speed of import", "Nodes size", "Ways size", "Relations size"]
     
     table = ["| " + " | ".join(headers) + " |"]
@@ -59,7 +56,7 @@ def generate_markdown_table(data: dict) -> str:
     return "\n".join(table)
 
 def write_markdown(json_data: dict):
-    """Helper function to write text to a markdown file."""
+    """Write text to a MARKDOWN file."""
     system_info = json_data.get('system_info', {})
     cpu_info = json_data.get('cpu_info', {})
     memory_info = json_data.get('memory_info', {})
@@ -91,20 +88,19 @@ def write_markdown(json_data: dict):
         f.write(text + "\n")
 
 def write_json(metrics: dict):
-    """Writes data to a JSON file."""
+    """Write data to JSON file."""
     with open(JSON_FILE, mode='w') as f:
         json.dump(metrics, f, indent=4)
 
 def read_json() -> dict:
-    """Reads the performance metrics from the JSON file and 
-    returns them as a dictionary."""
+    """Return dictionary of the performance metrics from JSON file."""
     with open(JSON_FILE, 'r') as f:
         data = json.load(f)
     return data
 
 def get_db_table_sizes(config: dict, schema: str) -> dict:
-    """Returns a dictionary contains the sizes of all tables 
-    in the public schema of the database."""
+    """Return dictionary containing the sizes of all tables 
+    in the **schema** of the database."""
     try:
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
@@ -124,23 +120,24 @@ def get_db_table_sizes(config: dict, schema: str) -> dict:
         raise error
 
 def monitor_performance(config: dict, schema: str) -> dict:
-    """Function to monitor time, HDD usage, and run the import_osm_to_db function."""
+    """Return dictionary of monitored time, file size, date of import and table sizes
+    after running the **import_osm_to_db()** function."""
     start_time = time.time()
 
     # Run the import function
-    import_osm_to_db(schema)
-    file_size = "1 GB" # placeholder -> import_osm_to_db could return input file size
+    file_size = import_osm_to_db(schema)
 
     elapsed_time = time.time() - start_time
 
     return {
             "performance_metrics": {"total_time": elapsed_time, "test_runs": 1},
-            "file_size": file_size,
+            "file_size": convert_B_to_readable(file_size),
             "date_import": datetime.today().strftime('%d.%m.%Y'),
             "db_table_sizes": get_db_table_sizes(config, schema)
         }
 
 def get_db_version(config: dict) -> str:
+    """Return version of database."""
     try:
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
@@ -163,11 +160,17 @@ def monitor(config: dict, location: str, mode: str, network_conn: str, schema: s
     }
     return hw_metrics
 
+def convert_B_to_readable(size) -> str:
+    """Return a str of size in readable format rounded to two decimal places."""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size < 10**3 or unit == 'GB':
+            break
+        size /= 10**3
+    return f"{size:.2f} {unit}"
 
-def convert_b_to_GB(size):
-    return round(size / (10**(9)), 2)
 
 def get_hw_config() -> dict:
+    """Return dictionary containing HW information about system, CPU count, memory and dick usage."""
     system_info = platform.uname()
     logical_cpu_count = psutil.cpu_count(logical=True)
     memory_info = psutil.virtual_memory()
@@ -177,12 +180,13 @@ def get_hw_config() -> dict:
     "system_info": {"system": system_info.system,
                     "version": system_info.version},
     "cpu_info": {"logical_cores": logical_cpu_count},
-    "memory_info": {"total_memory":convert_b_to_GB(memory_info.total)},
-    "disk_info": {"total_disk_space": convert_b_to_GB(disk_info.total)}}
+    "memory_info": {"total_memory":convert_B_to_readable(memory_info.total)},
+    "disk_info": {"total_disk_space": convert_B_to_readable(disk_info.total)}}
 
     return hw_metrics
 
 def get_network_config() -> str:
+    """Return whether connection is wireless or ethernet."""
     net_info = psutil.net_if_stats()
     for key in net_info.keys():
         if key.startswith('wl'):
@@ -192,6 +196,7 @@ def get_network_config() -> str:
     return connection
 
 def update_performance(current: dict, old: dict, location: str, mode: str, connection: str, config: dict):
+    """Update JSON file with new data based on location, connection and mode."""
     mode_conn = f"{mode}_{connection}"
     location_data = old["data_info"].get(mode_conn, {}).get(location, {})
     if location_data:
@@ -214,7 +219,7 @@ def update_performance(current: dict, old: dict, location: str, mode: str, conne
                                            location: current}
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
-    """Parse command-line arguments."""
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Performance monitoring and OSM import tool")
 
     subparsers = parser.add_subparsers(dest='command', required=True)
@@ -257,7 +262,5 @@ def main(arg_list: list[str] | None = None):
 
 if __name__ == '__main__':
     main()
-    # main(['l', 'monaco', '-m', 'local', '-s', 'osm_testing'])
-    # main(['l', 'monaco', '-m', 'remote', '-s', 'osm_testing'])
     # main(['l', 'czechia', '-m', 'remote', '-s', 'osm_testing'])
-    # main(['l', 'czechia', '-m', 'local', '-s', 'osm_testing'])
+    # main(['l', 'germany', '-m', 'remote', '-s', 'osm_testing'])
