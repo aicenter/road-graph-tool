@@ -5,6 +5,22 @@ import subprocess
 import tempfile
 from typing import Any
 import requests
+import logging
+
+def setup_logger() -> logging.Logger:
+    log = logging.getLogger('process_osm')
+    log.setLevel(logging.INFO)
+    # setup formatting
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(formatter)
+    log.addHandler(ch)
+    # stop logger from emitting messages
+    log.propagate = False
+    return log
+
+logger = setup_logger()
 
 class InvalidInputError(Exception):
     pass
@@ -28,10 +44,12 @@ def load_multipolygon_by_id(relation_id: str) -> bytes | Any:
     url = f"https://www.openstreetmap.org/api/0.6/relation/{relation_id}/full"
     response = requests.get(url)
     response.raise_for_status()
+    logger.debug("Multipolygon content loaded.")
     return response.content
 
 def extract_id(input_file: str, relation_id: str, strategy: str = None):
     """Filter out data based on relation ID."""
+    logger.debug("Extracting multipolygon with relation ID %s...")
     content = load_multipolygon_by_id(relation_id)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".osm") as tmp_file:
@@ -41,15 +59,18 @@ def extract_id(input_file: str, relation_id: str, strategy: str = None):
         if strategy:
             command.extend(["-s", strategy])
         subprocess.run(command)
-
+        logger.info("ID extraction completed.")
+    
 def extract_bbox(input_file: str, coords: str, strategy: str = None):
     """Extract data based on bounding box with osmium."""
     # should match four floats:
     float_regex = r'[0-9]+(.[0-9]+)?'
     coords_regex = f'{float_regex},{float_regex},{float_regex},{float_regex}'
     if re.match(coords_regex, coords):
+        logger.debug("Extracting bounding box with coords %s...", coords)
         command = ["osmium", "extract", "-b", coords, input_file, "-o", "extracted-bbox.osm.pbf"]
     elif os.path.isfile(coords) and coords.endswith((".json", ".geojson")):
+        logger.debug("Extracting bounding box with coords in file %s...", coords)
         command = ["osmium", "extract", "-c", coords, input_file]
     else:
         raise InvalidInputError("Invalid coordinates or config file.")
@@ -58,6 +79,7 @@ def extract_bbox(input_file: str, coords: str, strategy: str = None):
         command.extend(["-s", strategy])
     
     subprocess.run(command)
+    logger.info("Bounding box extraction completed.")
 
 def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bool):
     """Filter objects based on tags in expression file.
@@ -68,6 +90,7 @@ def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bo
     if omit_referenced:
         cmd.extend(["-R"])
     subprocess.run(cmd)
+    logger.info("Tag filtering completed.")
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Filter OSM files with various operations.", formatter_class=argparse.RawTextHelpFormatter)
@@ -78,14 +101,18 @@ id : Filter geographic objects based on relation ID
 b  : Filter geographic objects based on bounding box (with osmium)
 f  : Filter objects based on tags in expression_file
 """)
-    parser.add_argument('input_file', nargs='?', help='Path to input OSM file')
-    parser.add_argument("-e", dest="expression_file", nargs="?", help="Path to expression file for filtering tags (required for 'f' tag)")
-    parser.add_argument("-c", dest="coords", nargs="?",help="Bounding box coordinates or path to config file (required for 'b' tag)")
-    parser.add_argument("-rid", dest="relation_id", nargs="?", help="relation ID (required for 'b' tag)")
+    parser.add_argument('input_file', help='Path to input OSM file')
+    parser.add_argument("-e", dest="expression_file", help="Path to expression file for filtering tags (required for 'f' tag)")
+    parser.add_argument("-c", dest="coords", help="Bounding box coordinates or path to config file (required for 'b' tag)")
+    parser.add_argument("-rid", dest="relation_id", help="Relation ID (required for 'b' tag)")
     parser.add_argument("-s", dest="strategy", help="Strategy type (optional for 'id', 'b' tags)")
     parser.add_argument("-R", dest="omit_referenced", action="store_true", help="Omit referenced objects (optional for 'f' tag)")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
 
     args = parser.parse_args(arg_list)
+
+    if args.v:
+        logger.setLevel(logging.DEBUG)
 
     return args
 
