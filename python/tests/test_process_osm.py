@@ -105,7 +105,7 @@ def test_run_osm2pgsql_cmd(db_connection):
     db_server_port = config.db_server_port
 
     command = ["osm2pgsql", "-d", db_name, "-U", db_username, "-H", db_host, "-P", str(db_server_port),
-               "--output=flex", "-S", style_file_path, input_file, "-x"]
+               "--output=flex", "-S", style_file_path, input_file, "-x", '--schema=osm_testing']
 
     subprocess.run(command, check=True)
 
@@ -159,12 +159,34 @@ def test_run_osmium_cmd_sort(sort_test_files):
 
     os.remove(output_file)
 
+def test_run_osmium_cmd_sort_renumber(mocker):
+    mock_subprocess_run = mocker.patch('subprocess.run')
+    mock_remove = mocker.patch('os.remove')
+    input_file = 'test_input.osm'
+    output_file = 'test_output.osm'
+    tmp_file = 'tmp.osm'
+
+    run_osmium_cmd('sr', input_file, output_file)
+    # both sort and renumbering occurred
+    assert mock_subprocess_run.call_count == 2
+    mock_subprocess_run.assert_any_call(["osmium", "sort", input_file, "-o", tmp_file])
+    mock_subprocess_run.assert_any_call(["osmium", "renumber", tmp_file, "-o", output_file])
+
+    # tmp_file was deleted
+    mock_remove.assert_called_once_with(tmp_file)
+
 def test_import_to_db_valid(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in ["resources/to_import.osm", 'resources/lua_styles/default.lua'])
     mocker.patch('os.path.getsize', return_value=1)
     mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
-    import_osm_to_db()
+    file_size = import_osm_to_db()
     mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'resources/to_import.osm', 'resources/lua_styles/default.lua')
+    assert file_size == 1
+
+def test_import_to_db_invalid_file(mocker):
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == 'resources/lua_styles/default.lua')
+    with pytest.raises(FileNotFoundError, match="No valid file to import was found."):
+        import_osm_to_db()
 
 def test_main_invalid_inputfile():
     arg_list = ["d", "invalid_file.osm"]
@@ -189,7 +211,7 @@ def test_main_diie_valid(mocker, test_input):
 def test_main_srsr_invalid(test_input):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = [test_input, tmp_file.name]
-        with pytest.raises(MissingInputError, match="An output file must be specified with '-o' tag."):
+        with pytest.raises(MissingInputError, match="An output file must be specified with '-o' flag."):
             main(arg_list)
 
 @pytest.mark.parametrize("test_input", ["s", "r", "sr"])

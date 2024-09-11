@@ -9,7 +9,7 @@ from scripts.find_bbox import find_min_max
 
 DEFAULT_STYLE_FILE = "resources/lua_styles/default.lua"
 
-logger = setup_logger()
+logger = setup_logger('process_osm')
 
 def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
     """Return tuple of floats based on bounding box coordinations."""
@@ -30,31 +30,38 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
         case "ie":
             subprocess.run(["osmium", "fileinfo", "-e", input_file])
         case 'r':
-            subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
-            logger.info("Renumbering of OSM data completed.")
+            res = subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
+            if not res.returncode:
+                logger.info("Renumbering of OSM data completed.")
         case 's':
-            subprocess.run(["osmium", "sort", input_file, "-o", output_file])
-            logger.info("Sorting of OSM data completed.")
+            res = subprocess.run(["osmium", "sort", input_file, "-o", output_file])
+            if not res.returncode:
+                logger.info("Sorting of OSM data completed.")
         case 'sr':
             tmp_file = 'tmp.osm'
-            subprocess.run(["osmium", "sort", input_file, "-o", tmp_file])
-            logger.info("Sorting of OSM data completed.")
-            subprocess.run(["osmium", "renumber", tmp_file, "-o", output_file])
+            res = subprocess.run(["osmium", "sort", input_file, "-o", tmp_file])
+            if not res.returncode:
+                logger.info("Sorting of OSM data completed.")
+                res = subprocess.run(["osmium", "renumber", tmp_file, "-o", output_file])
+                if not res.returncode:
+                    logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
-            logger.info("Renumbering of OSM data completed.")
 
 def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, coords: str| list[int] = None):
     """Import data from input_file using osm2pgsql."""
-    command = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
+    cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
                "-P", str(config.db_server_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
     if coords:
-        command.extend(["-b", coords])
-    print(logger.level)
-    if logger.level == logging.DEBUG:
-        command.extend(['--log-level=debug'])
+        cmd.extend(["-b", coords])
 
-    logger.info(f"Begin importing with: '{' '.join(command)}' ...")
-    subprocess.run(command)
+    if logger.level == logging.DEBUG:
+        cmd.extend(['--log-level=debug'])
+        logger.debug(f"Begin importing with: '{' '.join(cmd)}'")
+    else:
+        logger.info(f"Begin importing with: '{' '.join(cmd)}'")
+    res = subprocess.run(cmd)
+    if not res.returncode:
+        logger.info("Importing completed.")
 
 def import_osm_to_db(style_file_path: str = None) -> int:
     """Return the size of OSM file in bytes if file found and imports OSM file do database specified in config.ini file.
@@ -70,13 +77,12 @@ def import_osm_to_db(style_file_path: str = None) -> int:
             file_size = os.path.getsize(input_file)
             break
     if not input_file:
-        raise FileNotFoundError("There is no valid file to import.")
+        raise FileNotFoundError("No valid file to import was found.")
     if style_file_path is None:
         style_file_path = DEFAULT_STYLE_FILE
     if not os.path.exists(style_file_path):
         raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
     run_osm2pgsql_cmd(config, input_file, style_file_path)
-    logger.debug("Importing completed.")
     return file_size
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
@@ -104,6 +110,8 @@ b  : Extract greatest bounding box from given relation ID of
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
+        for handler in logger.handlers:
+            handler.setLevel(logging.DEBUG)
 
     return args
 
@@ -146,3 +154,5 @@ def main(arg_list: list[str] | None = None):
     
 if __name__ == '__main__':
     main()
+    # logger.setLevel(logging.DEBUG)
+    # extract_bbox(5986438)

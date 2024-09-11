@@ -7,20 +7,20 @@ from typing import Any
 import requests
 import logging
 
-def setup_logger() -> logging.Logger:
-    log = logging.getLogger('process_osm')
+def setup_logger(logger_name: str) -> logging.Logger:
+    log = logging.getLogger(logger_name)
     log.setLevel(logging.INFO)
     # setup formatting
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    ch.setFormatter(formatter)
-    log.addHandler(ch)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(formatter)
+    log.addHandler(handler)
     # stop logger from emitting messages
     log.propagate = False
     return log
 
-logger = setup_logger()
+logger = setup_logger('filter_osm')
 
 class InvalidInputError(Exception):
     pass
@@ -38,6 +38,7 @@ def check_strategy(strategy: str | None):
     valid_strategies = ["simple", "complete_ways", "smart"]
     if strategy and strategy not in valid_strategies:
         raise InvalidInputError(f"Invalid strategy type. Call {os.path.basename(__file__)} -h/--help to display help.")
+    logger.debug("Strategy validity checked.")
 
 def load_multipolygon_by_id(relation_id: str) -> bytes | Any:
     """Return multipolygon content based on relation ID."""
@@ -55,11 +56,12 @@ def extract_id(input_file: str, relation_id: str, strategy: str = None):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".osm") as tmp_file:
         tmp_file.write(content)
         tmp_file_path = tmp_file.name
-        command = ["osmium", "extract", "-p", tmp_file_path, input_file, "-o", "resources/id_extract.osm"]
+        cmd = ["osmium", "extract", "-p", tmp_file_path, input_file, "-o", "resources/id_extract.osm"]
         if strategy:
-            command.extend(["-s", strategy])
-        subprocess.run(command)
-        logger.info("ID extraction completed.")
+            cmd.extend(["-s", strategy])
+        res = subprocess.run(cmd)
+        if not res.returncode:
+            logger.debug("ID extraction completed.")
     
 def extract_bbox(input_file: str, coords: str, strategy: str = None):
     """Extract data based on bounding box with osmium."""
@@ -68,18 +70,19 @@ def extract_bbox(input_file: str, coords: str, strategy: str = None):
     coords_regex = f'{float_regex},{float_regex},{float_regex},{float_regex}'
     if re.match(coords_regex, coords):
         logger.debug("Extracting bounding box with coords %s...", coords)
-        command = ["osmium", "extract", "-b", coords, input_file, "-o", "extracted-bbox.osm.pbf"]
+        cmd = ["osmium", "extract", "-b", coords, input_file, "-o", "extracted-bbox.osm.pbf"]
     elif os.path.isfile(coords) and coords.endswith((".json", ".geojson")):
         logger.debug("Extracting bounding box with coords in file %s...", coords)
-        command = ["osmium", "extract", "-c", coords, input_file]
+        cmd = ["osmium", "extract", "-c", coords, input_file]
     else:
         raise InvalidInputError("Invalid coordinates or config file.")
 
     if strategy:
-        command.extend(["-s", strategy])
+        cmd.extend(["-s", strategy])
     
-    subprocess.run(command)
-    logger.info("Bounding box extraction completed.")
+    res = subprocess.run(cmd)
+    if not res.returncode:
+        logger.info("Bounding box extraction completed.")
 
 def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bool):
     """Filter objects based on tags in expression file.
@@ -89,8 +92,9 @@ def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bo
     cmd = ["osmium", "tags-filter", input_file, "-e", expression_file, "-o", "filtered.osm.pbf"]
     if omit_referenced:
         cmd.extend(["-R"])
-    subprocess.run(cmd)
-    logger.info("Tag filtering completed.")
+    res = subprocess.run(cmd)
+    if not res.returncode:
+        logger.info("Tag filtering completed.")
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Filter OSM files with various operations.", formatter_class=argparse.RawTextHelpFormatter)
@@ -107,12 +111,14 @@ f  : Filter objects based on tags in expression_file
     parser.add_argument("-rid", dest="relation_id", help="Relation ID (required for 'b' flag)")
     parser.add_argument("-s", dest="strategy", help="Strategy type (optional for 'id', 'b' flags)")
     parser.add_argument("-R", dest="omit_referenced", action="store_true", help="Omit referenced objects (optional for 'f' flag)")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
+    parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
 
     args = parser.parse_args(arg_list)
 
-    if args.v:
+    if args.verbose:
         logger.setLevel(logging.DEBUG)
+        for handler in logger.handlers:
+            handler.setLevel(logging.DEBUG)
 
     return args
 
