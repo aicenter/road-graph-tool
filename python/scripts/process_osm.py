@@ -18,11 +18,11 @@ def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
     logger.debug(f"Bounding box found: {min_lon},{min_lat},{max_lon},{max_lat}.")
     return min_lon, min_lat, max_lon, max_lat
 
-def run_osmium_cmd(tag: str, input_file: str, output_file: str = None):
-    """Run osmium command based on tag."""
+def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
+    """Run osmium command based on flag."""
     if output_file and not is_valid_extension(output_file):
         raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-    match tag:
+    match flag:
         case "d":
             subprocess.run(["osmium", "show", input_file])
         case "i":
@@ -45,7 +45,6 @@ def run_osmium_cmd(tag: str, input_file: str, output_file: str = None):
 
 def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, coords: str| list[int] = None):
     """Import data from input_file using osm2pgsql."""
-    logger.debug("Setting up command...")
     command = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
                "-P", str(config.db_server_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
     if coords:
@@ -54,7 +53,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     if logger.level == logging.DEBUG:
         command.extend(['--log-level=debug'])
 
-    logger.info(f"Begin importing with command: '{' '.join(command)}'")
+    logger.info(f"Begin importing with: '{' '.join(command)}' ...")
     subprocess.run(command)
 
 def import_osm_to_db(style_file_path: str = None) -> int:
@@ -83,7 +82,7 @@ def import_osm_to_db(style_file_path: str = None) -> int:
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.", formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument("tag", choices=["d", "i", "ie", "s", "r", "sr", "b", "u"], metavar="tag",
+    parser.add_argument("flag", choices=["d", "i", "ie", "s", "r", "sr", "b", "u"], metavar="flag",
                         help="""
 d  : Display OSM file
 i  : Display information about OSM file
@@ -96,9 +95,9 @@ b  : Extract greatest bounding box from given relation ID of
      input_file and upload to PostgreSQL database using osm2pgsql"""
 )
     parser.add_argument('input_file', help="Path to input OSM file")
-    parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' tag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', default="resources/lua_styles/default.lua", help="Path to style file (optional for 'b', 'u' tag)")
-    parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' tag)")
+    parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
+    parser.add_argument("-l", dest="style_file", nargs='?', default="resources/lua_styles/default.lua", help="Path to style file (optional for 'b', 'u' flag)")
+    parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
 
     args = parser.parse_args(arg_list)
@@ -121,16 +120,16 @@ def main(arg_list: list[str] | None = None):
         elif not args.style_file.endswith(".lua"):
             raise InvalidInputError("File must have the '.lua' extension.")
     
-    match args.tag:
+    match args.flag:
         case 'd' | 'i' | 'ie':
             # Display content or (extended) information of OSM file
-            run_osmium_cmd(args.tag, args.input_file)
+            run_osmium_cmd(args.flag, args.input_file)
 
         case 's' | 'r' | 'sr':
             # Sort, renumber OSM file or do both
             if not args.output_file:
-                raise MissingInputError("An output file must be specified with '-o' tag.")
-            run_osmium_cmd(args.tag, args.input_file, args.output_file)
+                raise MissingInputError("An output file must be specified with '-o' flag.")
+            run_osmium_cmd(args.flag, args.input_file, args.output_file)
     
         case "u":
             # Upload OSM file to PostgreSQL database

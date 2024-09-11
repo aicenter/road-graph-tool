@@ -95,18 +95,18 @@ def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bo
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Filter OSM files with various operations.", formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument("tag", choices=["id", "b", "f"], metavar="tag",
+    parser.add_argument("flag", choices=["id", "b", "f"], metavar="flag",
                         help="""
 id : Filter geographic objects based on relation ID
 b  : Filter geographic objects based on bounding box (with osmium)
 f  : Filter objects based on tags in expression_file
 """)
     parser.add_argument('input_file', help='Path to input OSM file')
-    parser.add_argument("-e", dest="expression_file", help="Path to expression file for filtering tags (required for 'f' tag)")
-    parser.add_argument("-c", dest="coords", help="Bounding box coordinates or path to config file (required for 'b' tag)")
-    parser.add_argument("-rid", dest="relation_id", help="Relation ID (required for 'b' tag)")
-    parser.add_argument("-s", dest="strategy", help="Strategy type (optional for 'id', 'b' tags)")
-    parser.add_argument("-R", dest="omit_referenced", action="store_true", help="Omit referenced objects (optional for 'f' tag)")
+    parser.add_argument("-e", dest="expression_file", help="Path to expression file for filtering tags (required for 'f' flag)")
+    parser.add_argument("-c", dest="coords", help="Bounding box coordinates or path to config file (required for 'b' flag)")
+    parser.add_argument("-rid", dest="relation_id", help="Relation ID (required for 'b' flag)")
+    parser.add_argument("-s", dest="strategy", help="Strategy type (optional for 'id', 'b' flags)")
+    parser.add_argument("-R", dest="omit_referenced", action="store_true", help="Omit referenced objects (optional for 'f' flag)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
 
     args = parser.parse_args(arg_list)
@@ -124,7 +124,7 @@ def main(arg_list: list[str] | None = None):
     elif not is_valid_extension(args.input_file):
         raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
     
-    match args.tag:
+    match args.flag:
         case "id":
             # Filter geographic objects based on relation ID
             if not args.relation_id:
@@ -137,7 +137,7 @@ def main(arg_list: list[str] | None = None):
         case "b":
             # Filter geographic objects based on bounding box (with osmium)
             if not args.coords:
-                raise MissingInputError("Coordinates or config file need to be specified with the 'b' tag.")
+                raise MissingInputError("Coordinates or config file need to be specified with the 'b' flag.")
             
             check_strategy(args.strategy)
             
