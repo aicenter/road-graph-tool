@@ -140,20 +140,9 @@ class __Database:
             return None
 
     @connect_db_if_required
-    def execute_sql(self, query, *args, use_transactions=True) -> None:
+    def execute_sql(self, query, *args, schema='public', use_transactions=True) -> None:
         """
         Execute SQL that doesn't return any value.
-        """
-        with self._sqlalchemy_engine.connect() as connection:
-            if not use_transactions:
-                connection.execution_options(isolation_level="AUTOCOMMIT")
-            with connection.begin():
-                connection.execute(sqlalchemy.text(query), *args)
-
-    @connect_db_if_required
-    def execute_sql_in_schema(self, query, schema, *args, use_transactions=True) -> None:
-        """
-        Execute SQL in a specific schema.
         """
         with self._sqlalchemy_engine.connect() as connection:
             if not use_transactions:

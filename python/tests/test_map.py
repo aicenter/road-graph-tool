@@ -120,7 +120,7 @@ def delete_component_data():
                 (0, 101, 99)
             );
             """
-    db.execute_sql_in_schema(sql_delete_component_data, TEST_SCHEMA)
+    db.execute_sql(sql_delete_component_data, schema=TEST_SCHEMA)
 
 
 def delete_nodes():
@@ -128,7 +128,7 @@ def delete_nodes():
         DELETE FROM nodes 
         WHERE id IN (100, 101);
         """
-    db.execute_sql_in_schema(sql_delete_nodes, TEST_SCHEMA)
+    db.execute_sql(sql_delete_nodes, schema=TEST_SCHEMA)
 
 
 def delete_edges():
@@ -136,7 +136,7 @@ def delete_edges():
         DELETE FROM edges 
         WHERE id = 1;
         """
-    db.execute_sql_in_schema(sql_delete_edge, TEST_SCHEMA)
+    db.execute_sql(sql_delete_edge, schema=TEST_SCHEMA)
 
 
 def delete_area():
@@ -144,7 +144,7 @@ def delete_area():
         DELETE FROM areas 
         WHERE id = 99;
         """
-    db.execute_sql_in_schema(sql_delete_area, TEST_SCHEMA)
+    db.execute_sql(sql_delete_area, schema=TEST_SCHEMA)
 
 
 def test_if_schema_exists():
@@ -158,12 +158,11 @@ def test_get_nodes_edges_empty_db(config):
     delete_nodes()
     delete_area()
 
-    db.execute_sql(f"SET search_path TO {TEST_SCHEMA}, public;")
-    nodes = map.get_map_nodes_from_db(config['area_id'])
+    nodes = map.get_map_nodes_from_db(config['area_id'], TEST_SCHEMA + ', public')
     assert nodes.empty, "Expected no nodes in the database."
 
     with pytest.raises(Exception) as exc_info:
-        map.get_map_edges_from_db(config)
+        map.get_map_edges_from_db(config, TEST_SCHEMA + ', public')
     db.execute_sql(f"SET search_path TO public;")
 
     assert exc_info.type is Exception
@@ -179,7 +178,7 @@ def test_get_nodes_edges_empty_component_data(config):
         VALUES (99, 'Test_get_map')
         ON CONFLICT (id) DO NOTHING;
         """
-    db.execute_sql_in_schema(sql_insert_area, TEST_SCHEMA)
+    db.execute_sql(sql_insert_area, schema=TEST_SCHEMA)
 
     sql_insert_nodes = """
         INSERT INTO nodes (id, area, geom, contracted) 
@@ -189,7 +188,7 @@ def test_get_nodes_edges_empty_component_data(config):
         ON CONFLICT (id) DO NOTHING;
         """
 
-    db.execute_sql_in_schema(sql_insert_nodes, TEST_SCHEMA + ', public')
+    db.execute_sql(sql_insert_nodes, schema=TEST_SCHEMA + ', public')
 
     sql_insert_edge = """
         INSERT INTO edges ("from", "to", id, geom, area, speed) 
@@ -198,14 +197,13 @@ def test_get_nodes_edges_empty_component_data(config):
         ON CONFLICT (id) DO NOTHING;
         """
 
-    db.execute_sql_in_schema(sql_insert_edge, TEST_SCHEMA + ', public')
+    db.execute_sql(sql_insert_edge, schema=TEST_SCHEMA + ', public')
 
-    db.execute_sql(f"SET search_path TO {TEST_SCHEMA}, public;")
-    nodes = map.get_map_nodes_from_db(config['area_id'])
+    nodes = map.get_map_nodes_from_db(config['area_id'], TEST_SCHEMA + ', public')
     assert nodes.empty, "Expected no nodes."
 
     with pytest.raises(Exception) as exc_info:
-        map.get_map_edges_from_db(config)
+        map.get_map_edges_from_db(config, TEST_SCHEMA + ', public')
     db.execute_sql(f"SET search_path TO public;")
 
     assert exc_info.type is Exception
@@ -221,11 +219,10 @@ def test_get_nodes_edges_from_db(config):
             (0, 101, 99)
         ON CONFLICT (node_id, area) DO NOTHING;
         """
-    db.execute_sql_in_schema(sql_insert_component_data, TEST_SCHEMA)
+    db.execute_sql(sql_insert_component_data, schema=TEST_SCHEMA)
 
-    db.execute_sql(f"SET search_path TO {TEST_SCHEMA}, public;")
-    nodes = map.get_map_nodes_from_db(config['area_id'])
-    edges = map.get_map_edges_from_db(config)
+    nodes = map.get_map_nodes_from_db(config['area_id'], TEST_SCHEMA + ', public')
+    edges = map.get_map_edges_from_db(config, TEST_SCHEMA + ', public')
     db.execute_sql(f"SET search_path TO public;")
 
     assert len(nodes) == 2, "Expected 2 nodes from the database."
@@ -233,9 +230,8 @@ def test_get_nodes_edges_from_db(config):
 
 
 def test_nodes_edges_data_consistency(config):
-    db.execute_sql(f"SET search_path TO {TEST_SCHEMA}, public;")
-    nodes = map.get_map_nodes_from_db(config['area_id'])
-    edges = map.get_map_edges_from_db(config)
+    nodes = map.get_map_nodes_from_db(config['area_id'], TEST_SCHEMA + ', public')
+    edges = map.get_map_edges_from_db(config, TEST_SCHEMA + ', public')
     db.execute_sql(f"SET search_path TO public;")
 
     # Check if every edge's db_id_from and db_id_to exist in the nodes' db_id
