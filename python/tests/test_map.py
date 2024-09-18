@@ -163,7 +163,6 @@ def test_get_nodes_edges_empty_db(config):
 
     with pytest.raises(Exception) as exc_info:
         map.get_map_edges_from_db(config, TEST_SCHEMA + ', public')
-    db.execute_sql(f"SET search_path TO public;")
 
     assert exc_info.type is Exception
     assert exc_info.value.args[0] == "No edges selected"
@@ -204,7 +203,6 @@ def test_get_nodes_edges_empty_component_data(config):
 
     with pytest.raises(Exception) as exc_info:
         map.get_map_edges_from_db(config, TEST_SCHEMA + ', public')
-    db.execute_sql(f"SET search_path TO public;")
 
     assert exc_info.type is Exception
     assert exc_info.value.args[0] == "No edges selected"
@@ -223,7 +221,6 @@ def test_get_nodes_edges_from_db(config):
 
     nodes = map.get_map_nodes_from_db(config['area_id'], TEST_SCHEMA + ', public')
     edges = map.get_map_edges_from_db(config, TEST_SCHEMA + ', public')
-    db.execute_sql(f"SET search_path TO public;")
 
     assert len(nodes) == 2, "Expected 2 nodes from the database."
     assert len(edges) == 1, "Expected 1 edge from the database."
@@ -232,7 +229,6 @@ def test_get_nodes_edges_from_db(config):
 def test_nodes_edges_data_consistency(config):
     nodes = map.get_map_nodes_from_db(config['area_id'], TEST_SCHEMA + ', public')
     edges = map.get_map_edges_from_db(config, TEST_SCHEMA + ', public')
-    db.execute_sql(f"SET search_path TO public;")
 
     # Check if every edge's db_id_from and db_id_to exist in the nodes' db_id
     for index, edge in edges.iterrows():

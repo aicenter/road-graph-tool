@@ -172,15 +172,25 @@ class __Database:
             finally:
                 cursor.close()
 
+    def set_schema(self, schema: str):
+        """
+        Set search path to schema
+        """
+        with self._sqlalchemy_engine.connect() as connection:
+            with connection.begin():
+                connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
+
     @connect_db_if_required
-    def execute_query_to_geopandas(self, sql: str, **kwargs) -> pd.DataFrame:
+    def execute_query_to_geopandas(self, sql: str, schema='public', **kwargs) -> pd.DataFrame:
         """
         Execute sql and load the result to Pandas DataFrame
 
         kwargs are the same as for the pd.read_sql_query(), notably
         index_col=None
         """
+        self.set_schema(schema)
         data = gpd.read_postgis(sql, self._sqlalchemy_engine, **kwargs)
+        self.set_schema('public')
         return data
 
     @connect_db_if_required

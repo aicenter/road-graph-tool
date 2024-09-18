@@ -7,8 +7,6 @@ from roadgraphtool.db import db
 def get_map_nodes_from_db(area_id: int, schema='public') -> gpd.GeoDataFrame:
     logging.info("Fetching nodes from db")
     sql = f"""
-    SET search_path TO {schema};
-    
     DROP TABLE IF EXISTS demand_nodes;
 
     CREATE TEMP TABLE demand_nodes(
@@ -32,14 +30,12 @@ def get_map_nodes_from_db(area_id: int, schema='public') -> gpd.GeoDataFrame:
     """
     logging.info("Starting sql_alchemy connection")
 
-    return db.execute_query_to_geopandas(sql)
+    return db.execute_query_to_geopandas(sql, schema=schema)
 
 
 def get_map_edges_from_db(config: dict, schema='public') -> gpd.GeoDataFrame:
     logging.info("Fetching edges from db")
     sql = f"""
-        SET search_path TO {schema};
-        
         DROP TABLE IF EXISTS demand_nodes;
         CREATE TEMP TABLE demand_nodes(
             id int,
@@ -68,7 +64,7 @@ def get_map_edges_from_db(config: dict, schema='public') -> gpd.GeoDataFrame:
                                                         --area for edges (like for Manhattan), new edge_are_id param 
                                                         -- should be added to config.yaml
     """
-    edges = db.execute_query_to_geopandas(sql)
+    edges = db.execute_query_to_geopandas(sql, schema=schema)
 
     if len(edges) == 0:
         logging.error("No edges selected")
