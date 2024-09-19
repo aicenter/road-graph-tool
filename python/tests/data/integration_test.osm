@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="Manual Example">
+  <node id="1" lat="52.5191" lon="13.4041" version="1" timestamp="2023-05-10T12:00:00Z" uid="1" user="TestUser">
+    <tag k="amenity" v="cafe"/>
+  </node>
+  <node id="2" lat="52.5201" lon="13.4051" version="1" timestamp="2023-05-10T12:01:00Z" uid="1" user="TestUser"/>
+  <node id="3" lat="52.5211" lon="13.4061" version="1" timestamp="2023-05-10T12:02:00Z" uid="1" user="TestUser"/>
+  <node id="4" lat="52.5221" lon="13.4071" version="1" timestamp="2023-05-10T12:03:00Z" uid="1" user="TestUser"/>
+  <node id="5" lat="52.5201" lon="13.4081" version="1" timestamp="2023-05-10T12:04:00Z" uid="1" user="TestUser"/>
+
+  <way id="1" version="1" timestamp="2023-05-10T12:10:00Z" uid="1" user="TestUser">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <nd ref="3"/>
+    <nd ref="4"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Test Street"/>
+    <tag k="oneway" v="no"/>
+  </way>
+
+  <way id="2" version="1" timestamp="2023-05-10T12:20:00Z" uid="2" user="TestUser">
+    <nd ref="5"/>
+    <nd ref="2"/>
+    <tag k="highway" v="footway"/>
+    <tag k="surface" v="paved"/>
+    <tag k="oneway" v="yes"/>
+  </way>
+
+  <way id="3" version="1" timestamp="2023-05-10T12:30:00Z" uid="3" user="TestUser">
+    <nd ref="5"/>
+    <nd ref="3"/>
+    <tag k="highway" v="footway"/>
+    <tag k="surface" v="paved"/>
+    <tag k="oneway" v="yes"/>
+  </way>
+</osm>
+
