@@ -8,8 +8,6 @@ from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.db import db
 from scripts.process_osm import import_osm_to_db
 from roadgraphtool.export import get_map_nodes_from_db
-from roadgraphtool.db import db
-from scripts.process_osm import import_osm_to_db
 
 
 def get_area_for_demand(
@@ -137,6 +135,18 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         action="store_true", 
         help='Import OSM data to database specified in config.ini'
     )
+    parser.add_argument(
+        '-sf', '--style-file',
+        dest='style_file',
+        help="Optional style file path for -i/--import. Default is 'default.lua' otherwise.",
+        required=False
+    )
+    parser.add_argument(
+        '-sch', '--schema',
+        dest='schema',
+        help="Optional schema argument for -i/--import. Default is 'public' otherwise.",
+        required=False
+    )
 
     return parser
 
@@ -146,7 +156,7 @@ def main(arg_list: list[str] | None = None):
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        import_osm_to_db()
+        import_osm_to_db(args.style_file, args.schema)
     
     area_id = args.area_id
     area_srid = args.area_srid

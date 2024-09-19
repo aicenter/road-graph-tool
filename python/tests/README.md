@@ -8,5 +8,5 @@ pytest python/tests/
 ```
 
 Testing script `test_process_osm.py` uses connection to database specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
-If the server database requires password, you store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format:
+If the server database requires password, store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format:
 `hostname:port:database:username:password`.
