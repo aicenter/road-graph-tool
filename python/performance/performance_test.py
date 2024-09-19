@@ -282,7 +282,4 @@ def main(arg_list: list[str] | None = None):
 
 
 if __name__ == '__main__':
-    # main()
-    # main(['l', 'czechia', '-m', 'remote', '-s', 'osm_testing'])
-    main(['l', 'monaco', '-m', 'local', '-s', 'osm_testing'])
-    # main(['l', 'germany', '-m', 'remote', '-s', 'osm_testing'])
+    main()

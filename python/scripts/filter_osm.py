@@ -65,8 +65,7 @@ def extract_id(input_file: str, relation_id: str, strategy: str = None):
     
 def extract_bbox(input_file: str, coords: str, strategy: str = None):
     """Extract data based on bounding box with osmium."""
-    # should match four floats:
-    float_regex = r'[0-9]+(.[0-9]+)?'
+    float_regex = r'[0-9]+(.[0-9]+)?' # should match four floats
     coords_regex = f'{float_regex},{float_regex},{float_regex},{float_regex}'
     if re.match(coords_regex, coords):
         logger.debug("Extracting bounding box with coords %s...", coords)
