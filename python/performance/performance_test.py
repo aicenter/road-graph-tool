@@ -12,8 +12,8 @@ import json
 from scripts.process_osm import import_osm_to_db
 from roadgraphtool.credentials_config import CREDENTIALS
 
-MARKDOWN_FILE = "resources/performance_report.md"
-JSON_FILE = "resources/performance_report.json"
+MARKDOWN_FILE = "python/performance/performance_report.md"
+JSON_FILE = "python/performance/performance_report.json"
 
 def get_osm2pgsql_version() -> str:
     """Return version of osm2pgsql."""
@@ -139,7 +139,7 @@ def monitor_performance(config: dict, schema: str) -> dict:
     start_time = time.time()
 
     # Run the import function
-    file_size = import_osm_to_db(schema)
+    file_size = import_osm_to_db(schema=schema)
 
     elapsed_time = time.time() - start_time
 
@@ -182,6 +182,13 @@ def convert_B_to_readable(size: int) -> str:
         size /= 10**3
     return f"{size:.2f} {unit}"
 
+def extract_version(text: str) -> str:
+    """Return short kernel version."""
+    match = re.search(r'\d+\.\d+\.\d+-Ubuntu', text)
+    if match:
+        return match.group(0)
+    return None
+
 def get_hw_config() -> dict:
     """Return dictionary containing HW information about system, CPU count, memory and dick usage."""
     system_info = platform.uname()
@@ -191,7 +198,7 @@ def get_hw_config() -> dict:
 
     hw_metrics = {
     "system_info": {"system": system_info.system,
-                    "version": system_info.version},
+                    "version": extract_version(system_info.version)},
     "cpu_info": {"logical_cores": logical_cpu_count},
     "memory_info": {"total_memory": convert_B_to_readable(memory_info.total)},
     "disk_info": {"total_disk_space": convert_B_to_readable(disk_info.total)},
@@ -275,6 +282,7 @@ def main(arg_list: list[str] | None = None):
 
 
 if __name__ == '__main__':
-    main()
+    # main()
     # main(['l', 'czechia', '-m', 'remote', '-s', 'osm_testing'])
+    main(['l', 'monaco', '-m', 'local', '-s', 'osm_testing'])
     # main(['l', 'germany', '-m', 'remote', '-s', 'osm_testing'])

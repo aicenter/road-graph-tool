@@ -6,3 +6,4 @@ resources/lua_styles/mydef.lua
 config.ini
 resources/to_import.osm.pbf
 resources/performance_report.json
+python/performance/performance_report.json
