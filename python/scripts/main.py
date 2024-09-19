@@ -138,7 +138,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '-sf', '--style-file',
         dest='style_file',
-        help="Optional style file path for -i/--import. Default is default.lua otherwise.",
+        help="Optional style file path for -i/--import. Default is 'default.lua' otherwise.",
         required=False
     )
 
