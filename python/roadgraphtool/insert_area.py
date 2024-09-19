@@ -2,7 +2,7 @@ import argparse
 import json
 import sys
 
-from .db import db
+from roadgraphtool.db import db
 
 
 def insert_area(id: int | None, name: str, description: str | None, geom: dict):

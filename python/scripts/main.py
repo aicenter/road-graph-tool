@@ -41,7 +41,6 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         "-i",
         "--import",
         dest="importing",
-        action="store_true",
         help="Import OSM data to database specified in config.ini",
         required=False,
     )
@@ -73,12 +72,12 @@ def main(arg_list: list[str] | None = None):
     area_srid = args.area_srid
     fill_speed = args.fill_speed
 
-    insert_area(
-        area_id,
-        "Insertion_area",
-        "Description of the area",
-        read_area_file("testarea.json"),
-    )
+    # insert_area(
+    #     area_id,
+    #     "Insertion_area",
+    #     "Description of the area",
+    #     read_area_file("testarea.json"),
+    # )
 
     # logging.info("selecting nodes")
     # nodes = select_network_nodes_in_area(area_id)
@@ -91,8 +90,6 @@ def main(arg_list: list[str] | None = None):
     # logging.info("computing strong components for area_id = {}".format(area_id))
     # compute_strong_components(area_id)
     # logging.info("storing the results in the component_data table")
-
-    # insert_area("test1", [])
 
     # area = get_area_for_demand(
     #     4326,

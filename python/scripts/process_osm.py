@@ -136,8 +136,8 @@ def import_osm_to_db(filename: str | None = None, style_filename: str = "pipelin
         for file in input_files:
             if os.path.exists(file) and is_valid_extension(file):
                 input_file = file
-    elif os.path.exists(RESOURCES_DIR / filename):
-        input_file = str(RESOURCES_DIR / filename)
+    elif os.path.exists(filename):
+        input_file = filename
 
     if not input_file:
         raise FileNotFoundError("There is no valid file to import.")
