@@ -1,6 +1,8 @@
 import argparse
 from datetime import datetime
 import os
+import re
+import subprocess
 import time
 import psutil
 import psycopg2
@@ -13,8 +15,18 @@ from roadgraphtool.credentials_config import CREDENTIALS
 MARKDOWN_FILE = "resources/performance_report.md"
 JSON_FILE = "resources/performance_report.json"
 
+def get_osm2pgsql_version() -> str:
+    """Return version of osm2pgsql."""
+    result = subprocess.run(['osm2pgsql', '--version'], capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        match = re.search(r'osm2pgsql version (\d+\.\d+\.\d+)', result.stderr)
+        if match:
+            return match.group(1)
+    return "Error: Unable to fetch version."
+
 def file_exists(file: str) -> bool:
-    """Checks if a file exists."""
+    """Return True if a file exists."""
     return os.path.isfile(file)
 
 def format_time(seconds: float) -> str:
@@ -61,6 +73,7 @@ def write_markdown(json_data: dict):
     cpu_info = json_data.get('cpu_info', {})
     memory_info = json_data.get('memory_info', {})
     disk_info = json_data.get('disk_info', {})
+    osm_info = json.get('osm_info',{})
 
     markdown = []
     markdown.append(f"""# Performance
@@ -70,6 +83,7 @@ def write_markdown(json_data: dict):
 - **Logical cores**: {cpu_info.get('logical_cores', 'N/A')}
 - **Total memory**: {memory_info.get('total_memory', 'N/A')} GB
 - **Total disk space**: {disk_info.get('total_disk_space', 'N/A')} GB
+- **osm2pgsql version**: {osm_info.get('osm_version', 'N/A')}
 
 ### Database information with performance
 """)
@@ -160,14 +174,13 @@ def monitor(config: dict, location: str, mode: str, network_conn: str, schema: s
     }
     return hw_metrics
 
-def convert_B_to_readable(size) -> str:
+def convert_B_to_readable(size: int) -> str:
     """Return a str of size in readable format rounded to two decimal places."""
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size < 10**3 or unit == 'GB':
             break
         size /= 10**3
     return f"{size:.2f} {unit}"
-
 
 def get_hw_config() -> dict:
     """Return dictionary containing HW information about system, CPU count, memory and dick usage."""
@@ -180,8 +193,9 @@ def get_hw_config() -> dict:
     "system_info": {"system": system_info.system,
                     "version": system_info.version},
     "cpu_info": {"logical_cores": logical_cpu_count},
-    "memory_info": {"total_memory":convert_B_to_readable(memory_info.total)},
-    "disk_info": {"total_disk_space": convert_B_to_readable(disk_info.total)}}
+    "memory_info": {"total_memory": convert_B_to_readable(memory_info.total)},
+    "disk_info": {"total_disk_space": convert_B_to_readable(disk_info.total)},
+    "osm_info": {"osm_version": get_osm2pgsql_version()}}
 
     return hw_metrics
 
