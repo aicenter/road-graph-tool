@@ -245,9 +245,7 @@ The SQL procedure `contract_graph_in_area` processes the graph in the following 
 1. **Contraction Segments Generation**: Creates contraction segments to facilitate the creation of edges for contracted road segments.
 
 
-![procedure_contract_graph_in_area](https://github.com/aicenter/road-graph-tool/assets/25695606/8de0fd29-6500-4a13-a3c1-31b57f864c65)
-
-
+![procedure_contract_graph_in_area](https://github.com/user-attachments/assets/6a4b7c8d-6a95-4c75-836c-2e1a4622575a)
 
 
 
