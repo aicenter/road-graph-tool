@@ -179,7 +179,7 @@ def test_import_to_db_valid(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in ["resources/to_import.osm", 'resources/lua_styles/default.lua'])
     mocker.patch('os.path.getsize', return_value=1)
     mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
-    file_size = import_osm_to_db()
+    file_size = import_osm_to_db(schema='testing')
     mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'resources/to_import.osm', 'resources/lua_styles/default.lua')
     assert file_size == 1
 
