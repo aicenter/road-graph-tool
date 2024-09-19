@@ -47,7 +47,10 @@ def generate_markdown_row(location: str, data: dict) -> str:
     date = data.get("date_import", "N/A")
     db_table_sizes = data.get("db_table_sizes", {})
 
-    time = format_time(performance_metrics.get("total_time", 0))
+    total_time = performance_metrics.get("total_time", 0)
+    runs = performance_metrics.get("test_runs", 1)
+
+    time = format_time(total_time / runs)
     nodes_size = db_table_sizes.get("nodes", "N/A")
     ways_size = db_table_sizes.get("ways", "N/A")
     relations_size = db_table_sizes.get("relations", "N/A")
@@ -73,7 +76,7 @@ def write_markdown(json_data: dict):
     cpu_info = json_data.get('cpu_info', {})
     memory_info = json_data.get('memory_info', {})
     disk_info = json_data.get('disk_info', {})
-    osm_info = json.get('osm_info',{})
+    osm_info = json_data.get('osm_info',{})
 
     markdown = []
     markdown.append(f"""# Performance
@@ -93,6 +96,7 @@ def write_markdown(json_data: dict):
         mode, conn = mode_conn.split('_')
         markdown.append(f"""**{mode.capitalize()} database - {conn} connection:**
 - {data.get('db_info', 'N/A')}""")
+        markdown.append('\n')
         table = generate_markdown_table(data)
         markdown.append(table)
 
@@ -221,14 +225,9 @@ def update_performance(current: dict, old: dict, location: str, mode: str, conne
     mode_conn = f"{mode}_{connection}"
     location_data = old["data_info"].get(mode_conn, {}).get(location, {})
     if location_data:
-        # compare and update location
+        # update location metrics
         location_data["performance_metrics"]["test_runs"] += 1
-        test_runs = location_data["performance_metrics"]["test_runs"]
-        total_time = location_data["performance_metrics"]["total_time"] + current['performance_metrics']["total_time"]
-
-        avg_time = total_time / test_runs
-
-        location_data["performance_metrics"]["total_time"] = avg_time
+        location_data["performance_metrics"]["total_time"] = location_data["performance_metrics"]["total_time"] + current['performance_metrics']["total_time"]
     else:
         if mode_conn in old["data_info"]:
             # add location with metrics
