@@ -63,15 +63,3 @@ def test_integration_strongly_connected_components(setup):
     assert all(
         pair in [(0, 1), (0, 2), (0, 3), (0, 4), (1, 5)] for pair in component_data
     )
-
-
-# The flow is
-# install_sql.py - import main as "pre_processing"
-# import_osm_to_db, post-processing
-# insert_area
-# Graph operations:
-# - contraction of the graph
-# - computing strongly connected components
-
-# QAs:
-# Is there a way in our python project to remove everything from db
