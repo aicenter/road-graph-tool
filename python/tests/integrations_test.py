@@ -13,9 +13,19 @@ from scripts.process_osm import import_osm_to_db
 TEST_DATA_PATH = Path(__file__).parent / "data"
 
 
+def check_setup_of_database():
+    query = """SELECT EXISTS (
+   SELECT FROM information_schema.tables 
+   WHERE  table_schema = 'public'
+   AND    table_name   = 'areas'
+);"""
+    return db.execute_count_query(query)
+
+
 @pytest.fixture(scope="module")
 def setup():
-    pre_pocessing()
+    if not check_setup_of_database():
+        pre_pocessing()
 
     import_osm_to_db(str(TEST_DATA_PATH / "integration_test.osm"))
 
