@@ -43,13 +43,12 @@ def test_integration_contraction(setup):
     contracted_nodes = db.execute_sql_and_fetch_all_rows(
         "SELECT id FROM nodes WHERE contracted;"
     )
-    assert all(num in [(6,), (7,), (8,)] for num in contracted_nodes)
+    assert set([(6,), (7,), (8,)]) == set(contracted_nodes)
 
     edges = db.execute_sql_and_fetch_all_rows('SELECT "from", "to" FROM edges;')
 
-    assert all(
-        pair in [(3, 4), (2, 1), (1, 2), (5, 3), (5, 2), (4, 3), (2, 3), (3, 2)]
-        for pair in edges
+    assert set([(3, 4), (2, 1), (1, 2), (5, 3), (5, 2), (4, 3), (2, 3), (3, 2)]) == set(
+        edges
     )
 
 
@@ -60,6 +59,4 @@ def test_integration_strongly_connected_components(setup):
         "SELECT component_id, node_id FROM component_data"
     )
 
-    assert all(
-        pair in [(0, 1), (0, 2), (0, 3), (0, 4), (1, 5)] for pair in component_data
-    )
+    assert set([(0, 1), (0, 2), (0, 3), (0, 4), (1, 5)]) == set(component_data)
