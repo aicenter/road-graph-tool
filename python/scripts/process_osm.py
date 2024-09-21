@@ -6,6 +6,7 @@ from pathlib import Path
 import roadgraphtool.log
 from roadgraphtool.credentials_config import CREDENTIALS as config
 from roadgraphtool.credentials_config import CredentialsConfig
+from roadgraphtool.db import db
 from scripts.filter_osm import (InvalidInputError, MissingInputError,
                                 is_valid_extension, load_multipolygon_by_id)
 from scripts.find_bbox import find_min_max
@@ -51,6 +52,7 @@ def run_osm2pgsql_cmd(
     input_file: str,
     style_file_path: str,
     coords: str | list[int] | None = None,
+    schema: str | None = None,
 ) -> int:
     """Function to run osm2pgsl command.
     Returns return code of the subprocess."""
@@ -73,10 +75,12 @@ def run_osm2pgsql_cmd(
     ]
     if coords:
         command.extend(["-b", coords])
+    if schema:
+        command.extend(["--schema", schema])
     return subprocess.run(command).returncode
 
 
-def post_process_osm_import(style_filename: str) -> int:
+def post_process_osm_import(style_filename: str, schema: str | None = None) -> int:
     post_proc_dict = {"pipeline.lua": "after_import.sql"}
 
     if not post_proc_dict[style_filename]:
@@ -86,21 +90,29 @@ def post_process_osm_import(style_filename: str) -> int:
     sql_filepath = SQL_DIR / post_proc_dict[style_filename]
 
     logging.info("Post-processing OSM import...")
-    retcode = subprocess.run(
+    # retcode = db.execute_script(sql_filepath)
+    command = [
+        "psql",
+        "-d",
+        config.db_name,
+        "-U",
+        config.username,
+        "-h",
+        config.host,
+        "-p",
+        str(config.db_server_port),
+    ]
+    if schema:
+        print(f"\n\nSEARCHPATH = {schema}")
+        command.extend(["-c", f"SET search_path TO {schema};"])
+    command.extend(
         [
-            "psql",
-            "-d",
-            config.db_name,
-            "-U",
-            config.username,
-            "-p",
-            str(config.db_server_port),
-            "-h",
-            config.db_host,
             "-f",
             sql_filepath,
         ]
-    ).returncode
+    )
+    retcode = subprocess.run(command).returncode
+
     if retcode != 0:
         logging.error(f"Error during post-processing. Return code: {retcode}")
         return retcode
@@ -109,7 +121,11 @@ def post_process_osm_import(style_filename: str) -> int:
     return 0
 
 
-def import_osm_to_db(filename: str | None = None, style_filename: str = "pipeline.lua"):
+def import_osm_to_db(
+    filename: str | None = None,
+    style_filename: str = "pipeline.lua",
+    schema: str | None = None,
+) -> int:
     """Function to import OSM file specified in config.ini file to database.
     The function expects the OSM file to be saved as resources/to_import.*.
     The pipeline.lua style file is used as default style.
@@ -145,8 +161,8 @@ def import_osm_to_db(filename: str | None = None, style_filename: str = "pipelin
     style_file_path = str(STYLES_DIR / style_filename)
 
     return run_osm2pgsql_cmd(
-        config, input_file, style_file_path
-    ) or post_process_osm_import(style_filename)
+        config, input_file, style_file_path, schema=schema
+    ) or post_process_osm_import(style_filename, schema=schema)
 
 
 # Main flow of the current file, including functions used only within this file

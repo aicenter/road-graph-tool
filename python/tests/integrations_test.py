@@ -27,7 +27,10 @@ def setup():
     if not check_setup_of_database():
         pre_pocessing()
 
-    import_osm_to_db(str(TEST_DATA_PATH / "integration_test.osm"))
+    # change the main schema
+    db.execute_sql("CALL test_env_constructor();")
+
+    import_osm_to_db(str(TEST_DATA_PATH / "integration_test.osm"), schema="test_env")
 
     insert_area(
         1,
@@ -35,6 +38,14 @@ def setup():
         "test area",
         read_area(str(TEST_DATA_PATH / "integration_area.json")),
     )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def destructor():
+    yield  # to act as a destructor
+
+    # test environment desctructor
+    db.execute_sql("CALL test_env_destructor();")
 
 
 def test_integration_contraction(setup):

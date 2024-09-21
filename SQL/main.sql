@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS public.demand (
 --
 
 CREATE TABLE IF NOT EXISTS public.nodes (
-    id bigint NOT NULL,
+    id integer NOT NULL,
     geom public.geometry(Point,4326) NOT NULL,
     area integer,
     contracted boolean DEFAULT false NOT NULL
@@ -523,12 +523,12 @@ CREATE TABLE IF NOT EXISTS public.trip_times (
 --
 
 CREATE TABLE IF NOT EXISTS public.ways (
-    id bigint NOT NULL,
+    id integer NOT NULL,
     tags public.hstore,
     geom public.geometry(Geometry,4326) NOT NULL,
     area integer,
-    "from" bigint NOT NULL,
-    "to" bigint NOT NULL,
+    "from" integer NOT NULL,
+    "to" integer NOT NULL,
     oneway boolean NOT NULL
 );
 

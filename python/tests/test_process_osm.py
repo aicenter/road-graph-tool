@@ -198,7 +198,10 @@ def test_import_to_db_valid(mocker):
     mock_run_osm2pgsql_cmd = mocker.patch("scripts.process_osm.run_osm2pgsql_cmd")
     import_osm_to_db()
     mock_run_osm2pgsql_cmd.assert_called_once_with(
-        config, str(RESOURCES_DIR / "to_import.osm"), str(STYLES_DIR / "pipeline.lua")
+        config,
+        str(RESOURCES_DIR / "to_import.osm"),
+        str(STYLES_DIR / "pipeline.lua"),
+        schema=None,
     )
 
 
