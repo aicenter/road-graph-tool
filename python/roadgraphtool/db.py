@@ -179,9 +179,7 @@ class __Database:
                 cursor.execute(script)
                 self._psycopg2_connection.commit()
             except Exception as e:
-                logging.error(
-                    f"Error executing script {script_path}: {e}. Search_path: {self.execute_sql_and_fetch_all_rows('SHOW search_path;')}"
-                )
+                logging.error(f"Error executing script {script_path}: {e}")
                 self._psycopg2_connection.rollback()
                 retcode = 1
             finally:
