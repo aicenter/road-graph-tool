@@ -103,7 +103,6 @@ def post_process_osm_import(style_filename: str, schema: str | None = None) -> i
         str(config.db_server_port),
     ]
     if schema:
-        print(f"\n\nSEARCHPATH = {schema}")
         command.extend(["-c", f"SET search_path TO {schema};"])
     command.extend(
         [
