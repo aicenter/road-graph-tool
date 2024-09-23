@@ -23,7 +23,8 @@ To execute the configured pipeline, follow these steps:
 
 1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
 
-2. Next, you should import OSM data into your database. You can do so by running the `main.py` script with with additional tag - `main.py -i` or `main.py --import` - this calls [import_osm_to_db()](python/scripts/process_osm.py) function. It expects the OSM file to be `resources/to_import.*` where * is one of the following extensions: osm, osm.pbf, osm.bz2. It also uses [`default.lua`](resources/lua_styles/default.lua) as its default style file. To learn more about importing OSM data to database, go to [OSM file processing section](#osm-file-processing).
+2. Next, you should import OSM data into your database. You can do so by running the `main.py` script with with additional flag - `main.py -i` or `main.py --import` - this calls [import_osm_to_db()](python/scripts/process_osm.py) function. It expects the OSM file to be `resources/to_import.*` where * is one of the following extensions: osm, osm.pbf, osm.bz2. It also uses [`default.lua`](resources/lua_styles/default.lua) as its default style file, which can be changed by defining new path for [DEFAULT_STYLE_FILE](python/scripts/process_osm.py). Or run `main.py -i -sf/--style-file`. To learn more about importing OSM data to database, go to [OSM file processing section](#osm-file-processing).
+    > **_NOTE:_** Another way to upload OSM data is to call `py scripts/process_osm.py u COUNTRY.osm.pbf` - more in [Section 2 of **OSM file processing and importing**](#2-importing-to-database-using-flex-output)
 
 3. Importing with the tool [osm2pgsql](https://osm2pgsql.org/) can be quite tricky, which necessitates post-processing the schema of your database. If you imported the `.pbf` file with the style [pipeline.lua](./importer/styles/pipeline.lua), you will need to execute the file `SQL/after_import.sql`.
 
@@ -35,9 +36,9 @@ alias py=python3
 cd python/
 echo 'Pre-processing database...'
 py scripts/install_sql.py
-cd ../importer/
-echo 'Importing with osm2pgsql...'
-osm2pgsql -d DATABASE_NAME -P 5432 -U USERNAME -x -S styles/pipeline.lua --output=flex COUNTRY.osm.pbf
+echo "Importing OSM data to database"
+py scripts/process_osm.py u COUNTRY.osm.pbf
+"Begin importing with: 'osm2pgsql -d DATABASE_NAME -P 5432 -U USERNAME -x -S styles/pipeline.lua --output=flex COUNTRY.osm.pbf' ..."
 echo 'Post-processing database...'
 psql -d DATABASE_NAME -U USERNAME -f ../SQL/after_import.sql
 cd ../python/
@@ -64,11 +65,11 @@ To run the tests, follow these steps:
     - This query will return a result set containing the execution status of each test.
 
 # Components
-The road graph tool consists of a set of components that are responsible for individual processing steps, importing data, or exporting data. Each component is implemented as an PostgreSQL procedure, possibly calling other procedures or functions. Additionally, each component has its own Python wrapper script that connects to the database and calls the procedure. Currently, the following components are implemented:
-- **OSM file processing for importing to PGSQL database**: processes data from OSM file that are to be imported into PostgreSQL database for further use
+The road graph tool consists of a set of components that are responsible for individual processing steps, importing data, or exporting data. Each component is implemented as an PostgreSQL procedure or Python script, possibly calling other procedures or functions. Additionally, each component has its own Python wrapper script that connects to the database and calls the procedure. Currently, the following components are implemented:
+- **OSM file processing for importing to PostgreSQL database**: processes data from OSM file that are to be imported into PostgreSQL database for further use
 - **Graph Contraction**: simplifies the road graph by contracting nodes and creating edges between the contracted nodes.
 
-## OSM file processing
+## OSM file processing and importing
 ### Prerequisities
 Before we can process and load data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to obtain and install several libraries: 
 * psql (for PostgreSQL)
@@ -78,9 +79,9 @@ The PostgreSQL database needs PostGis extension in order to enable spatial and g
 Loading large OSM files to database is memory demanding so [documentation](https://osm2pgsql.org/doc/manual.html#system-requirements) suggests to have RAM of at least the size of the OSM file.
 
 ### 1. Preprocessing of OSM file (optional)
-Preprocessing an OSM file with osmium aims to enhance importing efficiency and speed of osm2pgsql tool. The two most common actions are sorting and renumbering. For these actions, you can use the provided `process_osm.py` Python script:
+Preprocessing an OSM file with osmium aims to enhance importing efficiency and speed of osm2pgsql tool. The two most common actions are sorting and renumbering. For these options, you can use the provided `process_osm.py` Python script:
 ```bash
-python3 process_osm.py [action_tag] [input_file] -o [output_file]
+python3 process_osm.py [option_flag] [input_file] -o [output_file]
 ```
 Call `python3 process_osm.py -h` or `python3 process_osm.py --help` for more information.
 
@@ -119,7 +120,7 @@ python3 process_osm.py u lithuania-latest.osm.pbf -l resources/lua_styles/highwa
 
 ![Nodes in Lithuania in QGIS](doc/images/default-nodes.png)
 
-It should be noted that `process_osm.py u` and `process_osm.py b` both run osm2pgsql with `-x` tag (extra attributes) which adds OSM attributes such as version, timestamp, uid, etc. to the OSM objects processed in osm2pgsql since normally objects without tags would not be processed.
+It should be noted that `process_osm.py u` and `process_osm.py b` both run osm2pgsql with `-x` flag (extra attributes) which adds OSM attributes such as version, timestamp, uid, etc. to the OSM objects processed in osm2pgsql since normally objects without tags would not be processed.
 
 ### 3. Filtering and extraction
 Data are often huge and lot of times we only need certain extracts or objects of interest in our database. So it's better practice to filter out only what we need and work with that in our database.
@@ -187,7 +188,7 @@ python3 filter_osm.py id [input_file] -rid [relation_id] [-s strategy]
 python3 filter_osm.py id lithuania-latest.osm.pbf -rid 1529146 # creates: id_extract.osm
 python3 process_osm.py u id_extract.osm
 ```
-- Strategies (optional for `id` and `b` tags in `filter_osm.py`) are used to extract region in certain way: use `[-s strategy]`to set strategy:
+- Strategies (optional for `id` and `b` flags in `filter_osm.py`) are used to extract region in certain way: use `[-s strategy]`to set strategy:
     - simple: faster, doesn't include complete ways (ways out of multipolygon)
     - complete ways: ways are reference-complete
     - smart: ways and multipolygon relations (by default) are reference-complete
@@ -210,14 +211,17 @@ Filter specific objects based on tags.
 ```bash
 python3 filter_osm.py t [input_file] -e [expression_file] [-R]
 ```
-- Optional `-R` tag: nodes referenced in ways and members referenced in relations will not be added to output if `-R` tag is used
+- Optional `-R` flag: nodes referenced in ways and members referenced in relations will not be added to output if `-R` flag is used
 #### 3.2.2 Flex output
 - Use lua style files to filter out desired objects.
     - e.g.`resources/lua_styles/filter-highway.lua` filters nodes, ways and relations with highway tag
 ```bash
 python3 process_osm.py u lithuania-latest.osm.pbf -s resources/lua_styles/filter-highway.lua
 ```
-- More examples of various Flex configurations can be found in oficial [osm2pgsql GitHub project](https://github.com/osm2pgsql-dev/osm2pgsql/tree/master/flex-config).
+- More examples of various Flex configurations can be found in the oficial [osm2pgsql GitHub project](https://github.com/osm2pgsql-dev/osm2pgsql/tree/master/flex-config).
+
+### Logging
+Both `filter_osm.py` and `process_osm.py` output some basic logging info. Use `-v/--verbose` for more debugging.
 
 ## Graph Contraction 
 This script contracts the road graph within a specified area. 
