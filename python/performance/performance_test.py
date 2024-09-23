@@ -1,3 +1,11 @@
+"""
+This Python script is used for testing performance of importing or main pipeline.
+Results are saved to 'python/performance/performance_report.json' JSON file. To generate markdown 
+from aformentioned JSON file, run script with 'md' tag.
+
+Run time is tracked as summation of each run along with run count - average run time is calculated 
+when markdown is being generated.
+"""
 import argparse
 from datetime import datetime
 import os
@@ -11,8 +19,9 @@ import json
 
 from scripts.process_osm import import_osm_to_db
 from roadgraphtool.credentials_config import CREDENTIALS
+from scripts.main import main as pipeline_main
 
-MARKDOWN_FILE = "python/performance/performance_report.md"
+MARKDOWN_FILE = "python/performance/README.md"
 JSON_FILE = "python/performance/performance_report.json"
 
 def get_osm2pgsql_version() -> str:
@@ -70,7 +79,7 @@ def generate_markdown_table(data: dict) -> str:
     
     return "\n".join(table)
 
-def write_markdown(json_data: dict):
+def write_markdown(json_data: dict, header: str = ""):
     """Write text to a MARKDOWN file."""
     system_info = json_data.get('system_info', {})
     cpu_info = json_data.get('cpu_info', {})
@@ -79,7 +88,7 @@ def write_markdown(json_data: dict):
     osm_info = json_data.get('osm_info',{})
 
     markdown = []
-    markdown.append(f"""# Performance
+    markdown.append(f"""# Performance {header}
 ## Hardware configuration
 - **System**: {system_info.get('system', 'N/A')}
 - **Version**: {system_info.get('version', 'N/A')}
@@ -88,15 +97,13 @@ def write_markdown(json_data: dict):
 - **Total disk space**: {disk_info.get('total_disk_space', 'N/A')} GB
 - **osm2pgsql version**: {osm_info.get('osm_version', 'N/A')}
 
-### Database information with performance
-""")
+## Database information with performance""")
     
     data_info = json_data.get('data_info', {})
     for mode_conn, data in data_info.items():
         mode, conn = mode_conn.split('_')
-        markdown.append(f"""**{mode.capitalize()} database - {conn} connection:**
-- {data.get('db_info', 'N/A')}""")
-        markdown.append('\n')
+        markdown.append(f"""\n**{mode.capitalize()} database - {conn} connection:**
+- {data.get('db_info', 'N/A')}\n""")
         table = generate_markdown_table(data)
         markdown.append(table)
 
@@ -137,13 +144,17 @@ def get_db_table_sizes(config: dict, schema: str) -> dict:
     except (psycopg2.DatabaseError, Exception) as error:
         raise error
 
-def monitor_performance(config: dict, schema: str) -> dict:
+def monitor_performance(config: dict, schema: str, style_file: str, importing: bool) -> dict:
     """Return dictionary of monitored time, file size, date of import and table sizes
     after running the **import_osm_to_db()** function."""
     start_time = time.time()
 
-    # Run the import function
-    file_size = import_osm_to_db(schema=schema)
+    if importing:
+        file_size = import_osm_to_db(style_file, schema=schema)
+    else:
+        # TODO:
+        area_id = 51 # placeholder - area id based on data
+        pipeline_main(['a', area_id, '-i', '-sf', style_file])
 
     elapsed_time = time.time() - start_time
 
@@ -164,7 +175,7 @@ def get_db_version(config: dict) -> str:
     except (psycopg2.DatabaseError, Exception) as error:
         return str(error)
 
-def monitor(config: dict, location: str, mode: str, network_conn: str, schema: str) -> dict:
+def monitor(config: dict, location: str, mode: str, network_conn: str, schema: str, style_file: str, importing: bool) -> dict:
     """Monitors HW metrics, time, memory and DB table sizes."""
     # Get hardware info
     hw_metrics = get_hw_config()
@@ -173,7 +184,7 @@ def monitor(config: dict, location: str, mode: str, network_conn: str, schema: s
     hw_metrics["data_info"] = {
         mode_conn: {
             "db_info": get_db_version(config),
-            location: monitor_performance(config, schema)
+            location: monitor_performance(config, schema, style_file, importing)
         }
     }
     return hw_metrics
@@ -240,16 +251,20 @@ def update_performance(current: dict, old: dict, location: str, mode: str, conne
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     """Parses command-line arguments."""
-    parser = argparse.ArgumentParser(description="Performance monitoring and OSM import tool")
+    parser = argparse.ArgumentParser(description="Performance monitoring and OSM import tool or main pipeline")
 
     subparsers = parser.add_subparsers(dest='command', required=True)
     
     loc_parser = subparsers.add_parser('l', help="Specify the name of location to include in statistics.")
     loc_parser.add_argument('location', help="Specify the location name.")
-    loc_parser.add_argument('-m', dest='mode', required=True, help="Specify the database mode.")
-    loc_parser.add_argument('-s', dest='schema', required=True, help="Specify the database schema.")
+    loc_parser.add_argument('-i', dest='importing', action="store_true", help="Enable performance test of importing only.")
+    loc_parser.add_argument('-m', dest='mode', required=True, help="Specify the database mode (local/remote) for '-i' flag.")
+    loc_parser.add_argument('-s', dest='schema', required=True, help="Specify the database schema for '-i' flag.")
+    loc_parser.add_argument("-sf", dest="style_file", default="resources/lua_styles/default.lua", help="Path to style file for '-i' flag.")
     
-    subparsers.add_parser('md', help="Convert JSON to Markdown.")
+    md_parser = subparsers.add_parser('md', help="Convert JSON to Markdown.")
+    md_parser.add_argument('-mh', dest='header', default="", help="Specify header for the Markdown output.")
+
     return parser.parse_args(arg_list)
 
 def main(arg_list: list[str] | None = None):
@@ -264,7 +279,8 @@ def main(arg_list: list[str] | None = None):
     match args.command:
         case 'md':
             json_data = read_json()
-            write_markdown(json_data)
+            header = f"of {args.header}" if args.header else args.header
+            write_markdown(json_data, header)
         case 'l':
             location = args.location
             mode = args.mode
@@ -272,13 +288,15 @@ def main(arg_list: list[str] | None = None):
             conn = get_network_config()
             if file_exists(JSON_FILE):
                 metrics = read_json()
-                new_metrics = monitor_performance(config, schema)
+                new_metrics = monitor_performance(config, schema, args.style_file, args.importing)
                 update_performance(new_metrics, metrics, location, mode, conn, config)
                 write_json(metrics)
             else:
-                metrics = monitor(config, location, mode, conn, schema)
+                metrics = monitor(config, location, mode, conn, schema, args.style_file, args.importing)
                 write_json(metrics)
 
 
 if __name__ == '__main__':
     main()
+    # main(['l', 'monaco', '-m','remote', '-s', 'public', '-sf', 'resources/lua_styles/pipeline.lua'])
+    # main(['l', 'monaco', '-m','local', '-s', 'osm_testing', '-i', '-sf', 'resources/lua_styles/pipeline.lua'])

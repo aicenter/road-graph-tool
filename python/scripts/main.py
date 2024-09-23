@@ -151,12 +151,12 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(arg_list: list[str] | None = None):
+def main(arg_list: list[str] | None = None) -> int:
     parser = configure_arg_parser()
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        import_osm_to_db(args.style_file, args.schema)
+        file_size = import_osm_to_db(args.style_file, args.schema)
     
     area_id = args.area_id
     area_srid = args.area_srid
@@ -204,6 +204,7 @@ def main(arg_list: list[str] | None = None):
     logging.info("Execution of compute_speeds_from_neighborhood_segments")
     compute_speeds_from_neighborhood_segments(area_id, area_srid)
 
+    return file_size
 
 if __name__ == '__main__':
     main()
