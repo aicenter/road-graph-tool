@@ -29,15 +29,15 @@ To execute the configured pipeline, follow these steps:
     If the server database requires password, store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format: `hostname:port:database:username:password`.
 
     To start importing, run the `main.py` script with with `-i` or `--import`flag. This triggers [import_osm_to_db()](python/scripts/process_osm.py) function, which requires the OSM file path as an argument. 
-    > **_NOTE:_** You need to specify `db_type` in [config-EXAMPLE.ini](./config-EXAMPLE.ini) as either remote or local to ensure the SSH tunnel is correctly set up for a remote database.
+    > **_NOTE:_** You need to specify `db_type` in [config-EXAMPLE.ini](./config-EXAMPLE.ini) as either remote or local to ensure the SSH tunnel is correctly established for a remote database - SSH tunnel setup is handled with [ssh.py](python/roadgraphtool/ssh.py).
     
-    A style file path can also be provided - if omitted, the default style file [`default.lua`](resources/lua_styles/default.lua) is used. To customize the style file, define a new path for the [DEFAULT_STYLE_FILE](python/scripts/process_osm.py).
+    A style file path can also be provided - if omitted, the default style file [default.lua](resources/lua_styles/default.lua) is used. To customize the style file, define a new path for the [DEFAULT_STYLE_FILE](python/scripts/process_osm.py).
 
     For more detailed information on importing OSM data into the database, please refer to the [OSM file processing section](#osm-file-processing).
 
     > **_NOTE:_** Alternatively, you can upload OSM data by executing `py scripts/process_osm.py u COUNTRY.osm.pbf` - for further details, see [Section 2 of **OSM file processing and importing**](#2-importing-to-database-using-flex-output)
 
-3. Importing with the tool [osm2pgsql](https://osm2pgsql.org/) can be quite tricky, which necessitates post-processing the schema of your database. If you imported the `.pbf` file with the style [pipeline.lua](./importer/styles/pipeline.lua), you will need to execute the file `SQL/after_import.sql`.
+3. Importing with the tool [osm2pgsql](https://osm2pgsql.org/) can be quite tricky, which necessitates post-processing the schema of your database. If you imported the `.pbf` file with the style [pipeline.lua](resources/lua_styles/pipeline.lua), you will need to execute the file `SQL/after_import.sql`.
 
 4. Your database is now ready. You can execute [main.py](./python/scripts/main.py) in the `python/` directory.
 
