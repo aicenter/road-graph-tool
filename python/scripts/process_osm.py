@@ -6,6 +6,7 @@ import logging
 from roadgraphtool.credentials_config import CREDENTIALS as config, CredentialsConfig
 from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension, setup_logger
 from scripts.find_bbox import find_min_max
+from roadgraphtool.ssh import setup_ssh_tunnel, cancel_ssh_tunnel
 
 DEFAULT_STYLE_FILE = "resources/lua_styles/default.lua"
 
@@ -49,8 +50,15 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
 
 def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, coords: str| list[int] = None):
     """Import data from input_file using osm2pgsql."""
+
+    if config.db_type == 'remote':  # remote connection
+        tunnel = setup_ssh_tunnel()
+    else:  # local connection
+        tunnel = None 
+
     cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
-               "-P", str(config.db_server_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
+            "-P", str(config.db_server_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
+
     if coords:
         cmd.extend(["-b", coords])
 
@@ -62,6 +70,9 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     res = subprocess.run(cmd)
     if not res.returncode:
         logger.info("Importing completed.")
+    
+    if tunnel is not None:
+        cancel_ssh_tunnel(tunnel)
 
 def import_osm_to_db(style_file_path: str = None) -> int:
     """Return the size of OSM file in bytes if file found and imports OSM file do database specified in config.ini file.
