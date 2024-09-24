@@ -7,7 +7,7 @@ import psycopg2
 import xml.etree.ElementTree as ET
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
-from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db
+from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd
 from scripts.find_bbox import find_min_max
 from scripts.filter_osm import MissingInputError, InvalidInputError
 
@@ -99,15 +99,7 @@ def test_run_osm2pgsql_cmd(db_connection):
     style_file_path = str(parent_dir) + "/data/mock_default.lua"
     input_file = str(parent_dir) + "/data/bbox_test.osm"
 
-    db_username = config.username
-    db_host = config.db_host
-    db_name = config.db_name
-    db_server_port = config.db_server_port
-
-    command = ["osm2pgsql", "-d", db_name, "-U", db_username, "-H", db_host, "-P", str(db_server_port),
-               "--output=flex", "-S", style_file_path, input_file, "-x", '--schema=osm_testing']
-
-    subprocess.run(command, check=True)
+    run_osm2pgsql_cmd(config, input_file, style_file_path)
 
     cursor = db_connection.cursor()
     cursor.execute('SELECT COUNT(*) FROM mocknodes;')
@@ -159,8 +151,12 @@ def test_run_osmium_cmd_sort(sort_test_files):
 
     os.remove(output_file)
 
+# not working
 def test_run_osmium_cmd_sort_renumber(mocker):
     mock_subprocess_run = mocker.patch('subprocess.run')
+    mock_subprocess_run.side_effect = [subprocess.CompletedProcess(args=[], returncode=0),  # for sort
+                                        subprocess.CompletedProcess(args=[], returncode=0)]  # for renumber
+
     mock_remove = mocker.patch('os.remove')
     input_file = 'test_input.osm'
     output_file = 'test_output.osm'
@@ -179,14 +175,14 @@ def test_import_to_db_valid(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in ["resources/to_import.osm", 'resources/lua_styles/default.lua'])
     mocker.patch('os.path.getsize', return_value=1)
     mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
-    file_size = import_osm_to_db()
+    file_size = import_osm_to_db('resources/to_import.osm')
     mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'resources/to_import.osm', 'resources/lua_styles/default.lua')
     assert file_size == 1
 
 def test_import_to_db_invalid_file(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == 'resources/lua_styles/default.lua')
     with pytest.raises(FileNotFoundError, match="No valid file to import was found."):
-        import_osm_to_db()
+        import_osm_to_db('resources/to_import.osm')
 
 def test_main_invalid_inputfile():
     arg_list = ["d", "invalid_file.osm"]

@@ -74,21 +74,15 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     if tunnel is not None:
         cancel_ssh_tunnel(tunnel)
 
-def import_osm_to_db(style_file_path: str = None) -> int:
+def import_osm_to_db(input_file: str, style_file_path: str = None) -> int:
     """Return the size of OSM file in bytes if file found and imports OSM file do database specified in config.ini file.
 
     The **default.lua** style file is used if not specified or set otherwise.
-    The function expects the OSM file to be saved as **resources/to_import.***.
     """
-    input_files = ["resources/to_import.osm", "resources/to_import.osm.pbf", "resources/to_import.osm.bz2"]
-    input_file = None
-    for file in input_files:
-        if os.path.exists(file) and is_valid_extension(file):
-            input_file = file
-            file_size = os.path.getsize(input_file)
-            break
-    if not input_file:
+    if not os.path.exists(input_file) or not is_valid_extension(input_file):
         raise FileNotFoundError("No valid file to import was found.")
+    file_size = os.path.andgetsize(input_file)
+
     if style_file_path is None:
         style_file_path = DEFAULT_STYLE_FILE
     if not os.path.exists(style_file_path):
