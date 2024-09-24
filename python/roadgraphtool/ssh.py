@@ -3,29 +3,28 @@ from sshtunnel import SSHTunnelForwarder
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
 
-def setup_ssh_tunnel(ssh_port: int = 22, remote_port: int = 5432) -> SSHTunnelForwarder:
-    """Establish an SSH tunnel to the remote server and return SSH tunnel forwarder.
+class SSHTunnelError(Exception):
+    pass
 
-    Args:
-    - ssh_port: SSH server port (usually 22).
-    - remote_port: Remote port (default is 5432 for PostgreSQL).
+def setup_ssh_tunnel(ssh_tunnel_port: int = 1111) -> SSHTunnelForwarder:
+    """Establish an SSH tunnel to the remote server and return SSH tunnel forwarder.
     """
     try:
         if not os.path.exists(config.private_key_path):
             raise FileNotFoundError(f"Private key not found at {config.private_key_path}")
 
         tunnel = SSHTunnelForwarder(
-            (config.server, ssh_port),
+            config.server,
             ssh_username=config.server_username,
             ssh_pkey=config.private_key_path,
-            local_bind_address=('127.0.0.1', config.db_server_port),
-            remote_bind_address=(config.host, remote_port)
+            local_bind_address=(config.host, ssh_tunnel_port),
+            remote_bind_address=(config.host, config.db_server_port)
         )
         tunnel.start()
         print(f"SSH tunnel established.")
         return tunnel
     except Exception as e:
-        print(f"Failed to establish SSH tunnel: {e}")
+        print(e)
         return None
 
 def cancel_ssh_tunnel(tunnel: SSHTunnelForwarder):

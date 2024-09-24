@@ -6,7 +6,7 @@ import logging
 from roadgraphtool.credentials_config import CREDENTIALS as config, CredentialsConfig
 from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension, setup_logger
 from scripts.find_bbox import find_min_max
-from roadgraphtool.ssh import setup_ssh_tunnel, cancel_ssh_tunnel
+from roadgraphtool.ssh import setup_ssh_tunnel, cancel_ssh_tunnel, SSHTunnelError
 
 DEFAULT_STYLE_FILE = "resources/lua_styles/default.lua"
 
@@ -52,12 +52,15 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     """Import data from input_file using osm2pgsql."""
 
     if config.db_type == 'remote':  # remote connection
-        tunnel = setup_ssh_tunnel()
+        ssh_tunnel_port = 1111
+        tunnel = setup_ssh_tunnel(ssh_tunnel_port)
+        if tunnel is None:
+            raise SSHTunnelError("Failed to establish SSH tunnel.")
     else:  # local connection
         tunnel = None 
 
     cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
-            "-P", str(config.db_server_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
+            "-P", str(ssh_tunnel_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
 
     if coords:
         cmd.extend(["-b", coords])
