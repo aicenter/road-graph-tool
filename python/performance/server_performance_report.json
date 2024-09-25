@@ -1,0 +1,49 @@
+{
+    "system_info": {
+        "system": "Linux",
+        "version": "#1 SMP Debian 4.19.181-1 (2021-03-19)"
+    },
+    "cpu_info": {
+        "logical_cores": 32
+    },
+    "memory_info": {
+        "total_memory": "179.59 GB"
+    },
+    "disk_info": {
+        "total_disk_space": "1837.91 GB"
+    },
+    "osm_info": {
+        "osm_version": "1.8.0"
+    },
+    "data_info": {
+        "remote_ethernet": {
+            "db_info": "PostgreSQL 16.1 (Debian 16.1-1.pgdg110+1)",
+            "czechia": {
+                "performance_metrics": {
+                    "total_time": 3903.9039063453674,
+                    "test_runs": 2
+                },
+                "file_size": "860.05 MB",
+                "date_import": "19.09.2024",
+                "db_table_sizes": {
+                    "test_nodes": "11 GB",
+                    "test_relations": "4916 MB",
+                    "test_ways": "107 MB"
+                }
+            },
+            "germany": {
+                "performance_metrics": {
+                    "total_time": 9259.029076576233,
+                    "test_runs": 2
+                },
+                "file_size": "4.33 GB",
+                "date_import": "19.09.2024",
+                "db_table_sizes": {
+                    "test_nodes": "47 GB",
+                    "test_relations": "509 MB",
+                    "test_ways": "28 GB"
+                }
+            }
+        }
+    }
+}
