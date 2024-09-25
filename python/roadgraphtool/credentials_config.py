@@ -35,7 +35,6 @@ class CredentialsConfig:
         self.db_password = database.get("db_password", "")
         self.db_host = database.get("db_host", "localhost")
         self.db_name = database.get("db_name", None)
-        self.db_type = database.get("db_type", None)
 
         if "ssh" in config:
             ssh = config["ssh"]
