@@ -124,7 +124,7 @@ def import_osm_to_db(input_file: str, style_file_path: str = None, schema: str =
     """
     if not os.path.exists(input_file) or not is_valid_extension(input_file):
         raise FileNotFoundError("No valid file to import was found.")
-    file_size = os.path.andgetsize(input_file)
+    file_size = os.path.getsize(input_file)
 
     if style_file_path is None:
         style_file_path = DEFAULT_STYLE_FILE
