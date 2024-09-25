@@ -136,6 +136,13 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         help='Import OSM data to database specified in config.ini'
     )
     parser.add_argument(
+        '-if',
+        '--input-file',
+        dest='input_file', 
+        required=True,
+        help='Input OSM file path for -i/--import.'
+    )
+    parser.add_argument(
         '-sf', '--style-file',
         dest='style_file',
         help="Optional style file path for -i/--import. Default is 'default.lua' otherwise.",
@@ -156,7 +163,7 @@ def main(arg_list: list[str] | None = None) -> int:
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        file_size = import_osm_to_db(args.style_file, args.schema)
+        file_size = import_osm_to_db(args.input_file, args.style_file, args.schema)
     
     area_id = args.area_id
     area_srid = args.area_srid

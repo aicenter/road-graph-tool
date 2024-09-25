@@ -29,7 +29,10 @@ class MissingInputError(Exception):
     pass
 
 def is_valid_extension(file: str) -> bool:
-    """Return True if if the file has a valid extension."""
+    """Return True if the file has a valid extension.
+    
+    Valid extensions: osm, osm.pbf, osm.bz2
+    """
     valid_extensions = ["osm", "osm.pbf", "osm.bz2"]
     return any(file.endswith(f".{ext}") for ext in valid_extensions)
 
