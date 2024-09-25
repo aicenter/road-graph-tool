@@ -21,7 +21,7 @@ from scripts.process_osm import import_osm_to_db
 from roadgraphtool.credentials_config import CREDENTIALS
 from scripts.main import main as pipeline_main
 
-MARKDOWN_FILE = "python/performance/README.md"
+MARKDOWN_FILE = "python/performance/perf_report.md"
 JSON_FILE = "python/performance/performance_report.json"
 
 def get_osm2pgsql_version() -> str:
@@ -48,6 +48,13 @@ def format_time(seconds: float) -> str:
         return f"{int(minutes)}min"
     else:
         return f"{int(sec)}s"
+    
+def get_table_size_from_dict(table: str, size_dict: dict) -> str:
+    regex = re.compile(r"\w*" + re.escape(table) + r"\b")
+    for t in size_dict.keys():
+        if regex.match(t):
+            return size_dict.get(t, "N/A")
+    return "N/A" 
 
 def generate_markdown_row(location: str, data: dict) -> str:
     """Return a generated markdown table row for a specific location."""
@@ -60,9 +67,10 @@ def generate_markdown_row(location: str, data: dict) -> str:
     runs = performance_metrics.get("test_runs", 1)
 
     time = format_time(total_time / runs)
-    nodes_size = db_table_sizes.get("nodes", "N/A")
-    ways_size = db_table_sizes.get("ways", "N/A")
-    relations_size = db_table_sizes.get("relations", "N/A")
+
+    nodes_size = get_table_size_from_dict("nodes", db_table_sizes)
+    ways_size = get_table_size_from_dict("ways", db_table_sizes)
+    relations_size = get_table_size_from_dict("relations", db_table_sizes)
 
     return f"| {location.title()} | {file_size} | {date} | {time} | {nodes_size} | {ways_size} | {relations_size} |"
 
@@ -144,13 +152,13 @@ def get_db_table_sizes(config: dict, schema: str) -> dict:
     except (psycopg2.DatabaseError, Exception) as error:
         raise error
 
-def monitor_performance(config: dict, schema: str, style_file: str, importing: bool) -> dict:
+def monitor_performance(config: dict, input_file: str, schema: str, style_file: str, importing: bool) -> dict:
     """Return dictionary of monitored time, file size, date of import and table sizes
     after running the **import_osm_to_db()** function."""
     start_time = time.time()
 
     if importing:
-        file_size = import_osm_to_db(style_file, schema=schema)
+        file_size = import_osm_to_db(input_file, style_file, schema=schema)
     else:
         # TODO:
         area_id = 51 # placeholder - area id based on data
@@ -175,7 +183,7 @@ def get_db_version(config: dict) -> str:
     except (psycopg2.DatabaseError, Exception) as error:
         return str(error)
 
-def monitor(config: dict, location: str, mode: str, network_conn: str, schema: str, style_file: str, importing: bool) -> dict:
+def monitor(config: dict, input_file: str, location: str, mode: str, network_conn: str, schema: str, style_file: str, importing: bool) -> dict:
     """Monitors HW metrics, time, memory and DB table sizes."""
     # Get hardware info
     hw_metrics = get_hw_config()
@@ -184,7 +192,7 @@ def monitor(config: dict, location: str, mode: str, network_conn: str, schema: s
     hw_metrics["data_info"] = {
         mode_conn: {
             "db_info": get_db_version(config),
-            location: monitor_performance(config, schema, style_file, importing)
+            location: monitor_performance(config, input_file, schema, style_file, importing)
         }
     }
     return hw_metrics
@@ -288,15 +296,16 @@ def main(arg_list: list[str] | None = None):
             conn = get_network_config()
             if file_exists(JSON_FILE):
                 metrics = read_json()
-                new_metrics = monitor_performance(config, schema, args.style_file, args.importing)
+                new_metrics = monitor_performance(config, args.input_file, schema, args.style_file, args.importing)
                 update_performance(new_metrics, metrics, location, mode, conn, config)
                 write_json(metrics)
             else:
-                metrics = monitor(config, location, mode, conn, schema, args.style_file, args.importing)
+                metrics = monitor(config, args.input_file, location, mode, conn, schema, args.style_file, args.importing)
                 write_json(metrics)
 
 
 if __name__ == '__main__':
     main()
-    # main(['l', 'monaco', '-m','remote', '-s', 'public', '-sf', 'resources/lua_styles/pipeline.lua'])
+    # main(['md', '-mh', 'importing on server'])
+    # main(['l', 'monaco', '-i', '-m','local', '-s', 'osm_testing', '-sf', 'resources/lua_styles/pipeline.lua'])
     # main(['l', 'monaco', '-m','local', '-s', 'osm_testing', '-i', '-sf', 'resources/lua_styles/pipeline.lua'])
