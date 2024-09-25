@@ -29,7 +29,7 @@ To execute the configured pipeline, follow these steps:
     If the server database requires password, store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format: `hostname:port:database:username:password`.
 
     To start importing, run the `main.py` script with with `-i` or `--import`flag. This triggers [import_osm_to_db()](python/scripts/process_osm.py) function, which requires the OSM file path as an argument. 
-    > **_NOTE:_** To ensure the SSH tunnel is correctly established for a remote database, provide `ssh` details in [config-EXAMPLE.ini](./config-EXAMPLE.ini).
+    > **_NOTE:_** To ensure the SSH tunnel is correctly set up for a remote database, provide `ssh` details in [config-EXAMPLE.ini](./config-EXAMPLE.ini).
     - SSH tunnel setup is handled with [set_ssh_to_db_server_and_set_port()](python/roadgraphtool/db.py).
     
     A style file path can also be provided - if omitted, the default style file [default.lua](resources/lua_styles/default.lua) is used. To customize the style file, define a new path for the [DEFAULT_STYLE_FILE](python/scripts/process_osm.py).
