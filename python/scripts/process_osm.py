@@ -6,6 +6,7 @@ import logging
 from roadgraphtool.credentials_config import CREDENTIALS as config, CredentialsConfig
 from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension, setup_logger
 from scripts.find_bbox import find_min_max
+from roadgraphtool.db import db
 
 DEFAULT_STYLE_FILE = "resources/lua_styles/default.lua"
 
@@ -49,8 +50,16 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
 
 def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, coords: str| list[int] = None):
     """Import data from input_file using osm2pgsql."""
+
+    if hasattr(config, "server"): # remote connection
+        ssh_tunnel_port = 1113 # check roadgraphtool.db.ssh_tunnel_local_port (needs to be same)
+        db.set_ssh_to_db_server_and_set_port()
+    else:  # local connection
+        ssh_tunnel_port = config.db_server_port
+
     cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
-               "-P", str(config.db_server_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
+            "-P", str(ssh_tunnel_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
+
     if coords:
         cmd.extend(["-b", coords])
 
@@ -63,21 +72,15 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     if not res.returncode:
         logger.info("Importing completed.")
 
-def import_osm_to_db(style_file_path: str = None) -> int:
+def import_osm_to_db(input_file: str, style_file_path: str = None) -> int:
     """Return the size of OSM file in bytes if file found and imports OSM file do database specified in config.ini file.
 
     The **default.lua** style file is used if not specified or set otherwise.
-    The function expects the OSM file to be saved as **resources/to_import.***.
     """
-    input_files = ["resources/to_import.osm", "resources/to_import.osm.pbf", "resources/to_import.osm.bz2"]
-    input_file = None
-    for file in input_files:
-        if os.path.exists(file) and is_valid_extension(file):
-            input_file = file
-            file_size = os.path.getsize(input_file)
-            break
-    if not input_file:
+    if not os.path.exists(input_file) or not is_valid_extension(input_file):
         raise FileNotFoundError("No valid file to import was found.")
+    file_size = os.path.getsize(input_file)
+
     if style_file_path is None:
         style_file_path = DEFAULT_STYLE_FILE
     if not os.path.exists(style_file_path):
