@@ -60,7 +60,6 @@ class CredentialsConfig:
                 "   db_password: {}".format(self.db_password),
                 "   db_host: {}".format(self.db_host),
                 "   db_name: {}".format(self.db_name),
-                "   db_type: {}".format(self.db_type),
                 "SSH credentials:",
                 "   server_username: {}".format(self.server_username),
                 "   private_key_path: {}".format(self.private_key_path),
