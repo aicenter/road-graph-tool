@@ -148,6 +148,12 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         help="Optional style file path for -i/--import. Default is 'default.lua' otherwise.",
         required=False
     )
+    parser.add_argument(
+        '-sch', '--schema',
+        dest='schema',
+        help="Optional schema argument for -i/--import. Default is 'public' otherwise.",
+        required=False
+    )
 
     return parser
 
@@ -157,7 +163,7 @@ def main(arg_list: list[str] | None = None):
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        import_osm_to_db(args.input_file, args.style_file)
+        import_osm_to_db(args.input_file, args.style_file, args.schema)
     
     area_id = args.area_id
     area_srid = args.area_srid
