@@ -43,4 +43,4 @@
 | Location | File size | Date of import | Speed of import | Nodes size | Ways size | Relations size |
 | --- | --- | --- | --- | --- | --- | --- |
 | Czechia | 860.05 MB | 19.09.2024 | 32min | 11 GB | 107 MB | 4916 MB |
-| Germany | 4.33 GB | 19.09.2024 | 1h 17min | 47 GB | 28 GB | 509 MB |
+| Germany | 4.33 GB | 19.09.2024 | 2h 34min | 47 GB | 28 GB | 509 MB |

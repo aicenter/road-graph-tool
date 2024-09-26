@@ -277,7 +277,7 @@ def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
 
 def main(arg_list: list[str] | None = None):
     config = {
-        "host": CREDENTIALS.host,
+        "host": CREDENTIALS.db_host,
         "dbname": CREDENTIALS.db_name,
         "user": CREDENTIALS.username,
         "password": CREDENTIALS.db_password,
@@ -305,7 +305,7 @@ def main(arg_list: list[str] | None = None):
 
 
 if __name__ == '__main__':
-    main()
-    # main(['md', '-mh', 'importing on server'])
+    # main()
+    main(['md', '-mh', 'importing on server'])
     # main(['l', 'monaco', '-i', '-m','local', '-s', 'osm_testing', '-sf', 'resources/lua_styles/pipeline.lua'])
     # main(['l', 'monaco', '-m','local', '-s', 'osm_testing', '-i', '-sf', 'resources/lua_styles/pipeline.lua'])
