@@ -1,26 +1,30 @@
-The Road Graph Tool is a Project for processing data from various sources into a road graph data usable as an input for transportation problems. Version 1.0.0 of the project targets to provide a road network with the following features:
-- geographical location of vertices and edges,
-- geographical shape of edges,
-- elevation of vertices,
-- measured and posted speed of edges, and
-- travel demand data located at the vertices.
+The Road Graph Tool is a project for processing data from various sources into a road graph usable as an input for transportation problems. Version 0.1.0 of the project targets to provide a road network with the following features:
 
-The version 1.0.0 of use the following data sources:
+- geographical location of vertices and edges, and
+- geographical shape of edges
+
+The version 0.1.0 use the following data sources:
+
 - OpenStreetMap (OSM) data for the road network and its geographical properties,
-- SRTM data for the elevation of vertices,
-- Uber Movement data for the speed of edges.
-- Travel demand data from various sources.
 
-The processing and storage of the data are done in a PostgreSQL/PostGIS database. To manipulate the database, import data to the database, and export data from the database, the project provides a set of Python scripts. 
+The processing and storage of the data are done in a PostgreSQL/PostGIS database. To manipulate the database, import data to the database, and export data from the database, the project provides a set of Python scripts.
+
+
+# Dependencies
+To run the tool, you need access to a local or remote PostgreSQL database with the following extensions installed:
+
+- [PostGIS](https://postgis.net/)
+- [PgRouting](https://pgrouting.org/), and
+- hstore (available by default).
+
 
 # Quick Start Guide
-
-To run the tool, you need access to a local or remote PostgreSQL database with the PostGIS, PgRouting, and hstore (available by default) extensions installed. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level; you only need to provide the necessary configuration in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration).
-
 After setting up the configuration file, your next step is to edit the `main.py` file to execute only the steps you need. Currently, the content of `main.py` includes Python wrappers for the provided SQL functions in the `SQL/` directory, an example of an argument parser, and a main execution pipeline, which may be of interest to you.
 
 To execute the configured pipeline, follow these steps:
 
+1. Install the Road Graph Tool Python package: `pip install -e <clone dir>/Python`.
+1. Configure the database in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration). The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
 1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
 
 2. Next, you should import OSM data into your database - this project utilizes [osm2pgsql](https://osm2pgsql.org/) for that.
