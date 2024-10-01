@@ -124,9 +124,9 @@ Use `u` flag to upload data into database.
 ```bash
 python3 process_osm.py u [input_file] [-l style_file]
 ```
-    > **WARNING:_** Running this command will overwrite existing data in the relevant table. If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
+> **_WARNING:_** Running this command will overwrite existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
 
-* E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
+E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
 ```bash
 # runs with default.lua
 python3 process_osm.py u lithuania-latest.osm.pbf
