@@ -129,7 +129,6 @@ b  : Extract greatest bounding box from given relation ID of
 
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
-    print(args)
 
     if not os.path.exists(args.input_file):
         raise FileNotFoundError(f"File '{args.input_file}' does not exist.")

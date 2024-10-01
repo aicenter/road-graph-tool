@@ -17,6 +17,7 @@ To run the tool, you need access to a local or remote PostgreSQL database with t
 - [PgRouting](https://pgrouting.org/), and
 - hstore (available by default).
 
+Refer to the [Prerequisities](#prerequisities) section for details on installing the required dependencies for importing data into the database.
 
 # Quick Start Guide
 After setting up the configuration file, your next step is to edit the `main.py` file to execute only the steps you need. Currently, the content of `main.py` includes Python wrappers for the provided SQL functions in the `SQL/` directory, an example of an argument parser, and a main execution pipeline, which may be of interest to you.
@@ -86,10 +87,10 @@ The road graph tool consists of a set of components that are responsible for ind
 
 ## OSM file processing and importing
 ### Prerequisities
-Before we can process and load data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to obtain and install several libraries: 
+Before processing and loading data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to install several libraries: 
 * psql (for PostgreSQL)
-* osmium: osmium-tool (macOS `brew install osmium-tool`, Ubuntu `apt install osmium-tool`)
-* osm2pgsql (macOS `brew install osm2pgsql`, Ubuntu (1.6.0 version) `apt install osm2pgsql`)
+* osmium: osmium-tool (macOS: `brew install osmium-tool`, Ubuntu: `apt install osmium-tool`)
+* osm2pgsql (macOS: `brew install osm2pgsql`, Ubuntu: `apt install osm2pgsql` for version 1.6.0) - the current version or RTG uses `osm2pgsql 2.0.0`, which is compatible with version `1.11.0`
 The PostgreSQL database needs PostGis extension in order to enable spatial and geographic capabilities within the database, which is essential for working with OSM data.
 Loading large OSM files to database is memory demanding so [documentation](https://osm2pgsql.org/doc/manual.html#system-requirements) suggests to have RAM of at least the size of the OSM file.
 
