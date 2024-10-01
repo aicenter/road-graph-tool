@@ -1,8 +1,6 @@
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import pytest
-
 from roadgraphtool.db import db
 from roadgraphtool.db_operations import (compute_strong_components,
                                          contract_graph_in_area)
@@ -82,8 +80,21 @@ def parse_osm_file(file_path):
 # Testing functions
 
 
-@pytest.fixture(scope="module")
-def setup():
+def test_integration_base_flow():
+    """
+    Integration test:
+        Base flow:
+            1) Import test data:
+                i) set up basic tables (optionally)
+                ii) import osm file
+                iii) add test area
+            2) Execute contraction of graph in the area
+            3) Execute computation of strong components in the area
+            4) Export data to files
+            5) Destroy testing environment
+    """
+
+    # 1) setting up the database with needed information
     if not check_setup_of_database():
         pre_pocessing()
 
@@ -99,19 +110,10 @@ def setup():
         read_area(str(TEST_DATA_PATH / "integration_area.json")),
     )
 
-
-@pytest.fixture(scope="module", autouse=True)
-def destructor():
-    yield  # to act as a destructor
-
-    # test environment desctructor
-    db.execute_sql("CALL test_env_destructor();")
-
-
-def test_importing(setup):
     # read osm file to dictionary
     osm_dict = parse_osm_file(TEST_DATA_PATH / "integration_test.osm")
     print(osm_dict)
+
     # Test that importing osm data and area was done successfully
     nodes = db.execute_sql_and_fetch_all_rows(
         "SELECT id, ST_X(geom), ST_Y(geom) FROM nodes;"
@@ -179,10 +181,10 @@ def test_importing(setup):
 
     assert area == expected_area
 
-
-def test_integration_contraction(setup):
+    # 2) 2) Call contraction
     contract_graph_in_area(1, 4326, fill_speed=False)
 
+    # GET updated data from db and assert
     contracted_nodes = db.execute_sql_and_fetch_all_rows(
         "SELECT id FROM nodes WHERE contracted;"
     )
@@ -194,12 +196,19 @@ def test_integration_contraction(setup):
         edges
     )
 
-
-def test_integration_strongly_connected_components(setup):
+    # 3) Call Compute Strong Components
     compute_strong_components(1)
 
+    # GET updated data from db and assert
     component_data = db.execute_sql_and_fetch_all_rows(
         "SELECT component_id, node_id FROM component_data"
     )
 
     assert set([(0, 1), (0, 2), (0, 3), (0, 4), (1, 5)]) == set(component_data)
+
+    # 4) Export data to files
+    # TODO: export
+
+    # 5) Environment destruction
+    # test environment desctructor
+    db.execute_sql("CALL test_env_destructor();")
