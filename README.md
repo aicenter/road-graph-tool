@@ -112,13 +112,15 @@ python3 process_osm.py sr [input_file] -o [output_file]
 ```
 
 ### 2. Importing to database using Flex output
-The `process_osm.py` script also allows to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we specify the Flex style file (Lua script) that has all the logic for processing data in OSM file.
+The primary function of  `process_osm.py` script is to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we define the Flex style file (Lua script) that has all the logic for processing data in OSM file.
 
 The default style file for this project is `resources/lua_styles/default.lua`, which processes and all nodes, ways and relations without creating additional attributes (based on tags) into following tables: `nodes` (node_id, geom, tags), `ways` (way_id, geom, tags, nodes), `relations` (relation_id, tags, members).
 
+Use `u` flag to upload data into database.
 ```bash
 python3 process_osm.py u [input_file] [-l style_file]
 ```
+    > **WARNING:_** Running this command will overwrite existing data in the relevant table. If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
 
 * E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
 ```bash

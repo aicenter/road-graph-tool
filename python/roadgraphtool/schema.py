@@ -5,6 +5,11 @@ from roadgraphtool.credentials_config import CredentialsConfig
 if TYPE_CHECKING:
     from psycopg2 import connection
 
+TABLES = ["nodes", "ways"]
+
+class TableNotEmptyError(Exception):
+    pass
+
 def get_connection(config: CredentialsConfig) -> Optional['connection']:
     """Establishes a connection to the database and returns the connection object."""
     try:
@@ -46,5 +51,24 @@ def add_postgis_extension(schema: str, config: CredentialsConfig):
             with conn.cursor() as cur:
                 query = f'CREATE EXTENSION postgis SCHEMA "{schema}";'
                 cur.execute(query)
+    except (psycopg2.DatabaseError, Exception) as error:
+        return str(error)
+
+def  check_empty_or_nonexistent_tables(schema: str, config: CredentialsConfig) -> bool:
+    """Return True, if tables (nodes, ways) are empty or non-existent."""
+    try:
+        with get_connection(config) as conn:
+            with conn.cursor() as cur:
+                for t in TABLES:
+                    query =  f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '{schema}' AND table_name = '{t}');"
+                    cur.execute(query)
+                    exists = cur.fetchone()[0]
+                    if exists:
+                        query = f"SELECT EXISTS (SELECT  * FROM {schema}.{t} limit 1) as has_data;"
+                        cur.execute(query)
+                        has_data = cur.fetchone()[0]
+                        if has_data: # table exists and isn't empty
+                            return False
+        return True
     except (psycopg2.DatabaseError, Exception) as error:
         return str(error)
