@@ -66,7 +66,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     add_postgis_extension(schema, config)
 
     cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
-               "-P", str(ssh_tunnel_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
+               "-P", str(ssh_tunnel_port), "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
 
