@@ -1,3 +1,5 @@
 .idea/
 roadgraphtool.egg-info/
 __pycache__/
+config.ini
+resources/to_import.osm.pbf
