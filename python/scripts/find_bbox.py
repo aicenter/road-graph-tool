@@ -2,9 +2,9 @@ import xml.etree.ElementTree as ET
 import sys
 
 
-def find_min_max(xml_file):
-    tree = ET.parse(xml_file)
-    root = tree.getroot()
+def find_min_max(xml) -> tuple[float, float, float, float]:
+    """Return tuple of floats representing bounding box borders."""
+    root = ET.fromstring(xml)
 
     min_lon = float('inf')
     min_lat = float('inf')
@@ -24,8 +24,8 @@ def find_min_max(xml_file):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python script.py <json_file>")
+        print("Usage: python3 find_bbox.py <xml>")
         sys.exit(1)
-    xml_file = sys.argv[1]
-    min_lon, min_lat, max_lon, max_lat = find_min_max(xml_file)
-    print(f"Boudning box:    {min_lon},{min_lat},{max_lon},{max_lat}")
+    xml = sys.argv[1]
+    min_lon, min_lat, max_lon, max_lat = find_min_max(xml)
+    print(f"Bounding box:    {min_lon},{min_lat},{max_lon},{max_lat}")

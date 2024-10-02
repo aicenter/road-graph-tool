@@ -190,6 +190,7 @@ $$
 DECLARE
     test_scheme_name TEXT := $1;
     table_name_i TEXT;
+    object RECORD;
 BEGIN
     -- schema should exist already as a prerequisite
     -- check that given schema name is not empty
@@ -207,10 +208,22 @@ BEGIN
         RAISE EXCEPTION 'Schema % does not exist. Please create test scheme...', test_scheme_name;
     END IF;
 
-    -- copy tables with no data to test_scheme_name
     FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = 'public')
         LOOP
-            EXECUTE format('CREATE TABLE %I.%I AS TABLE public.%I WITH NO DATA', test_scheme_name, table_name_i, table_name_i);
+            -- Create the table with the same structure
+            EXECUTE format('CREATE TABLE %I.%I (LIKE public.%I INCLUDING ALL)',
+                       test_scheme_name, table_name_i, table_name_i);
+
+        END LOOP;
+
+
+    -- Copy sequences
+    FOR object IN
+        SELECT sequence_name::text FROM information_schema.sequences
+        WHERE sequence_schema = 'public'
+        LOOP
+            EXECUTE 'CREATE SEQUENCE ' || quote_ident(test_scheme_name) || '.' || quote_ident(object.sequence_name) ||
+                    ' AS INTEGER';
         END LOOP;
 
     -- update search path. In the end it should look like: "test_env, \"$user\", public",
@@ -234,6 +247,7 @@ $$
 DECLARE
     test_scheme_name TEXT := $1;
     table_name_i TEXT;
+    tmp TEXT;
 BEGIN
     -- check that given schema name is not empty and not 'public'
     IF test_scheme_name = '' OR test_scheme_name = 'public' THEN
@@ -244,6 +258,18 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
         RAISE EXCEPTION 'Schema % does not exist, thus nothing to do', test_scheme_name;
     END IF;
+
+    -- drop every sequence in test_scheme_name
+    FOR tmp IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = test_scheme_name)
+        LOOP
+            EXECUTE format('DROP SEQUENCE %I.%I', test_scheme_name, tmp);
+        END LOOP;
+
+    -- drop every view in test_scheme_name
+    FOR table_name_i IN (SELECT table_name FROM information_schema.views WHERE table_schema = test_scheme_name)
+        LOOP
+            EXECUTE format('DROP VIEW %I.%I', test_scheme_name, table_name_i);
+        END LOOP;
 
     -- drop every table in test_scheme_name
     FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = test_scheme_name)

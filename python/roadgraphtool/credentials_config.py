@@ -1,7 +1,7 @@
+import configparser
 import logging
 import os
 import pathlib
-import configparser
 
 
 def read_config(config_paths):
@@ -12,28 +12,62 @@ def read_config(config_paths):
 
     read_configs = config.read(config_paths)
     if read_configs:
-        logging.info('Successfully read db config from: {}'.format(str(read_configs)))
+        logging.info("Successfully read db config from: {}".format(str(read_configs)))
     else:
-        logging.info('Failed to find any config in {}'.format([os.path.abspath(path) for path in config_paths]))
+        logging.error(
+            "Failed to find any config in {}".format(
+                [os.path.abspath(path) for path in config_paths]
+            )
+        )
     return config
 
 
 class CredentialsConfig:
-    CONFIG_PATHS = [f'{pathlib.Path(__file__).parent}/config.ini']
+    CONFIG_PATHS = [f"{pathlib.Path(__file__).parent.parent.parent}/config.ini"]
 
     def __init__(self):
         config = read_config(self.CONFIG_PATHS)
-        self.server_username = config['ssh'].get('server_username', None)
-        self.private_key_path = config['ssh'].get('private_key_path', None)
-        self.private_key_phrase = config['ssh'].get('private_key_passphrase', None)
-        self.host = config['ssh'].get('host', 'localhost')
-        self.server = config['ssh'].get('server', None)
 
-        self.db_server_port = int(config['database'].get('db_server_port', '5432'))
-        self.username = config['database']['username']
-        self.db_password = config['database']['db_password']
-        self.db_host = config['database']['db_host']
-        self.db_name = config['database']['db_name']
+        database = config["database"]
+
+        self.db_server_port = int(database.get("db_server_port", "5432"))
+        self.username = database.get("username", None)
+        self.db_password = database.get("db_password", "")
+        self.db_host = database.get("db_host", "localhost")
+        self.db_name = database.get("db_name", None)
+
+        if "ssh" in config:
+            ssh = config["ssh"]
+            self.server_username = ssh.get("server_username", None)
+            self.private_key_path = ssh.get("private_key_path", None)
+            self.private_key_phrase = ssh.get("private_key_passphrase", None)
+            self.host = ssh.get("host", "localhost")
+            self.server = ssh.get("server", None)
+
+        if "username" not in database or "db_name" not in database:
+            raise RuntimeError(
+                'Database critical credentials ("username" or/and "db_name") not found in config file. Parsed credentials are:\n{}'.format(
+                    self
+                )
+            )
+
+    def __str__(self):
+        return "\n".join(
+            [
+                "Database credentials:",
+                "   db_server_port: {}".format(self.db_server_port),
+                "   username: {}".format(self.username),
+                "   db_password: {}".format(self.db_password),
+                "   db_host: {}".format(self.db_host),
+                "   db_name: {}".format(self.db_name),
+                "SSH credentials:",
+                "   server_username: {}".format(self.server_username),
+                "   private_key_path: {}".format(self.private_key_path),
+                "   private_key_phrase: {}".format(self.private_key_phrase),
+                "   host: {}".format(self.host),
+                "   server: {}".format(self.server),
+            ]
+        )
 
 
 CREDENTIALS = CredentialsConfig()

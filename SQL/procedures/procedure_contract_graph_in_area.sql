@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE contract_graph_in_area(IN target_area_id smallint, IN target_area_srid integer)
+CREATE OR REPLACE PROCEDURE contract_graph_in_area(IN target_area_id smallint, IN target_area_srid integer, IN fill_speed boolean DEFAULT TRUE)
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -6,9 +6,30 @@ DECLARE
 BEGIN
 -- road segments table
 RAISE NOTICE 'Creating road segments table';
+IF fill_speed THEN
 CREATE TEMPORARY TABLE road_segments AS (
-	SELECT * FROM select_node_segments_in_area(target_area_id, target_area_srid)
+	    SELECT
+        from_id,
+        to_id,
+        from_node,
+        to_node,
+        from_position,
+        to_position,
+        way_id,
+        geom,
+        nodes_ways_speeds.speed AS speed,
+        nodes_ways_speeds.quality AS quality
+        FROM select_node_segments_in_area(target_area_id, target_area_srid)
+            JOIN nodes_ways_speeds ON
+                from_id = nodes_ways_speeds.from_node_ways_id
+                AND to_id = nodes_ways_speeds.to_node_ways_id
 );
+ELSE
+    CREATE TEMPORARY TABLE road_segments AS (
+    SELECT * FROM select_node_segments_in_area(target_area_id, target_area_srid)
+);
+end if;
+
 CREATE INDEX road_segments_index_from_to ON road_segments (from_id, to_id);
 RAISE NOTICE 'Road segments table created: % road segments', (SELECT count(*) FROM road_segments);
 
@@ -40,6 +61,8 @@ WHERE id IN (
 
 -- edges for non contracted road segments
 RAISE NOTICE 'Creating edges for non-contracted road segments';
+
+IF fill_speed THEN
 INSERT INTO edges ("from", "to", geom, area, speed)
 SELECT
 	road_segments.from_node,
@@ -51,11 +74,25 @@ SELECT
 		JOIN nodes from_nodes ON from_nodes.id  = from_node AND from_nodes.contracted = FALSE
 		JOIN nodes to_nodes ON to_nodes.id  = to_node AND to_nodes.contracted = FALSE
 	JOIN ways ON ways.id = road_segments.way_id;
+ELSE
+INSERT INTO edges ("from", "to", geom, area)
+SELECT
+    road_segments.from_node,
+    road_segments.to_node,
+    st_multi(st_makeline(from_nodes.geom, to_nodes.geom)) as geom,
+    target_area_id AS area
+    FROM road_segments
+        JOIN nodes from_nodes ON from_nodes.id  = from_node AND from_nodes.contracted = FALSE
+        JOIN nodes to_nodes ON to_nodes.id  = to_node AND to_nodes.contracted = FALSE
+        JOIN ways ON ways.id = road_segments.way_id;
+END IF;
+
 non_contracted_edges_count := (SELECT count(*) FROM edges WHERE area = target_area_id);
 RAISE NOTICE '% Edges for non-contracted road segments created', non_contracted_edges_count;
 
 -- contraction segments generation
 RAISE NOTICE 'Generating contraction segments';
+IF fill_speed THEN
 CREATE TEMPORARY TABLE contraction_segments AS (
 SELECT
     from_contraction.id,
@@ -89,10 +126,44 @@ SELECT
 FROM contractions
 	JOIN road_segments ON road_segments.from_node = contracted_vertex AND road_segments.to_node = target
 );
+ELSE
+CREATE TEMPORARY TABLE contraction_segments AS (
+    SELECT
+        from_contraction.id,
+        from_contraction.contracted_vertex AS from_node,
+        to_contraction.contracted_vertex AS to_node,
+        geom
+    FROM
+        contractions from_contraction
+            JOIN contractions to_contraction
+                 ON from_contraction.id = to_contraction.id
+            JOIN road_segments
+                 ON road_segments.from_node = from_contraction.contracted_vertex
+                     AND road_segments.to_node = to_contraction.contracted_vertex
+    UNION
+    SELECT
+        id,
+        source AS from_node,
+        contracted_vertex AS to_node,
+        geom
+    FROM contractions
+             JOIN road_segments ON road_segments.from_node = source AND road_segments.to_node = contracted_vertex
+    UNION
+    SELECT
+        id,
+        contracted_vertex AS from_node,
+        target AS to_node,
+        geom
+    FROM contractions
+             JOIN road_segments ON road_segments.from_node = contracted_vertex AND road_segments.to_node = target
+);
+END IF;
+
 RAISE NOTICE '% contraction segments generated', (SELECT count(*) FROM contraction_segments);
 
 -- edges for contracted road segments
 RAISE NOTICE 'Creating edges for contracted road segments';
+IF fill_speed THEN
 INSERT INTO edges ("from", "to", area, geom, speed)
 SELECT
 	max(source) AS "from",
@@ -103,6 +174,17 @@ SELECT
 	FROM contractions
 	    JOIN contraction_segments ON contraction_segments.id = contractions.id
 	GROUP BY contractions.id;
+ELSE
+INSERT INTO edges ("from", "to", area, geom)
+SELECT
+    max(source) AS "from",
+    max(target) AS "to",
+    target_area_id AS area,
+    st_transform(st_multi(st_union(geom)), 4326) AS geom
+    FROM contractions
+        JOIN contraction_segments ON contraction_segments.id = contractions.id
+    GROUP BY contractions.id;
+END IF;
 RAISE NOTICE '% Edges for contracted road segments created', (SELECT count(*) FROM edges WHERE area = target_area_id) - non_contracted_edges_count;
 
 DISCARD TEMPORARY;

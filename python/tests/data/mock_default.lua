@@ -3,21 +3,22 @@ local srid = 4326
 local tables = {}
 
 -- define table nodes:
-tables.nodes = osm2pgsql.define_node_table('nodes', {
-    { column = 'geom', type = 'point', projection=srid, not_null = true }, -- not_null = true: if invalid node, ignore it
+tables.nodes = osm2pgsql.define_node_table('mocknodes', {
+    -- not_null = true: if invalid node, ignore it
+    { column = 'geom', type = 'point', projection=srid, not_null = true },
     { column = 'tags', type = 'jsonb' },
 })
 
 -- define table ways:
-tables.ways = osm2pgsql.define_way_table('ways', {
+tables.ways = osm2pgsql.define_way_table('mockways', {
     -- not_null = true: if invalid way, ignore it
     { column = 'geom', type = 'linestring', projection=srid, not_null = true },
     { column = 'tags', type = 'jsonb' },
     { column = 'nodes', type = 'jsonb' },
 })
 
--- define table relations:
-tables.relations = osm2pgsql.define_relation_table('relations', {
+
+tables.relations = osm2pgsql.define_relation_table('mockrelations', {
     { column = 'tags', type = 'jsonb' },
     { column = 'members', type = 'jsonb' },
 })
@@ -32,6 +33,7 @@ local function clean_tags(tags)
 
     return next(tags) == nil
 end
+
 
 -- Process every node in the input
 function osm2pgsql.process_node(object)

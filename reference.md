@@ -7,6 +7,7 @@
 2. [SQL Functions](#sql-functions)
    - [get_area_for_demand](#get_area_for_demand)
    - [get_ways_in_target_area](#get_ways_in_target_area)
+   - [insert_area](#insert_area)
    - [select_network_nodes_in_area](#select_network_nodes_in_area)
 
 3. [SQL Procedures](#sql-procedures)
@@ -25,15 +26,60 @@
 ### `get_map_nodes_from_db`
 
 #### Description
-This function retrieves map nodes from a database based on the area ID. It utilizes SQLAlchemy for database connectivity and GeoPandas for handling geographic data.
+This function retrieves map nodes from a database based on the area ID.
 
 #### Parameters
-- `config`: A dictionary containing configuration parameters for database connectivity.
-- `server_port`: The port number of the database server.
 - `area_id` (int): The ID of the area for which nodes are to be retrieved.
 
 #### Return Value
-- `gpd.GeoDataFrame`: A GeoDataFrame containing the retrieved map nodes.
+- `nodes`: A GeoDataFrame containing the retrieved map nodes.
+
+### `get_map_edges_from_db`
+
+#### Description
+This function retrieves map edges from a database based on the area ID and SRID.
+
+#### Parameters
+- `config`: A dictionary containing `area_id` and `SRID_plane`.
+
+#### Return Value
+- `edges`: A GeoDataFrame containing the retrieved map edges.
+
+## Generation Procedures (instance_generation.py) 
+
+### `generate_dm`
+
+#### Description
+
+This procedure generates a distance matrix for a given set of nodes and edges, which represent a road network.
+
+#### Parameters
+
+- `config` (Dict): A configuration dictionary containing necessary paths and settings.
+  - dm_filepath: (Optional) The file path where the distance matrix will be saved.
+  - area_dir: Directory path for storing the distance matrix if dm_filepath is not provided.
+  - map['path']: Directory path where the map files are located.
+- `nodes` (gpd.GeoDataFrame): A GeoDataFrame containing the nodes of the network.
+- `edges` (gpd.GeoDataFrame): A GeoDataFrame containing the edges of the network, with optional speed data.
+- `allow_zero_length_edges` (bool, default=True): A flag to allow or disallow zero-length edges in the network.
+
+#### Prerequisite
+
+Must be installed [Shortest Distances computation library](https://github.com/aicenter/shortest-distances) (`shortestPathsPreprocessor`)
+
+#### Example
+
+```
+from pathlib import Path
+from roadgraphtool.distance_matrix_generator import load_instance_config
+from roadgraphtool.distance_matrix_generator import generate_dm
+from roadgraphtool.map import get_map
+
+config = load_instance_config(Path("C:/Users/sha00/Desktop/config.yaml"))
+map_nodes, map_edges = get_map(config)
+
+generate_dm(config, map_nodes, map_edges)
+```
 
 # SQL Functions
 
@@ -95,6 +141,52 @@ Table in the format:
 ### Example
 ```sql
 SELECT * FROM get_ways_in_target_area(18::smallint);
+```
+
+## [`insert_area`](SQL/functions/function_insert_area.sql)
+
+### Description
+
+The `insert_area` inserts new area with given geo data in the format of __geojson__.
+
+### Parameters
+
+- `id` (integer): The id of the area (optional).
+- `name` (varchar): The name of the area.
+- `description` (varchar): The description of the given area (optional).
+- `geom` (json): The geometry of the area, should be in geojson format.
+
+### Return Value
+
+This function does not return.
+
+### Example
+
+```sql
+-- All parameters
+SELECT insert_area(1, 'Area Name', 'Description','{
+        "type": "MultiPolygon",
+        "coordinates": [
+            [
+                [
+                    [100.0, 0.0],
+                    [101.0, 0.0],
+                    [101.0, 1.0],
+                    [100.0, 1.0],
+                    [100.0, 0.0]
+                ]
+            ],
+            [
+                [
+                    [102.0, 2.0],
+                    [103.0, 2.0],
+                    [103.0, 3.0],
+                    [102.0, 3.0],
+                    [102.0, 2.0]
+                ]
+            ]
+        ]
+    }');
 ```
 
 ## [`select_network_nodes_in_area`](SQL/functions/function_select_network_nodes_in_area.sql)
