@@ -30,13 +30,13 @@ def load_coords(config: CredentialsConfig, table_name: str, schema: str) -> list
                     coords.append(chunk)
         return coords
     except (psycopg2.DatabaseError, Exception) as error:
-        return str(error)
+        raise Exception(f"Error: {str(error)}")
 
 def process_chunks(config: CredentialsConfig, schema: str, chunks_list: list):
     for chunk in chunks_list:
         json_chunk = prepare_coords(chunk)
         updated_json_chunk = get_elevation(json_chunk)
-        store_elevations(config, schema, json_chunk, updated_json_chunk)
+        store_elevations(config, schema, chunk, updated_json_chunk)
 
 
 def prepare_coords(chunk: list) -> dict:
@@ -66,18 +66,17 @@ def setup_database(config: CredentialsConfig, table_name: str, schema: str):
     """
     column_query = f"""ALTER TABLE {schema}.{table_name} ADD COLUMN IF NOT EXISTS elevation REAL;"""
     try:
-        with psycopg2.connect(**config) as conn:
+        with get_connection(config) as conn:
             with conn.cursor() as cur:
                 cur.execute(table_query)
                 cur.execute(column_query)
         conn.commit()
     except (psycopg2.DatabaseError, Exception) as error:
-        print(error)
+        raise Exception(f"Error: {str(error)}")
 
 def store_elevations(config: CredentialsConfig, schema: str, coord_chunk: list, elevation_chunk: list):
     """Stores elevation data from given chunks into the database table."""
     insert_query = f""" INSERT INTO {schema}.elevations (node_id, elevation) VALUES %s; """
-    # data_tuples = [(data['id'], data['ele']) for _, data in elevation_chunk.items()]
     data_tuples = [(coord[0], location['ele']) 
                    for coord, location in zip(coord_chunk, elevation_chunk['locations'])]
     try:
@@ -86,7 +85,7 @@ def store_elevations(config: CredentialsConfig, schema: str, coord_chunk: list, 
                 psycopg2.extras.execute_values(cur, insert_query, data_tuples)
         conn.commit()
     except (psycopg2.DatabaseError, Exception) as error:
-        print(error)
+        raise Exception(f"Error: {str(error)}")
 
 def update_and_drop_table(config: CredentialsConfig, table_name: str, schema: str):
     """Updates table with elevations and deletes elevations table."""
@@ -98,16 +97,16 @@ def update_and_drop_table(config: CredentialsConfig, table_name: str, schema: st
     """
     drop_query = f"""DROP TABLE {schema}.elevations;"""
     try:
-        with psycopg2.connect(**config) as conn:
+        with get_connection(config) as conn:
             with conn.cursor() as cur:
                 cur.execute(update_query)
                 cur.execute(drop_query)
         conn.commit()
     except (psycopg2.DatabaseError, Exception) as error:
-        print(error)
+        raise Exception(f"Error: {str(error)}")
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.", formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(description="Add elevations to nodes in PostgreSQL database.", formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument('table_name', help="The name of the table where the nodes data are stored.")
     parser.add_argument("-sch", "--schema", dest="schema", default="public", help="The database schema of the table where nodes are stored.")
@@ -126,28 +125,20 @@ def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
 
-    config = {
-            "host": CREDENTIALS.host,
-            "dbname": CREDENTIALS.db_name,
-            "user": CREDENTIALS.username,
-            "password": CREDENTIALS.db_password,
-            "port": CREDENTIALS.db_server_port
-        }
-    
     table_name = args.table_name
     schema = args.schema
 
     start = time.time()
 
-    setup_database(config, table_name, schema)
-    coords = load_coords(config, table_name, schema)
-    process_chunks(config, schema, coords)
-    update_and_drop_table(config, table_name, schema)
+    setup_database(CREDENTIALS, table_name, schema)
+    coords = load_coords(CREDENTIALS, table_name, schema)
+    process_chunks(CREDENTIALS, schema, coords)
+    update_and_drop_table(CREDENTIALS, table_name, schema)
     
     end = time.time()
 
     print(f"The program took {end - start} seconds to execute.")
 
-
 if __name__ == '__main__':
-    main()
+    # main()
+    main(['nodes', '-sch', 'osm_testing'])
