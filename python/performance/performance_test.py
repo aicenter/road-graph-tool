@@ -68,9 +68,9 @@ def generate_markdown_row(location: str, data: dict) -> str:
 
     time = format_time(total_time / runs)
 
-    nodes_size = get_table_size_from_dict("nodes", db_table_sizes)
-    ways_size = get_table_size_from_dict("ways", db_table_sizes)
-    relations_size = get_table_size_from_dict("relations", db_table_sizes)
+    nodes_size = convert_to_readable_size(int(get_table_size_from_dict("nodes", db_table_sizes)))
+    ways_size = convert_to_readable_size(int(get_table_size_from_dict("ways", db_table_sizes)))
+    relations_size = convert_to_readable_size(int(get_table_size_from_dict("relations", db_table_sizes)))
 
     return f"| {location.title()} | {file_size} | {date} | {time} | {nodes_size} | {ways_size} | {relations_size} |"
 
@@ -138,7 +138,7 @@ def get_db_table_sizes(config: dict, schema: str) -> dict:
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
                 cur.execute(f"""
-                    SELECT table_name, pg_size_pretty(size) 
+                    SELECT table_name, size
                     FROM (
                         SELECT table_name, pg_total_relation_size(table_name::text) AS size
                         FROM information_schema.tables
@@ -152,12 +152,12 @@ def get_db_table_sizes(config: dict, schema: str) -> dict:
     except (psycopg2.DatabaseError, Exception) as error:
         raise error
 
-def monitor_performance(config: dict, input_file: str, schema: str, style_file: str, importing: bool) -> dict:
+def monitor_performance(config: dict, input_file: str, schema: str, style_file: str) -> dict:
     """Return dictionary of monitored time, file size, date of import and table sizes
     after running the **import_osm_to_db()** function."""
     start_time = time.time()
 
-    if importing:
+    if input_file:
         file_size = import_osm_to_db(input_file, style_file, schema=schema)
     else:
         # TODO:
@@ -168,7 +168,7 @@ def monitor_performance(config: dict, input_file: str, schema: str, style_file: 
 
     return {
             "performance_metrics": {"total_time": elapsed_time, "test_runs": 1},
-            "file_size": convert_B_to_readable(file_size),
+            "file_size": convert_to_readable_size(file_size),
             "date_import": datetime.today().strftime('%d.%m.%Y'),
             "db_table_sizes": get_db_table_sizes(config, schema)
         }
@@ -183,7 +183,7 @@ def get_db_version(config: dict) -> str:
     except (psycopg2.DatabaseError, Exception) as error:
         return str(error)
 
-def monitor(config: dict, input_file: str, location: str, mode: str, network_conn: str, schema: str, style_file: str, importing: bool) -> dict:
+def monitor(config: dict, input_file: str, location: str, mode: str, network_conn: str, schema: str, style_file: str) -> dict:
     """Monitors HW metrics, time, memory and DB table sizes."""
     # Get hardware info
     hw_metrics = get_hw_config()
@@ -192,13 +192,13 @@ def monitor(config: dict, input_file: str, location: str, mode: str, network_con
     hw_metrics["data_info"] = {
         mode_conn: {
             "db_info": get_db_version(config),
-            location: monitor_performance(config, input_file, schema, style_file, importing)
+            location: monitor_performance(config, input_file, schema, style_file)
         }
     }
     return hw_metrics
 
-def convert_B_to_readable(size: int) -> str:
-    """Return a str of size in readable format rounded to two decimal places."""
+def convert_to_readable_size(size: int) -> str:
+    """Converts a size in bytes to a more readable format, rounding to two decimal places, and returns it as string."""
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size < 10**3 or unit == 'GB':
             break
@@ -223,8 +223,8 @@ def get_hw_config() -> dict:
     "system_info": {"system": system_info.system,
                     "version": extract_version(system_info.version)},
     "cpu_info": {"logical_cores": logical_cpu_count},
-    "memory_info": {"total_memory": convert_B_to_readable(memory_info.total)},
-    "disk_info": {"total_disk_space": convert_B_to_readable(disk_info.total)},
+    "memory_info": {"total_memory": convert_to_readable_size(memory_info.total)},
+    "disk_info": {"total_disk_space": convert_to_readable_size(disk_info.total)},
     "osm_info": {"osm_version": get_osm2pgsql_version()}}
 
     return hw_metrics
@@ -259,13 +259,13 @@ def update_performance(current: dict, old: dict, location: str, mode: str, conne
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     """Parses command-line arguments."""
-    parser = argparse.ArgumentParser(description="Performance monitoring and OSM import tool or main pipeline")
+    parser = argparse.ArgumentParser(description="Performance monitoring of OSM import tool or whole pipeline")
 
     subparsers = parser.add_subparsers(dest='command', required=True)
     
     loc_parser = subparsers.add_parser('l', help="Specify the name of location to include in statistics.")
     loc_parser.add_argument('location', help="Specify the location name.")
-    loc_parser.add_argument('-i', dest='importing', action="store_true", help="Enable performance test of importing only.")
+    loc_parser.add_argument('-i', dest='input_file', help="Enable performance test of importing only.")
     loc_parser.add_argument('-m', dest='mode', required=True, help="Specify the database mode (local/remote) for '-i' flag.")
     loc_parser.add_argument('-s', dest='schema', required=True, help="Specify the database schema for '-i' flag.")
     loc_parser.add_argument("-sf", dest="style_file", default="resources/lua_styles/default.lua", help="Path to style file for '-i' flag.")
@@ -296,16 +296,18 @@ def main(arg_list: list[str] | None = None):
             conn = get_network_config()
             if file_exists(JSON_FILE):
                 metrics = read_json()
-                new_metrics = monitor_performance(config, args.input_file, schema, args.style_file, args.importing)
+                new_metrics = monitor_performance(config, args.input_file, schema, args.style_file)
                 update_performance(new_metrics, metrics, location, mode, conn, config)
                 write_json(metrics)
             else:
-                metrics = monitor(config, args.input_file, location, mode, conn, schema, args.style_file, args.importing)
+                metrics = monitor(config, args.input_file, location, mode, conn, schema, args.style_file)
                 write_json(metrics)
 
 
 if __name__ == '__main__':
     # main()
-    main(['md', '-mh', 'importing on server'])
+    main(['md', '-mh', 'importing from local machine'])
     # main(['l', 'monaco', '-i', '-m','local', '-s', 'osm_testing', '-sf', 'resources/lua_styles/pipeline.lua'])
     # main(['l', 'monaco', '-m','local', '-s', 'osm_testing', '-i', '-sf', 'resources/lua_styles/pipeline.lua'])
+    # main(['l','czechia', '-i','to_import.osm.pbf', '-m','local', '-s', 'osm_testing'])
+    # main(['l', 'czechia','-h'])

@@ -1,4 +1,4 @@
-# Performance of importing on local machine
+# Performance of importing from local machine
 ## Hardware configuration
 - **System**: Linux
 - **Version**: #40~22.04.3-Ubuntu SMP PREEMPT_DYNAMIC Tue Jul 30 17:30:19 UTC 2
@@ -26,7 +26,7 @@
 | Germany | 4.33 GB | 2.09.2024 | 2h 38min | 49 GB | 31 GB | 504 MB |
 
 
-# Performance of importing on server
+# Performance of importing from server
 ## Hardware configuration
 - **System**: Linux
 - **Version**: #1 SMP Debian 4.19.181-1 (2021-03-19)

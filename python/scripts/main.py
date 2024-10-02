@@ -152,8 +152,6 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         '-sch', '--schema',
         dest='schema',
         help="Optional schema argument for -i/--import. Default is 'public' otherwise.",
-=========
->>>>>>>>> Temporary merge branch 2
         required=False
     )
 
