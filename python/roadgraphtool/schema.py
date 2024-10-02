@@ -32,7 +32,7 @@ def schema_exists(schema: str, config: CredentialsConfig) -> bool:
                 res = cur.fetchone()
                 return res is not None
     except (psycopg2.DatabaseError, Exception) as error:
-        return str(error)
+        raise Exception(f"Error: {str(error)}")
 
 def create_schema(schema: str, config: CredentialsConfig):
     """Creates a new schema in the database."""
@@ -42,7 +42,7 @@ def create_schema(schema: str, config: CredentialsConfig):
                 query = f'CREATE SCHEMA "{schema}";'
                 cur.execute(query)
     except (psycopg2.DatabaseError, Exception) as error:
-        return str(error)
+        raise Exception(f"Error: {str(error)}")
     
 def add_postgis_extension(schema: str, config: CredentialsConfig):
     """Adds the PostGIS extension to the specified schema."""
@@ -52,7 +52,7 @@ def add_postgis_extension(schema: str, config: CredentialsConfig):
                 query = f'CREATE EXTENSION postgis SCHEMA "{schema}";'
                 cur.execute(query)
     except (psycopg2.DatabaseError, Exception) as error:
-        return str(error)
+        raise Exception(f"Error: {str(error)}")
 
 def  check_empty_or_nonexistent_tables(schema: str, config: CredentialsConfig) -> bool:
     """Return True, if tables (nodes, ways) are empty or non-existent."""
@@ -71,4 +71,4 @@ def  check_empty_or_nonexistent_tables(schema: str, config: CredentialsConfig) -
                             return False
         return True
     except (psycopg2.DatabaseError, Exception) as error:
-        return str(error)
+        raise Exception(f"Error: {str(error)}")
