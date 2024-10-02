@@ -49,7 +49,7 @@ def add_postgis_extension(schema: str, config: CredentialsConfig):
     try:
         with get_connection(config) as conn:
             with conn.cursor() as cur:
-                query = f'CREATE EXTENSION postgis SCHEMA "{schema}";'
+                query = f'CREATE EXTENSION if not exists postgis SCHEMA "{schema}";'
                 cur.execute(query)
     except (psycopg2.DatabaseError, Exception) as error:
         raise Exception(f"Error: {str(error)}")
