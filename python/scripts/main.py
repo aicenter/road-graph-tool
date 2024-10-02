@@ -152,6 +152,8 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         '-sch', '--schema',
         dest='schema',
         help="Optional schema argument for -i/--import. Default is 'public' otherwise.",
+=========
+>>>>>>>>> Temporary merge branch 2
         required=False
     )
 
@@ -163,7 +165,7 @@ def main(arg_list: list[str] | None = None) -> int:
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        file_size = import_osm_to_db(args.input_file, args.style_file, args.schema)
+        file_size = import_osm_to_db(args.input_file, args.force, args.style_file, args.schema)
     
     area_id = args.area_id
     area_srid = args.area_srid

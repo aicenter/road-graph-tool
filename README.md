@@ -1,26 +1,31 @@
-The Road Graph Tool is a Project for processing data from various sources into a road graph data usable as an input for transportation problems. Version 1.0.0 of the project targets to provide a road network with the following features:
-- geographical location of vertices and edges,
-- geographical shape of edges,
-- elevation of vertices,
-- measured and posted speed of edges, and
-- travel demand data located at the vertices.
+The Road Graph Tool is a project for processing data from various sources into a road graph usable as an input for transportation problems. Version 0.1.0 of the project targets to provide a road network with the following features:
 
-The version 1.0.0 of use the following data sources:
+- geographical location of vertices and edges, and
+- geographical shape of edges
+
+The version 0.1.0 use the following data sources:
+
 - OpenStreetMap (OSM) data for the road network and its geographical properties,
-- SRTM data for the elevation of vertices,
-- Uber Movement data for the speed of edges.
-- Travel demand data from various sources.
 
-The processing and storage of the data are done in a PostgreSQL/PostGIS database. To manipulate the database, import data to the database, and export data from the database, the project provides a set of Python scripts. 
+The processing and storage of the data are done in a PostgreSQL/PostGIS database. To manipulate the database, import data to the database, and export data from the database, the project provides a set of Python scripts.
+
+
+# Dependencies
+To run the tool, you need access to a local or remote PostgreSQL database with the following extensions installed:
+
+- [PostGIS](https://postgis.net/)
+- [PgRouting](https://pgrouting.org/), and
+- hstore (available by default).
+
+Refer to the [Prerequisities](#prerequisities) section for details on installing the required dependencies for importing data into the database.
 
 # Quick Start Guide
-
-To run the tool, you need access to a local or remote PostgreSQL database with the PostGIS, PgRouting, and hstore (available by default) extensions installed. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level; you only need to provide the necessary configuration in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration).
-
 After setting up the configuration file, your next step is to edit the `main.py` file to execute only the steps you need. Currently, the content of `main.py` includes Python wrappers for the provided SQL functions in the `SQL/` directory, an example of an argument parser, and a main execution pipeline, which may be of interest to you.
 
 To execute the configured pipeline, follow these steps:
 
+1. Install the Road Graph Tool Python package: `pip install -e <clone dir>/Python`.
+1. Configure the database in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration). The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
 1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
 
 2. Next, you should import OSM data into your database - this project utilizes [osm2pgsql](https://osm2pgsql.org/) for that.
@@ -29,8 +34,7 @@ To execute the configured pipeline, follow these steps:
     If the server database requires password, store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format: `hostname:port:database:username:password`.
 
     To start importing, run the `main.py` script with with `-i` or `--import`flag. This triggers [import_osm_to_db()](python/scripts/process_osm.py) function, which requires the OSM file path as an argument. 
-    > **_NOTE:_** To ensure the SSH tunnel is correctly set up for a remote database, provide `ssh` details in [config-EXAMPLE.ini](./config-EXAMPLE.ini).
-    - SSH tunnel setup is handled with [set_ssh_to_db_server_and_set_port()](python/roadgraphtool/db.py).
+    > **_NOTE:_** To ensure the SSH tunnel is correctly set up for a remote database, provide `ssh` details in [config-EXAMPLE.ini](./config-EXAMPLE.ini). SSH tunnel setup is handled with [set_ssh_to_db_server_and_set_port()](python/roadgraphtool/db.py).
     
     A style file path can also be provided - if omitted, the default style file [default.lua](resources/lua_styles/default.lua) is used. To customize the style file, define a new path for the [DEFAULT_STYLE_FILE](python/scripts/process_osm.py).
 
@@ -83,10 +87,10 @@ The road graph tool consists of a set of components that are responsible for ind
 
 ## OSM file processing and importing
 ### Prerequisities
-Before we can process and load data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to obtain and install several libraries: 
+Before processing and loading data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to install several libraries: 
 * psql (for PostgreSQL)
-* osmium: osmium-tool (macOS `brew install osmium-tool`, Ubuntu `apt install osmium-tool`)
-* osm2pgsql (macOS `brew install osm2pgsql`, Ubuntu (1.6.0 version) `apt install osm2pgsql`)
+* osmium: osmium-tool (macOS: `brew install osmium-tool`, Ubuntu: `apt install osmium-tool`)
+* osm2pgsql (macOS: `brew install osm2pgsql`, Ubuntu: `apt install osm2pgsql` for version 1.6.0) - the current version of RGT is currently compatible with both `2.0.0` and `1.11.0` versions of `osm2pgsql`.
 The PostgreSQL database needs PostGis extension in order to enable spatial and geographic capabilities within the database, which is essential for working with OSM data.
 Loading large OSM files to database is memory demanding so [documentation](https://osm2pgsql.org/doc/manual.html#system-requirements) suggests to have RAM of at least the size of the OSM file.
 
@@ -112,15 +116,17 @@ python3 process_osm.py sr [input_file] -o [output_file]
 ```
 
 ### 2. Importing to database using Flex output
-The `process_osm.py` script also allows to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we specify the Flex style file (Lua script) that has all the logic for processing data in OSM file.
+The primary function of  `process_osm.py` script is to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we define the Flex style file (Lua script) that has all the logic for processing data in OSM file.
 
 The default style file for this project is `resources/lua_styles/default.lua`, which processes and all nodes, ways and relations without creating additional attributes (based on tags) into following tables: `nodes` (node_id, geom, tags), `ways` (way_id, geom, tags, nodes), `relations` (relation_id, tags, members).
 
+Use `u` flag to upload data into database.
 ```bash
 python3 process_osm.py u [input_file] [-l style_file]
 ```
+> **_WARNING:_** Running this command will overwrite existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
 
-* E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
+E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
 ```bash
 # runs with default.lua
 python3 process_osm.py u lithuania-latest.osm.pbf
