@@ -1,130 +1,131 @@
+import logging
 import requests
 import psycopg2
 import psycopg2.extras
-import pathlib
-import sys
+import argparse
+import time
+
+from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
+from roadgraphtool.schema import get_connection
+from scripts.filter_osm import setup_logger
 
 URL = 'http://localhost:8080/elevation/api'
+CHUNK_SIZE = 5000
 
+logger = setup_logger('elevation')
 
-def load_coords(config):
-    """Load node ids and coords from db to dict"""
-    elevations = dict()
-    # query = """ SELECT node_id, ST_Y(geom) AS lat, ST_X(geom) AS lon FROM nodes; """
-    query = """ SELECT node_id, ST_Y(geom), ST_X(geom) FROM nodes; """
+def load_coords(config: CredentialsConfig, table_name: str, schema: str) -> list:
+    """Returns list of node IDs and coordinations."""
+    coords = list()
+    query = f" SELECT node_id, ST_Y(geom), ST_X(geom) FROM {schema}.{table_name};"
+
     try:
-        with psycopg2.connect(**config) as conn:
-            with conn.cursor() as cur:
+        with get_connection(config) as conn:
+            with conn.cursor('node_cursor') as cur:
                 cur.execute(query)
-                for row in cur.fetchall():
-                    node_id, lat, lon = row
-                    coords = (lat, lon)
-                    elevations[coords] = {"id": node_id}
+                while True:
+                    chunk = cur.fetchmany(CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    coords.append(chunk)
+        return coords
     except (psycopg2.DatabaseError, Exception) as error:
-        print(error)
-    return elevations
+        return str(error)
+
+def process_chunks(config: CredentialsConfig, schema: str, chunks_list: list):
+    for chunk in chunks_list:
+        json_chunk = prepare_coords(chunk)
+        updated_json_chunk = get_elevation(json_chunk)
+        store_elevations(config, schema, json_chunk, updated_json_chunk)
 
 
-def prepare_coords(elevation_dict):
-    """Prepare json with coords for api request"""
-    json_coord_dict = {
-        'locations': []
-    }
-    for key in elevation_dict:
-        coords = {"lat": key[0], "lon": key[1]}
-        json_coord_dict['locations'].append(coords)
-    return json_coord_dict
+def prepare_coords(chunk: list) -> dict:
+    """Returns JSON with coords for API request."""
+    locations_dict = {'locations': []}
+    for _, lat, lon in chunk:
+        locations_dict['locations'].append({"lat": lat, "lon": lon})
+    return locations_dict
 
+def get_elevation(json_chunk: dict) -> dict:
+    """Sends request to API and receives updated coordinations with elevation."""
+    # response = requests.post(URL, json=json_chunk)
+    # if response.status_code != 200:
+    #     print("Error:", response.status_code)
+    # return response.json()
+    for i in range(len(json_chunk['locations'])):
+        json_chunk['locations'][i]['ele'] = 200
+    return json_chunk
 
-def get_elevation(json_data):
-    """Send request to api and get elevation data"""
-    response = requests.post(URL, json=json_data)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print("Error:", response.status_code)
-    return response.json()
-
-
-def update_elevations(coords_dict, json_elevation_dict):
-    """Update elevations: add elevation to dict containing info about nodes"""
-    print("Start update elevations...")
-    locations = json_elevation_dict.get('locations', [])
-    for location in locations:
-        lat = location.get('lat')
-        lon = location.get('lon')
-        ele = location.get('ele')
-        coords = (lat, lon)
-        coords_dict[coords]['ele'] = ele
-    return coords_dict
-
-
-def create_elevation_table_and_column(config):
+def setup_database(config: CredentialsConfig, table_name: str, schema: str):
     """Create table and column for elevations"""
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS elevations (
+    table_query = f"""
+    CREATE TABLE IF NOT EXISTS {schema}.elevations (
         node_id BIGINT NOT NULL,
         elevation REAL
     );
     """
-    add_column_query = """ALTER TABLE nodes ADD COLUMN IF NOT EXISTS elevation REAL;"""
+    column_query = f"""ALTER TABLE {schema}.{table_name} ADD COLUMN IF NOT EXISTS elevation REAL;"""
     try:
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
-                cur.execute(create_table_query)
-                cur.execute(add_column_query)
+                cur.execute(table_query)
+                cur.execute(column_query)
         conn.commit()
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
 
-
-def store_elevations(config, elevations):
-    """Store elevation from elevations dict to db"""
-    create_elevation_table_and_column(config)
-    insert_query = """ INSERT INTO elevations (node_id, elevation) VALUES %s; """
-    data_tuples = [(data['id'], data['ele']) for _, data in elevations.items()]
+def store_elevations(config: CredentialsConfig, schema: str, coord_chunk: list, elevation_chunk: list):
+    """Stores elevation data from given chunks into the database table."""
+    insert_query = f""" INSERT INTO {schema}.elevations (node_id, elevation) VALUES %s; """
+    # data_tuples = [(data['id'], data['ele']) for _, data in elevation_chunk.items()]
+    data_tuples = [(coord[0], location['ele']) 
+                   for coord, location in zip(coord_chunk, elevation_chunk['locations'])]
     try:
-        with psycopg2.connect(**config) as conn:
+        with get_connection(config) as conn:
             with conn.cursor() as cur:
                 psycopg2.extras.execute_values(cur, insert_query, data_tuples)
         conn.commit()
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
 
-
-def update_nodes_and_drop_elevations(config):
-    """Update nodes table with elevations and drop elevations table"""
-    update_query = """
-    UPDATE nodes
-    SET elevation = elevations.elevation
-    FROM elevations
-    WHERE nodes.node_id = elevations.node_id;
+def update_and_drop_table(config: CredentialsConfig, table_name: str, schema: str):
+    """Updates table with elevations and deletes elevations table."""
+    update_query = f"""
+    UPDATE {schema}.{table_name}
+    SET elevation = {schema}.elevations.elevation
+    FROM {schema}.elevations
+    WHERE {schema}.{table_name}.node_id = {schema}.elevations.node_id;
     """
-    drop_table_query = """DROP TABLE elevations;"""
+    drop_query = f"""DROP TABLE {schema}.elevations;"""
     try:
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
                 cur.execute(update_query)
-                cur.execute(drop_table_query)
+                cur.execute(drop_query)
         conn.commit()
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
 
+def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.", formatter_class=argparse.RawTextHelpFormatter)
 
-def run(config):
-    coords = load_coords(config)
-    json_coords = prepare_coords(coords)
-    json_elevations = get_elevation(json_coords)
-    elevations = update_elevations(coords, json_elevations)
-    store_elevations(config, elevations)
-    update_nodes_and_drop_elevations(config)
+    parser.add_argument('table_name', help="The name of the table where the nodes data are stored.")
+    parser.add_argument("-sch", "--schema", dest="schema", default="public", help="The database schema of the table where nodes are stored.")
+    parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
+
+    args = parser.parse_args(arg_list)
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+        for handler in logger.handlers:
+            handler.setLevel(logging.DEBUG)
+
+    return args
 
 
-if __name__ == '__main__':
-    # Use credentials_config from parent directory
-    parent_dir = pathlib.Path(__file__).parent.parent
-    sys.path.append(str(parent_dir))
-    from roadgraphtool.credentials_config import CREDENTIALS
+def main(arg_list: list[str] | None = None):
+    args = parse_args(arg_list)
+
     config = {
             "host": CREDENTIALS.host,
             "dbname": CREDENTIALS.db_name,
@@ -132,19 +133,21 @@ if __name__ == '__main__':
             "password": CREDENTIALS.db_password,
             "port": CREDENTIALS.db_server_port
         }
+    
+    table_name = args.table_name
+    schema = args.schema
 
-    import time
     start = time.time()
-    # run(config)
 
-    coords = load_coords(config)
-    e = time.time()
-    print(f"Loading coords... {e - start} seconds.")
+    setup_database(config, table_name, schema)
+    coords = load_coords(config, table_name, schema)
+    process_chunks(config, schema, coords)
+    update_and_drop_table(config, table_name, schema)
+    
+    end = time.time()
 
-    s = time.time()
-    json_coords = prepare_coords(coords)
-    e = time.time()
-    print(f"Preparing coords... {e - s} seconds.")
+    print(f"The program took {end - start} seconds to execute.")
 
-    # end = time.time()
-    # print(f"The program took {end - start} seconds to execute.")
+
+if __name__ == '__main__':
+    main()
