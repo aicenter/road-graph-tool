@@ -105,3 +105,51 @@ function osm2pgsql.process_relation(object)
 		members = object.members,
 	})
 end
+
+
+-- Process untagged objects:
+function osm2pgsql.process_untagged_node(object)
+	tables.nodes:insert({
+		geom = object:as_point(),
+		contracted = false,
+	})
+end
+
+function osm2pgsql.process_untagged_way(object)
+	clean_tags(object.tags)
+
+	local nodes = object.nodes
+
+	local oneway = object.tags.oneway == "yes"
+
+	-- clean additional tags
+	object.tags.oneway = nil
+
+	-- add to ways
+	tables.ways:insert({
+		geom = object:as_linestring(),
+		tags = object.tags,
+		oneway = oneway,
+		from = nodes[1],
+		to = nodes[#nodes],
+	})
+
+	-- add to nodes_ways
+	for index, value in ipairs(nodes) do
+		tables.nodes_ways:insert({
+			node_id = value,
+			position = index,
+		})
+	end
+end
+
+function osm2pgsql.process_untagged_relation(object)
+	if clean_tags(object.tags) then
+		return
+	end
+
+	tables.relations:insert({
+		tags = object.tags,
+		members = object.members,
+	})
+end

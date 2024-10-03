@@ -53,8 +53,9 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     """Import data from input_file to database specified in config using osm2pgsql tool."""
 
     if hasattr(config, "server"): # remote connection
+        db.start_or_restart_ssh_connection_if_needed()
         ssh_tunnel_port = db.ssh_tunnel_local_port
-        db.set_ssh_to_db_server_and_set_port()
+        config.db_server_port = ssh_tunnel_port
     else:  # local connection
         ssh_tunnel_port = config.db_server_port
 
@@ -114,7 +115,7 @@ b  : Extract greatest bounding box from given relation ID of
     parser.add_argument("-l", dest="style_file", nargs='?', default="resources/lua_styles/default.lua", help="Path to style file (optional for 'b', 'u' flag)")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
-    parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Database schema (for 'b', 'u' flag)")
+    parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")
     parser.add_argument("--force", dest="force", action="store_true", help="Force overwrite of data in existing tables in schema (for 'b', 'u' flag)")
 
     args = parser.parse_args(arg_list)
