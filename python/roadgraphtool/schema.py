@@ -23,23 +23,12 @@ def get_connection(config: CredentialsConfig) -> Optional['connection']:
     except psycopg2.DatabaseError as error:
         raise Exception(f"Error connecting to the database: {str(error)}")
 
-def schema_exists(schema: str, config: CredentialsConfig) -> bool:
-    """Returns True if a schema exists in the database."""
-    try:
-        with get_connection(config) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT schema_name FROM information_schema.schemata WHERE schema_name = %s;", (schema,))
-                res = cur.fetchone()
-                return res is not None
-    except (psycopg2.DatabaseError, Exception) as error:
-        raise Exception(f"Error: {str(error)}")
-
 def create_schema(schema: str, config: CredentialsConfig):
     """Creates a new schema in the database."""
     try:
         with get_connection(config) as conn:
             with conn.cursor() as cur:
-                query = f'CREATE SCHEMA "{schema}";'
+                query = f'CREATE SCHEMA if not exists "{schema}";'
                 cur.execute(query)
     except (psycopg2.DatabaseError, Exception) as error:
         raise Exception(f"Error: {str(error)}")
