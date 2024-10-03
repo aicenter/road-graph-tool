@@ -61,8 +61,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     if not force and not check_empty_or_nonexistent_tables(schema, config):
         raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use '--force' flag to proceed.")
 
-    if not schema_exists(schema, config):
-        create_schema(schema, config)
+    create_schema(schema, config)
     add_postgis_extension(schema, config)
 
     cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
