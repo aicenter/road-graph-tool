@@ -1,3 +1,4 @@
+import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -6,6 +7,7 @@ from roadgraphtool.db_operations import (compute_strong_components,
                                          contract_graph_in_area)
 from roadgraphtool.insert_area import insert_area
 from roadgraphtool.insert_area import read_json_file as read_area
+from roadgraphtool.map import get_map as export_nodes_edges
 from scripts.install_sql import main as pre_pocessing
 from scripts.process_osm import import_osm_to_db
 
@@ -181,7 +183,7 @@ def test_integration_base_flow():
 
     assert area == expected_area
 
-    # 2) 2) Call contraction
+    # 2) Call contraction
     contract_graph_in_area(1, 4326, fill_speed=False)
 
     # GET updated data from db and assert
@@ -207,7 +209,24 @@ def test_integration_base_flow():
     assert set([(0, 1), (0, 2), (0, 3), (0, 4), (1, 5)]) == set(component_data)
 
     # 4) Export data to files
-    # TODO: export
+    TMP_DIR = Path(__file__).parent / "TMP"
+    os.mkdir(str(TMP_DIR))
+    map_path = TMP_DIR / "map"
+    area_dir = TMP_DIR / "area_dir"
+    os.mkdir(str(map_path))
+    os.mkdir(str(area_dir))
+
+    config = {
+        "map": {
+            "path": str(map_path),
+            "SRID_plane": 4326,
+        },
+        "area_dir": str(area_dir),
+        "area": "Deutschland",
+        "area_id": 1,
+    }
+    _ = export_nodes_edges(config)
+    assert False
 
     # 5) Environment destruction
     # test environment desctructor
