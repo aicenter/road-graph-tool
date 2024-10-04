@@ -1,4 +1,4 @@
-import pathlib
+from pathlib import Path
 import tempfile
 import pytest
 import subprocess
@@ -7,9 +7,10 @@ import psycopg2
 import xml.etree.ElementTree as ET
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
-from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd
+from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, STYLES_DIR
 from scripts.find_bbox import find_min_max
 from scripts.filter_osm import MissingInputError, InvalidInputError
+from tests.test_filter_osm import TESTS_DIR
 
 @pytest.fixture
 def mock_subprocess_run(mocker):
@@ -21,8 +22,7 @@ def mock_os_path_isfile(mocker):
 
 @pytest.fixture
 def bounding_box():
-    parent_dir = pathlib.Path(__file__).parent
-    file_path = str(parent_dir) + "/data/bbox_test.osm"
+    file_path = TESTS_DIR / "bbox_test.osm"
     with open(file_path, 'rb') as f:
         return f.read()
 
@@ -51,16 +51,14 @@ def teardown_db(db_connection, request):
 
 @pytest.fixture
 def renumber_test_files():
-    parent_dir = pathlib.Path(__file__).parent
-    input_file = str(parent_dir) + "/data/renumber_test.osm"
-    output_file = str(parent_dir) + "/data/renumber_test_output.osm"
+    input_file = str(TESTS_DIR / "renumber_test.osm")
+    output_file = str(TESTS_DIR / "renumber_test_output.osm")
     return input_file, output_file 
 
 @pytest.fixture
 def sort_test_files():
-    parent_dir = pathlib.Path(__file__).parent
-    input_file = str(parent_dir) + "/data/sort_test.osm"
-    output_file = str(parent_dir) + "/data/sort_test_output.osm"
+    input_file = str(TESTS_DIR / "sort_test.osm")
+    output_file = str(TESTS_DIR / "sort_test_output.osm")
     return input_file, output_file
 
 def is_renumbered_by_id(content, obj_type):
@@ -86,7 +84,7 @@ def is_sorted_by_id(content, obj_type):
 
 # TESTS:
 
-def test_find_mix_max(bounding_box):
+def test_find_min_max(bounding_box):
     min_lon, min_lat, max_lon, max_lat = find_min_max(bounding_box)
     assert min_lon == 15.0
     assert min_lat == 5.0
@@ -95,30 +93,30 @@ def test_find_mix_max(bounding_box):
 
 @pytest.mark.usefixtures("teardown_db")
 def test_run_osm2pgsql_cmd(db_connection):
-    parent_dir = pathlib.Path(__file__).parent
-    style_file_path = str(parent_dir) + "/data/mock_default.lua"
-    input_file = str(parent_dir) + "/data/bbox_test.osm"
+    style_file_path = str(TESTS_DIR / "mock_default.lua")
+    input_file = str(TESTS_DIR / "bbox_test.osm")
+    schema = 'osm_testing'
 
-    run_osm2pgsql_cmd(config, input_file, style_file_path, 'osm_testing', True)
+    run_osm2pgsql_cmd(config, input_file, style_file_path, schema, True)
 
     cursor = db_connection.cursor()
-    cursor.execute('SELECT COUNT(*) FROM mocknodes;')
+    cursor.execute(f'SELECT COUNT(*) FROM {schema}.mocknodes;')
     nodes_count = cursor.fetchone()[0]
     assert nodes_count == 6
 
-    cursor.execute('SELECT COUNT(*) FROM mockways;')
+    cursor.execute(f'SELECT COUNT(*) FROM {schema}.mockways;')
     ways_count = cursor.fetchone()[0]
     assert ways_count == 0
 
-    cursor.execute('SELECT COUNT(*) FROM mockrelations;')
+    cursor.execute(f'SELECT COUNT(*) FROM {schema}.mockrelations;')
     relations_count = cursor.fetchone()[0]
     assert relations_count == 1
 
-    cursor.execute('SELECT * FROM mocknodes WHERE node_id=1;')
+    cursor.execute(f'SELECT * FROM {schema}.mocknodes WHERE node_id=1;')
     node = cursor.fetchone()
     assert node is not None
 
-    cursor.execute('SELECT * FROM mocknodes WHERE node_id=7;')
+    cursor.execute(f'SELECT * FROM {schema}.mocknodes WHERE node_id=7;')
     node = cursor.fetchone()
     assert node is None
 
@@ -172,17 +170,15 @@ def test_run_osmium_cmd_sort_renumber(mocker):
     mock_remove.assert_called_once_with(tmp_file)
 
 def test_import_to_db_valid(mocker):
-    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in ["resources/to_import.osm", 'resources/lua_styles/default.lua'])
-    mocker.patch('os.path.getsize', return_value=1)
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [str(TESTS_DIR / "id_test.osm"), str(STYLES_DIR / 'default.lua')])
     mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
-    file_size = import_osm_to_db('resources/to_import.osm', True, schema='osm_testing')
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'resources/to_import.osm', 'resources/lua_styles/default.lua', 'osm_testing', True)
-    assert file_size == 1
+    import_osm_to_db(str(TESTS_DIR / "id_test.osm"), True, schema='osm_testing')
+    mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'updated.osm.pbf', STYLES_DIR / 'default.lua', 'osm_testing', True)
 
 def test_import_to_db_invalid_file(mocker):
-    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == 'resources/lua_styles/default.lua')
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'default.lua')
     with pytest.raises(FileNotFoundError, match="No valid file to import was found."):
-        import_osm_to_db('resources/to_import.osm', False)
+        import_osm_to_db(str(TESTS_DIR / "id_test.osm"), False)
 
 def test_main_invalid_inputfile():
     arg_list = ["d", "invalid_file.osm"]
@@ -223,7 +219,7 @@ def test_main_default_style_valid(mocker):
         arg_list = ["u", tmp_file.name]
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], "resources/lua_styles/default.lua", "public", False)
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'default.lua', "public", False)
 
 def test_main_input_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
@@ -251,7 +247,7 @@ def test_main_bbox_valid(mocker):
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
         mock_extract_bbox.assert_called_once_with(arg_list[3])
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], "resources/lua_styles/default.lua", "public", False, "10,20,30,40")
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'default.lua', "public", False, "10,20,30,40")
 
 # relation_id missing
 def test_main_bbox_id_missing():

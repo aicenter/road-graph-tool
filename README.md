@@ -138,8 +138,6 @@ python3 process_osm.py u lithuania-latest.osm.pbf -l resources/lua_styles/highwa
 
 ![Nodes in Lithuania in QGIS](doc/images/default-nodes.png)
 
-It should be noted that `process_osm.py u` and `process_osm.py b` both run osm2pgsql with `-x` flag (extra attributes) which adds OSM attributes such as version, timestamp, uid, etc. to the OSM objects processed in osm2pgsql since normally objects without tags would not be processed.
-
 ### 3. Filtering and extraction
 Data are often huge and lot of times we only need certain extracts or objects of interest in our database. So it's better practice to filter out only what we need and work with that in our database.
 

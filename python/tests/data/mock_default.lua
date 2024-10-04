@@ -35,7 +35,7 @@ local function clean_tags(tags)
 end
 
 
--- Process every node in the input
+-- Process tagged objects:
 function osm2pgsql.process_node(object)
     clean_tags(object.tags)
 
@@ -45,7 +45,6 @@ function osm2pgsql.process_node(object)
     })
 end
 
--- Process every way in the input
 function osm2pgsql.process_way(object)
     clean_tags(object.tags)
 
@@ -54,10 +53,8 @@ function osm2pgsql.process_way(object)
         tags = object.tags,
         nodes = object.nodes,
     })
-
 end
 
--- Process every relation in the input
 function osm2pgsql.process_relation(object)
     clean_tags(object.tags)
 
@@ -65,5 +62,34 @@ function osm2pgsql.process_relation(object)
         tags = object.tags,
         members = object.members,
     })
+end
 
+
+-- Process untagged objects:
+function osm2pgsql.process_untagged_node(object)
+    clean_tags(object.tags)
+
+    tables.nodes:insert({
+        geom = object:as_point(),
+        tags = object.tags,
+    })
+end
+
+function osm2pgsql.process_untagged_way(object)
+    clean_tags(object.tags)
+
+    tables.ways:insert({
+        geom = object:as_linestring(),
+        tags = object.tags,
+        nodes = object.nodes,
+    })
+end
+
+function osm2pgsql.process_untagged_relation(object)
+    clean_tags(object.tags)
+
+    tables.relations:insert({
+        tags = object.tags,
+        members = object.members,
+    })
 end

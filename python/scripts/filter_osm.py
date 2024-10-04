@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 import re
 import os
 import subprocess
@@ -6,6 +7,8 @@ import tempfile
 from typing import Any
 import requests
 import logging
+
+RESOURCES_DIR = Path(__file__).parent.parent.parent / "resources"
 
 def setup_logger(logger_name: str) -> logging.Logger:
     log = logging.getLogger(logger_name)
@@ -59,7 +62,7 @@ def extract_id(input_file: str, relation_id: str, strategy: str = None):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".osm") as tmp_file:
         tmp_file.write(content)
         tmp_file_path = tmp_file.name
-        cmd = ["osmium", "extract", "-p", tmp_file_path, input_file, "-o", "resources/id_extract.osm"]
+        cmd = ["osmium", "extract", "-p", tmp_file_path, input_file, "-o", RESOURCES_DIR / "id_extract.osm"]
         if strategy:
             cmd.extend(["-s", strategy])
         res = subprocess.run(cmd)

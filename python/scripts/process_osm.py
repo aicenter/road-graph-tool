@@ -1,15 +1,18 @@
 import argparse
 import os
+from pathlib import Path
 import subprocess
 import logging
 
 from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
-from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension, setup_logger
+from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension, setup_logger, RESOURCES_DIR
 from scripts.find_bbox import find_min_max
 from roadgraphtool.db import db
 from roadgraphtool.schema import *
 
-DEFAULT_STYLE_FILE = "resources/lua_styles/default.lua"
+SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
+STYLES_DIR = RESOURCES_DIR / "lua_styles"
+DEFAULT_STYLE_FILE = STYLES_DIR / "default.lua"
 
 logger = setup_logger('process_osm')
 
@@ -75,25 +78,55 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
         logger.debug(f"Begin importing with: '{' '.join(cmd)}'")
     else:
         logger.info(f"Begin importing with: '{' '.join(cmd)}'")
-    res = subprocess.run(cmd)
-    if not res.returncode:
+    res = subprocess.run(cmd).returncode
+    if not res:
         logger.info("Importing completed.")
+    else:
+        logger.error(f"Error during import: {res}")
+
+def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, schema: str) -> int:
+    """Applies postprocessing SQL associated with **style_file_path** to data in schema after importing.
+    """
+    post_proc_dict = {"pipeline.lua": "after_import.sql"}
+
+    if style_file_path not in post_proc_dict:
+        logger.warning(f"No post-processing defined for style {style_file_path}")
+        return 0
+
+    sql_file_path = SQL_DIR / post_proc_dict[style_file_path]
+    command = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.host, "-p", 
+               str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+
+    logger.info("Post-processing OSM data after import...")
+    res = subprocess.run(command).returncode
+
+    if res != 0:
+        logger.error(f"Error during post-processing: {res}")
+        return res
+    logger.info("Post-processing completed.")
+    return 0
 
 def import_osm_to_db(input_file: str, force: bool, style_file_path: str = None, schema: str = "public") -> int:
-    """Return the size of OSM file in bytes if file found and imports OSM file do database specified in config.ini file.
+    """Renumbers IDs of OSM objects and sorts file by them, imports the new file to database specified in config.ini file.
 
-    The **default.lua** style file is used if not specified or set otherwise.
+    The **default.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
     if not os.path.exists(input_file) or not is_valid_extension(input_file):
         raise FileNotFoundError("No valid file to import was found.")
-    file_size = os.path.getsize(input_file)
 
+    if style_file_path is not None and not os.path.exists(style_file_path):
+        raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
+    
     if style_file_path is None:
         style_file_path = DEFAULT_STYLE_FILE
-    if not os.path.exists(style_file_path):
-        raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
-    run_osm2pgsql_cmd(CREDENTIALS, input_file, style_file_path, schema, force)
-    return file_size
+    
+    sort_renum_file = 'updated.osm.pbf'
+    run_osmium_cmd('sr', input_file, sort_renum_file)
+    run_osm2pgsql_cmd(CREDENTIALS, sort_renum_file, style_file_path, schema, force)
+
+    os.remove(sort_renum_file)
+
+    postprocess_osm_import(CREDENTIALS, style_file_path, schema)
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.", formatter_class=argparse.RawTextHelpFormatter)
@@ -112,7 +145,7 @@ b  : Extract greatest bounding box from given relation ID of
 )
     parser.add_argument('input_file', help="Path to input OSM file")
     parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', default="resources/lua_styles/default.lua", help="Path to style file (optional for 'b', 'u' flag)")
+    parser.add_argument("-l", dest="style_file", nargs='?', default=DEFAULT_STYLE_FILE, help="Path to style file (optional for 'b', 'u' flag)")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
     parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")
@@ -137,7 +170,7 @@ def main(arg_list: list[str] | None = None):
     elif args.style_file:
         if not os.path.exists(args.style_file):
             raise FileNotFoundError(f"File '{args.style_file}' does not exist.")
-        elif not args.style_file.endswith(".lua"):
+        elif not str(args.style_file).endswith(".lua"):
             raise InvalidInputError("File must have the '.lua' extension.")
     
     match args.flag:
