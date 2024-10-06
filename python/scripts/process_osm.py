@@ -3,10 +3,11 @@ import os
 import subprocess
 import logging
 
-from roadgraphtool.credentials_config import CREDENTIALS as config, CredentialsConfig
+from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
 from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension, setup_logger
 from scripts.find_bbox import find_min_max
 from roadgraphtool.db import db
+from roadgraphtool.schema import *
 
 DEFAULT_STYLE_FILE = "resources/lua_styles/default.lua"
 
@@ -48,18 +49,23 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
                     logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
 
-def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, coords: str| list[int] = None):
-    """Import data from input_file using osm2pgsql."""
+def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, schema: str, force: bool, coords: str| list[int] = None):
+    """Import data from input_file to database specified in config using osm2pgsql tool."""
 
     if hasattr(config, "server"): # remote connection
-        ssh_tunnel_port = 1113 # check roadgraphtool.db.ssh_tunnel_local_port (needs to be same)
+        ssh_tunnel_port = db.ssh_tunnel_local_port
         db.set_ssh_to_db_server_and_set_port()
     else:  # local connection
         ssh_tunnel_port = config.db_server_port
 
-    cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
-            "-P", str(ssh_tunnel_port), "--output=flex", "-S", style_file_path, input_file, "-x"]
+    if not force and not check_empty_or_nonexistent_tables(schema, config):
+        raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use '--force' flag to proceed.")
 
+    create_schema(schema, config)
+    add_postgis_extension(schema, config)
+
+    cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
+               "-P", str(ssh_tunnel_port), "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
 
@@ -72,7 +78,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     if not res.returncode:
         logger.info("Importing completed.")
 
-def import_osm_to_db(input_file: str, style_file_path: str = None) -> int:
+def import_osm_to_db(input_file: str, force: bool, style_file_path: str = None, schema: str = "public") -> int:
     """Return the size of OSM file in bytes if file found and imports OSM file do database specified in config.ini file.
 
     The **default.lua** style file is used if not specified or set otherwise.
@@ -85,7 +91,7 @@ def import_osm_to_db(input_file: str, style_file_path: str = None) -> int:
         style_file_path = DEFAULT_STYLE_FILE
     if not os.path.exists(style_file_path):
         raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
-    run_osm2pgsql_cmd(config, input_file, style_file_path)
+    run_osm2pgsql_cmd(CREDENTIALS, input_file, style_file_path, schema, force)
     return file_size
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
@@ -108,6 +114,8 @@ b  : Extract greatest bounding box from given relation ID of
     parser.add_argument("-l", dest="style_file", nargs='?', default="resources/lua_styles/default.lua", help="Path to style file (optional for 'b', 'u' flag)")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
+    parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Database schema (for 'b', 'u' flag)")
+    parser.add_argument("--force", dest="force", action="store_true", help="Force overwrite of data in existing tables in schema (for 'b', 'u' flag)")
 
     args = parser.parse_args(arg_list)
 
@@ -144,7 +152,7 @@ def main(arg_list: list[str] | None = None):
     
         case "u":
             # Upload OSM file to PostgreSQL database
-            run_osm2pgsql_cmd(config, args.input_file, args.style_file)
+            run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force)
         case "b":
             # Extract bounding box based on relation ID and import to PostgreSQL
             if not args.relation_id:
@@ -153,7 +161,7 @@ def main(arg_list: list[str] | None = None):
             min_lon, min_lat, max_lon, max_lat = extract_bbox(args.relation_id)
             coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
 
-            run_osm2pgsql_cmd(config, args.input_file, args.style_file, coords)
+            run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, coords)
     
 if __name__ == '__main__':
     main()

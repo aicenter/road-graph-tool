@@ -99,7 +99,7 @@ def test_run_osm2pgsql_cmd(db_connection):
     style_file_path = str(parent_dir) + "/data/mock_default.lua"
     input_file = str(parent_dir) + "/data/bbox_test.osm"
 
-    run_osm2pgsql_cmd(config, input_file, style_file_path)
+    run_osm2pgsql_cmd(config, input_file, style_file_path, 'osm_testing', True)
 
     cursor = db_connection.cursor()
     cursor.execute('SELECT COUNT(*) FROM mocknodes;')
@@ -175,14 +175,14 @@ def test_import_to_db_valid(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in ["resources/to_import.osm", 'resources/lua_styles/default.lua'])
     mocker.patch('os.path.getsize', return_value=1)
     mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
-    file_size = import_osm_to_db('resources/to_import.osm')
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'resources/to_import.osm', 'resources/lua_styles/default.lua')
+    file_size = import_osm_to_db('resources/to_import.osm', True, schema='osm_testing')
+    mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'resources/to_import.osm', 'resources/lua_styles/default.lua', 'osm_testing', True)
     assert file_size == 1
 
 def test_import_to_db_invalid_file(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == 'resources/lua_styles/default.lua')
     with pytest.raises(FileNotFoundError, match="No valid file to import was found."):
-        import_osm_to_db('resources/to_import.osm')
+        import_osm_to_db('resources/to_import.osm', False)
 
 def test_main_invalid_inputfile():
     arg_list = ["d", "invalid_file.osm"]
@@ -223,14 +223,14 @@ def test_main_default_style_valid(mocker):
         arg_list = ["u", tmp_file.name]
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], "resources/lua_styles/default.lua")
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], "resources/lua_styles/default.lua", "public", False)
 
 def test_main_input_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
         arg_list = ["u", tmp_input.name, "-l", tmp_lua.name]
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], arg_list[3])
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], arg_list[3], "public", False)
 
 def test_main_style_file_invalid():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
@@ -251,7 +251,7 @@ def test_main_bbox_valid(mocker):
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
         mock_extract_bbox.assert_called_once_with(arg_list[3])
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], "resources/lua_styles/default.lua", "10,20,30,40")
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], "resources/lua_styles/default.lua", "public", False, "10,20,30,40")
 
 # relation_id missing
 def test_main_bbox_id_missing():
