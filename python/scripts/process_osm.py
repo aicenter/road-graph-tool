@@ -204,7 +204,5 @@ def main(arg_list: list[str] | None = None):
             run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, coords)
     
 if __name__ == '__main__':
-    # main()
+    main()
     # main(["u", "resources/monaco.osm.pbf", "--force", "-sch", "osm_testing", "-l", str(STYLES_DIR / "simple.lua")])
-    # postprocess_osm_import(config, 'pipeline.lua', 'public')
-    postprocess_osm_import(config, 'resources/pipeline.lua', 'public')

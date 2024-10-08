@@ -10,7 +10,7 @@ def test_tables():
 
 @pytest.fixture
 def test_schema():
-    return 'osm_testing'
+    return 'test_schema'
 
 @pytest.fixture
 def mock_subprocess_run(mocker):
@@ -42,6 +42,7 @@ def teardown_db(db_connection, request, test_schema, test_tables):
         cursor = db_connection.cursor()
         for table in test_tables:
             cursor.execute(f"DROP TABLE IF EXISTS {test_schema}.{table};")
+        cursor.execute(f"DROP SCHEMA IF EXISTS {test_schema} CASCADE;")
         db_connection.commit()
         cursor.close()
     request.addfinalizer(cleanup)

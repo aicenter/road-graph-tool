@@ -43,13 +43,13 @@ def add_postgis_extension(schema: str):
     except (psycopg2.DatabaseError, Exception) as error:
         raise Exception(f"Error: {str(error)}")
 
-def check_empty_or_nonexistent_tables(schema: str) -> bool:
+def check_empty_or_nonexistent_tables(schema: str, tables: list = TABLES) -> bool:
     """Returns True, if all tables from TABLES are non-existent or empty. 
     Returns False if at least one isn't empty."""
     try:
         with _get_connection() as conn:
             with conn.cursor() as cur:
-                for t in TABLES:
+                for t in tables:
                     query =  f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '{schema}' AND table_name = '{t}');"
                     cur.execute(query)
                     exists = cur.fetchone()[0]

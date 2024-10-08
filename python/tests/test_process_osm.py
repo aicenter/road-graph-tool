@@ -5,7 +5,7 @@ import os
 import xml.etree.ElementTree as ET
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
-from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, setup_ssh_tunnel, postprocess_osm_import, STYLES_DIR, SQL_DIR
+from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, setup_ssh_tunnel, postprocess_osm_import, STYLES_DIR, SQL_DIR, RESOURCES_DIR
 from scripts.find_bbox import find_min_max
 from scripts.filter_osm import MissingInputError, InvalidInputError
 from tests.test_filter_osm import TESTS_DIR
@@ -138,10 +138,21 @@ def test_run_osmium_cmd_sort_renumber(mock_subprocess_run, mock_remove):
     # tmp_file was deleted
     mock_remove.assert_called_once_with(tmp_file)
 
-def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd, test_schema):
+def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd, test_schema, mock_remove):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [str(TESTS_DIR / "id_test.osm"), str(STYLES_DIR / 'pipeline.lua')])
-    import_osm_to_db(str(TESTS_DIR / "id_test.osm"), True, schema=test_schema)
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'updated.osm.pbf', str(STYLES_DIR / 'pipeline.lua'), 'osm_testing', True)
+    mock_run_osmium_cmd = mocker.patch('scripts.process_osm.run_osmium_cmd')
+    mock_postprocess = mocker.patch('scripts.process_osm.postprocess_osm_import')
+
+    input_file = str(TESTS_DIR / "id_test.osm")
+    sort_renum_file = str(RESOURCES_DIR / 'updated.osm.pbf')
+    style_file_path = str(STYLES_DIR / 'pipeline.lua')
+
+    import_osm_to_db(input_file, True, schema=test_schema)
+
+    mock_run_osmium_cmd.assert_called_once_with('sr', input_file, sort_renum_file)
+    mock_run_osm2pgsql_cmd.assert_called_once_with(config, sort_renum_file, style_file_path, test_schema, True)
+    mock_postprocess.assert_called_once_with(config, style_file_path, test_schema)
+    mock_remove.assert_called_once_with(sort_renum_file)
 
 def test_import_to_db_invalid_file(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'simple.lua')
@@ -249,4 +260,4 @@ def test_postprocess_osm_import_invalid_style(mock_subprocess_run, test_schema):
 
     res = postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
     assert res == 0
-    mock_subprocess_run.assert_not_called()test_postprocess_osm_import_invalid_style
+    mock_subprocess_run.assert_not_called()
