@@ -70,6 +70,6 @@ osm2pgsql.process_relation = do_relations
 -- If osm2pgsql is of version `2.0.0`, assign process_untagged_* functions:
 if osm2pgsql.version == '2.0.0' then
     osm2pgsql.process_untagged_node = do_nodes
-    osm2pgsql.process_untagged_way = do_way
-    osm2pgsql.process_untagged_relation = do_relation
+    osm2pgsql.process_untagged_way = do_ways
+    osm2pgsql.process_untagged_relation = do_relations
 end

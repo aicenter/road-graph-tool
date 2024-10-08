@@ -52,15 +52,19 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
                     logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
 
+def setup_ssh_tunnel(config: CredentialsConfig) -> int:
+    """Sets up SSH tunnel if needed and returns port number."""
+    if hasattr(config, "server"):  # remote connection
+        db.start_or_restart_ssh_connection_if_needed()
+        config.db_server_port = db.ssh_tunnel_local_port
+        return db.ssh_tunnel_local_port
+    # local connection
+    return config.db_server_port
+
 def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, schema: str, force: bool, coords: str| list[int] = None):
     """Import data from input_file to database specified in config using osm2pgsql tool."""
 
-    if hasattr(config, "server"): # remote connection
-        db.start_or_restart_ssh_connection_if_needed()
-        ssh_tunnel_port = db.ssh_tunnel_local_port
-        config.db_server_port = ssh_tunnel_port
-    else:  # local connection
-        ssh_tunnel_port = config.db_server_port
+    port = setup_ssh_tunnel(config)
 
     if not force and not check_empty_or_nonexistent_tables(schema):
         raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use '--force' flag to proceed.")
@@ -69,7 +73,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     add_postgis_extension(schema)
 
     cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
-               "-P", str(ssh_tunnel_port), "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
+               "-P", str(port), "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
 

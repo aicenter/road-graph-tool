@@ -1,4 +1,3 @@
-from pathlib import Path
 import tempfile
 import pytest
 import subprocess
@@ -7,47 +6,16 @@ import psycopg2
 import xml.etree.ElementTree as ET
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
-from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, STYLES_DIR
+from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, setup_ssh_tunnel, STYLES_DIR
 from scripts.find_bbox import find_min_max
 from scripts.filter_osm import MissingInputError, InvalidInputError
 from tests.test_filter_osm import TESTS_DIR
-
-@pytest.fixture
-def mock_subprocess_run(mocker):
-    return mocker.patch("subprocess.run")
-
-@pytest.fixture
-def mock_os_path_isfile(mocker):
-    return mocker.patch("os.path.isfile")
 
 @pytest.fixture
 def bounding_box():
     file_path = TESTS_DIR / "bbox_test.osm"
     with open(file_path, 'rb') as f:
         return f.read()
-
-@pytest.fixture(scope="module")
-def db_connection():
-    conn = psycopg2.connect(
-        dbname=config.db_name,
-        user=config.username,
-        password=config.db_password,
-        host=config.db_host,
-        port=config.db_server_port
-    )
-    yield conn
-    conn.close()
-
-@pytest.fixture
-def teardown_db(db_connection, request):
-    def cleanup():
-        cursor = db_connection.cursor()
-        cursor.execute("DROP TABLE IF EXISTS mocknodes;")
-        cursor.execute("DROP TABLE IF EXISTS mockways;")
-        cursor.execute("DROP TABLE IF EXISTS mockrelations;")
-        db_connection.commit()
-        cursor.close()
-    request.addfinalizer(cleanup)
 
 @pytest.fixture
 def renumber_test_files():
@@ -60,6 +28,10 @@ def sort_test_files():
     input_file = str(TESTS_DIR / "sort_test.osm")
     output_file = str(TESTS_DIR / "sort_test_output.osm")
     return input_file, output_file
+
+@pytest.fixture
+def mock_run_osm2pgsql_cmd(mocker):
+    return mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
 
 def is_renumbered_by_id(content, obj_type):
     """Function to check if the obj_type IDs are renumbered in ascending order"""
@@ -122,6 +94,13 @@ def test_run_osm2pgsql_cmd(db_connection):
 
     cursor.close()
 
+def test_setup_ssh_tunnel():
+    port = setup_ssh_tunnel(config)
+    if hasattr(config, "server"):
+        assert port == 1113 # should match db.ssh_tunnel_local_port in dp.py
+    else:
+        assert port == 5432 # should match config.database.db_server_port
+
 def test_run_osmium_cmd_renumber(renumber_test_files):
     input_file, output_file = renumber_test_files
     run_osmium_cmd('r', input_file, output_file)
@@ -149,9 +128,7 @@ def test_run_osmium_cmd_sort(sort_test_files):
 
     os.remove(output_file)
 
-# not working
-def test_run_osmium_cmd_sort_renumber(mocker):
-    mock_subprocess_run = mocker.patch('subprocess.run')
+def test_run_osmium_cmd_sort_renumber(mocker, mock_subprocess_run):
     mock_subprocess_run.side_effect = [subprocess.CompletedProcess(args=[], returncode=0),  # for sort
                                         subprocess.CompletedProcess(args=[], returncode=0)]  # for renumber
 
@@ -169,9 +146,8 @@ def test_run_osmium_cmd_sort_renumber(mocker):
     # tmp_file was deleted
     mock_remove.assert_called_once_with(tmp_file)
 
-def test_import_to_db_valid(mocker):
+def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [str(TESTS_DIR / "id_test.osm"), str(STYLES_DIR / 'simple.lua')])
-    mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
     import_osm_to_db(str(TESTS_DIR / "id_test.osm"), True, schema='osm_testing')
     mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'updated.osm.pbf', STYLES_DIR / 'simple.lua', 'osm_testing', True)
 
@@ -214,17 +190,15 @@ def test_main_srsr_valid(mocker, test_input):
         main(arg_list)
         mock_run_osmium_cmd.assert_called_once_with(arg_list[0], arg_list[1], arg_list[3])
 
-def test_main_default_style_valid(mocker):
+def test_main_default_style_valid(mock_run_osm2pgsql_cmd):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = ["u", tmp_file.name]
-        mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
         mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'pipeline.lua', "public", False)
 
-def test_main_input_style_valid(mocker):
+def test_main_input_style_valid(mock_run_osm2pgsql_cmd):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
         arg_list = ["u", tmp_input.name, "-l", tmp_lua.name]
-        mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
         mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], arg_list[3], "public", False)
 
@@ -240,11 +214,10 @@ def test_main_style_file_extension_invalid():
         with pytest.raises(InvalidInputError, match="File must have the '.lua' extension."):
             main(arg_list)
 
-def test_main_bbox_valid(mocker):
+def test_main_bbox_valid(mocker, mock_run_osm2pgsql_cmd):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = ["b", tmp_file.name, "-id", "1234"]
         mock_extract_bbox = mocker.patch('scripts.process_osm.extract_bbox', return_value=(10, 20, 30, 40))
-        mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
         mock_extract_bbox.assert_called_once_with(arg_list[3])
         mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'simple.lua', "public", False, "10,20,30,40")
