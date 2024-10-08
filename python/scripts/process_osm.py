@@ -14,6 +14,8 @@ SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
 STYLES_DIR = RESOURCES_DIR / "lua_styles"
 DEFAULT_STYLE_FILE = STYLES_DIR / "pipeline.lua"
 
+POSTPROCESS_DICT = {"pipeline.lua": "after_import.sql"}
+
 logger = setup_logger('process_osm')
 
 def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
@@ -92,13 +94,12 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
     """Applies postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
     style_file_path = os.path.basename(style_file_path)
-    post_proc_dict = {"pipeline.lua": "after_import.sql"}
     
-    if style_file_path not in post_proc_dict:
+    if style_file_path not in POSTPROCESS_DICT:
         logger.warning(f"No post-processing defined for style {style_file_path}")
         return 0
 
-    sql_file_path = str(SQL_DIR / post_proc_dict[style_file_path])
+    sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
     command = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
                str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
@@ -123,13 +124,13 @@ def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DE
         raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
 
     # preprocessing
-    sort_renum_file = str(RESOURCES_DIR / 'updated.osm.pbf')
-    run_osmium_cmd('sr', input_file, sort_renum_file)
+    preprocessed_file = str(RESOURCES_DIR / 'preprocessed.osm.pbf')
+    run_osmium_cmd('r', input_file, preprocessed_file)
 
     # importing to database
-    run_osm2pgsql_cmd(CREDENTIALS, sort_renum_file, style_file_path, schema, force)
+    run_osm2pgsql_cmd(CREDENTIALS, preprocessed_file, style_file_path, schema, force)
 
-    os.remove(sort_renum_file)
+    os.remove(preprocessed_file)
 
     # postprocessing
     postprocess_osm_import(CREDENTIALS, style_file_path, schema)
@@ -145,13 +146,13 @@ ie : Display extended information about OSM file
 s  : Sort OSM file based on IDs
 r  : Renumber object IDs in OSM file
 sr : Sort and renumber objects in OSM file
-u  : Upload OSM file to PostgreSQL database using osm2pgsql
+u  : Preprocess and upload OSM file to PostgreSQL database using osm2pgsql
 b  : Extract greatest bounding box from given relation ID of 
      input_file and upload to PostgreSQL database using osm2pgsql"""
 )
     parser.add_argument('input_file', help="Path to input OSM file")
     parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', default=DEFAULT_STYLE_FILE, help="Path to style file (optional for 'b', 'u' flag) - default is 'pipeline.lua'")
+    parser.add_argument("-l", dest="style_file", nargs='?', default=str(DEFAULT_STYLE_FILE), help="Path to style file (optional for 'b', 'u' flag) - default is 'pipeline.lua'")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
     parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")
@@ -191,8 +192,8 @@ def main(arg_list: list[str] | None = None):
             run_osmium_cmd(args.flag, args.input_file, args.output_file)
     
         case "u":
-            # Upload OSM file to PostgreSQL database
-            run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force)
+            # Preprocess and upload OSM file to PostgreSQL database and then postprocess the data
+            import_osm_to_db(args.input_file, args.force, args.style_file, args.schema)
         case "b":
             # Extract bounding box based on relation ID and import to PostgreSQL
             if not args.relation_id:
@@ -205,4 +206,3 @@ def main(arg_list: list[str] | None = None):
     
 if __name__ == '__main__':
     main()
-    # main(["u", "resources/monaco.osm.pbf", "--force", "-sch", "osm_testing", "-l", str(STYLES_DIR / "simple.lua")])

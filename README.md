@@ -118,8 +118,7 @@ python3 process_osm.py sr [input_file] -o [output_file]
 ### 2. Importing to database using Flex output
 The primary function of  `process_osm.py` script is to import OSM data to the database using [osm2pgsql](https://osm2pgsql.org) tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we define the Flex style file (Lua script) that has all the logic for processing data in OSM file.
 
-Use `u` flag to upload data into database.
-
+Use `u` flag to preprocess (renumber) and upload OSM file into database and then postprocess the data in database if postprocessing SQL file is specified in [POSTPROCESS_DICT](python/scripts/process_osm.py). Default Lua style file is [pipeline.lua](resources/lua_styles/pipeline.lua).
 ```bash
 python3 process_osm.py u [input_file] [-l style_file]
 ```

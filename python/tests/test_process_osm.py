@@ -144,15 +144,15 @@ def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd, test_schema, mock_re
     mock_postprocess = mocker.patch('scripts.process_osm.postprocess_osm_import')
 
     input_file = str(TESTS_DIR / "id_test.osm")
-    sort_renum_file = str(RESOURCES_DIR / 'updated.osm.pbf')
+    preprocessed_file = str(RESOURCES_DIR / 'preprocessed.osm.pbf')
     style_file_path = str(STYLES_DIR / 'pipeline.lua')
 
     import_osm_to_db(input_file, True, schema=test_schema)
 
-    mock_run_osmium_cmd.assert_called_once_with('sr', input_file, sort_renum_file)
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, sort_renum_file, style_file_path, test_schema, True)
+    mock_run_osmium_cmd.assert_called_once_with('r', input_file, preprocessed_file)
+    mock_run_osm2pgsql_cmd.assert_called_once_with(config, preprocessed_file, style_file_path, test_schema, True)
     mock_postprocess.assert_called_once_with(config, style_file_path, test_schema)
-    mock_remove.assert_called_once_with(sort_renum_file)
+    mock_remove.assert_called_once_with(preprocessed_file)
 
 def test_import_to_db_invalid_file(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'simple.lua')
@@ -193,17 +193,19 @@ def test_main_srsr_valid(mocker, test_input):
         main(arg_list)
         mock_run_osmium_cmd.assert_called_once_with(arg_list[0], arg_list[1], arg_list[3])
 
-def test_main_default_style_valid(mock_run_osm2pgsql_cmd):
+def test_main_default_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = ["u", tmp_file.name]
+        mock_import_osm_to_db = mocker.patch('scripts.process_osm.import_osm_to_db')
         main(arg_list)
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'pipeline.lua', "public", False)
+        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, str(STYLES_DIR / 'pipeline.lua'), "public")
 
-def test_main_input_style_valid(mock_run_osm2pgsql_cmd):
+def test_main_input_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
         arg_list = ["u", tmp_input.name, "-l", tmp_lua.name]
+        mock_import_osm_to_db = mocker.patch('scripts.process_osm.import_osm_to_db')
         main(arg_list)
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], arg_list[3], "public", False)
+        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, arg_list[3], "public")
 
 def test_main_style_file_invalid():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
@@ -223,7 +225,7 @@ def test_main_bbox_valid(mocker, mock_run_osm2pgsql_cmd):
         mock_extract_bbox = mocker.patch('scripts.process_osm.extract_bbox', return_value=(10, 20, 30, 40))
         main(arg_list)
         mock_extract_bbox.assert_called_once_with(arg_list[3])
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'pipeline.lua', "public", False, "10,20,30,40")
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], str(STYLES_DIR / 'pipeline.lua'), "public", False, "10,20,30,40")
 
 # relation_id missing
 def test_main_bbox_id_missing():
