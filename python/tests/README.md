@@ -1,12 +1,29 @@
-### Testing of processing and importing OSM file
+# Testing of processing and importing OSM file
 
-Testing of the functionality of both scripts (`filter_osm.py`, `process_osm.py`) is done via `pytest` and `pytest-mock` module.
-- Make sure to have it installed: `pip install -U pytest` and `pip install pytest-mock` (Ubuntu/MacOS)
-Test scripts and data used by them are saved in `/python/tests/` directory. Run all the tests in command line with:
+## Dependencies
+To test the functionality of the scripts, ensure you have the following installed:
+- [pytest](https://docs.pytest.org/en/stable/)
+- [pytest-mock](https://pypi.org/project/pytest-mock/)
+
+## Tested scripts:
+The following scripts are included in the tests:
+- [filter_osm.py](../scripts/filter_osm.py)
+- [process_osm.py](../scripts/process_osm.py)
+- [schema.py](../roadgraphtool/schema.py)
+- [map.py](../roadgraphtool/map.py)
+- [distance_matrix_generator.py](../roadgraphtool/distance_matrix_generator.py)
+
+Additionally, the [conftest.py](conftest.py) file is included to manage fixtures and shared configurations for the tests.
+
+## Running the tests
+
+Test scripts and their associated data are saved in this directory. Execute all the tests in terminal with:
 ```bash
 pytest python/tests/
 ```
 
-Testing script `test_process_osm.py` uses connection to database specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
+## Database connection
+
+The `test_process_osm.py` script uses connection to database specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
 If the server database requires password, store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format:
 `hostname:port:database:username:password`.
