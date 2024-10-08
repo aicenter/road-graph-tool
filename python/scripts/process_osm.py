@@ -12,7 +12,7 @@ from roadgraphtool.schema import *
 
 SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
 STYLES_DIR = RESOURCES_DIR / "lua_styles"
-DEFAULT_STYLE_FILE = STYLES_DIR / "default.lua"
+DEFAULT_STYLE_FILE = STYLES_DIR / "pipeline.lua"
 
 logger = setup_logger('process_osm')
 
@@ -106,26 +106,27 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
     logger.info("Post-processing completed.")
     return 0
 
-def import_osm_to_db(input_file: str, force: bool, style_file_path: str = None, schema: str = "public") -> int:
+def import_osm_to_db(input_file: str, force: bool, style_file_path: str = DEFAULT_STYLE_FILE, schema: str = "public") -> int:
     """Renumbers IDs of OSM objects and sorts file by them, imports the new file to database specified in config.ini file.
 
-    The **default.lua** style file is used if not specified or set otherwise. Default schema is **public**.
+    The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
     if not os.path.exists(input_file) or not is_valid_extension(input_file):
         raise FileNotFoundError("No valid file to import was found.")
 
-    if style_file_path is not None and not os.path.exists(style_file_path):
+    if not os.path.exists(style_file_path):
         raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
-    
-    if style_file_path is None:
-        style_file_path = DEFAULT_STYLE_FILE
-    
+
+    # preprocessing
     sort_renum_file = 'updated.osm.pbf'
     run_osmium_cmd('sr', input_file, sort_renum_file)
+
+    # importing to database
     run_osm2pgsql_cmd(CREDENTIALS, sort_renum_file, style_file_path, schema, force)
 
     os.remove(sort_renum_file)
 
+    # postprocessing
     postprocess_osm_import(CREDENTIALS, style_file_path, schema)
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
@@ -145,7 +146,7 @@ b  : Extract greatest bounding box from given relation ID of
 )
     parser.add_argument('input_file', help="Path to input OSM file")
     parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', default=DEFAULT_STYLE_FILE, help="Path to style file (optional for 'b', 'u' flag)")
+    parser.add_argument("-l", dest="style_file", nargs='?', default=DEFAULT_STYLE_FILE, help="Path to style file (optional for 'b', 'u' flag) - default is 'pipeline.lua'")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
     parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")

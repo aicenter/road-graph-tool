@@ -170,13 +170,13 @@ def test_run_osmium_cmd_sort_renumber(mocker):
     mock_remove.assert_called_once_with(tmp_file)
 
 def test_import_to_db_valid(mocker):
-    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [str(TESTS_DIR / "id_test.osm"), str(STYLES_DIR / 'default.lua')])
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [str(TESTS_DIR / "id_test.osm"), str(STYLES_DIR / 'simple.lua')])
     mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
     import_osm_to_db(str(TESTS_DIR / "id_test.osm"), True, schema='osm_testing')
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'updated.osm.pbf', STYLES_DIR / 'default.lua', 'osm_testing', True)
+    mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'updated.osm.pbf', STYLES_DIR / 'simple.lua', 'osm_testing', True)
 
 def test_import_to_db_invalid_file(mocker):
-    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'default.lua')
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'simple.lua')
     with pytest.raises(FileNotFoundError, match="No valid file to import was found."):
         import_osm_to_db(str(TESTS_DIR / "id_test.osm"), False)
 
@@ -219,7 +219,7 @@ def test_main_default_style_valid(mocker):
         arg_list = ["u", tmp_file.name]
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'default.lua', "public", False)
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'pipeline.lua', "public", False)
 
 def test_main_input_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
@@ -247,7 +247,7 @@ def test_main_bbox_valid(mocker):
         mock_run_osm2pgsql_cmd = mocker.patch('scripts.process_osm.run_osm2pgsql_cmd')
         main(arg_list)
         mock_extract_bbox.assert_called_once_with(arg_list[3])
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'default.lua', "public", False, "10,20,30,40")
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'simple.lua', "public", False, "10,20,30,40")
 
 # relation_id missing
 def test_main_bbox_id_missing():
