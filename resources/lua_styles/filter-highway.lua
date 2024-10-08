@@ -214,10 +214,8 @@ local function parse_speed(input)
     return nil
 end
 
-function osm2pgsql.process_node(object)
-    -- if clean_tags(object.tags) then
-    --     return
-    -- end
+-- Functions to process objects:
+local function do_nodes(object)
     clean_tags(object.tags)
 
     if not object.tags.highway then
@@ -231,7 +229,7 @@ function osm2pgsql.process_node(object)
     })
 end
 
-function osm2pgsql.process_way(object)
+local function do_ways(object)
     if clean_tags(object.tags) then
         return
     end
@@ -259,8 +257,7 @@ function osm2pgsql.process_way(object)
 
 end
 
--- Process every relation in the input
-function osm2pgsql.process_relation(object)
+local function do_relations(object)
     if clean_tags(object.tags) then
         return
     end
@@ -276,4 +273,16 @@ function osm2pgsql.process_relation(object)
         type = highway_type,
         members = object.members,
     })
+end
+
+-- Process tagged objects:
+osm2pgsql.process_node = do_nodes
+osm2pgsql.process_way = do_ways
+osm2pgsql.process_relation = do_relations
+
+-- If osm2pgsql is of version `2.0.0`, assign process_untagged_* functions:
+if osm2pgsql.version == '2.0.0' then
+    osm2pgsql.process_untagged_node = do_nodes
+    osm2pgsql.process_untagged_way = do_ways
+    osm2pgsql.process_untagged_relation = do_relations
 end

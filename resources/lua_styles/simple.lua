@@ -10,8 +10,7 @@ tables.nodes = osm2pgsql.define_node_table('nodes', {
 
 -- define table ways:
 tables.ways = osm2pgsql.define_way_table('ways', {
-    -- not_null = true: if invalid way, ignore it
-    { column = 'geom', type = 'linestring', projection=srid, not_null = true },
+    { column = 'geom', type = 'linestring', projection=srid, not_null = true }, -- not_null = true: if invalid way, ignore it
     { column = 'tags', type = 'jsonb' },
     { column = 'nodes', type = 'jsonb' },
 })
@@ -34,61 +33,43 @@ local function clean_tags(tags)
 end
 
 
+-- Functions to process objects:
+local function do_nodes(object)
+    clean_tags(object.tags)
+
+    tables.nodes:insert({
+        geom = object:as_point(),
+        tags = object.tags,
+    })
+end
+
+local function do_ways(object)
+    clean_tags(object.tags)
+
+    tables.ways:insert({
+        geom = object:as_linestring(),
+        tags = object.tags,
+        nodes = object.nodes,
+    })
+end
+
+local function do_relations(object)
+    clean_tags(object.tags)
+
+    tables.relations:insert({
+        tags = object.tags,
+        members = object.members,
+    })
+end
+
 -- Process tagged objects:
-function osm2pgsql.process_node(object)
-    clean_tags(object.tags)
+osm2pgsql.process_node = do_nodes
+osm2pgsql.process_way = do_ways
+osm2pgsql.process_relation = do_relations
 
-    tables.nodes:insert({
-        geom = object:as_point(),
-        tags = object.tags,
-    })
-end
-
-function osm2pgsql.process_way(object)
-    clean_tags(object.tags)
-
-    tables.ways:insert({
-        geom = object:as_linestring(),
-        tags = object.tags,
-        nodes = object.nodes,
-    })
-end
-
-function osm2pgsql.process_relation(object)
-    clean_tags(object.tags)
-
-    tables.relations:insert({
-        tags = object.tags,
-        members = object.members,
-    })
-end
-
-
--- Process untagged objects:
-function osm2pgsql.process_untagged_node(object)
-    clean_tags(object.tags)
-
-    tables.nodes:insert({
-        geom = object:as_point(),
-        tags = object.tags,
-    })
-end
-
-function osm2pgsql.process_untagged_way(object)
-    clean_tags(object.tags)
-
-    tables.ways:insert({
-        geom = object:as_linestring(),
-        tags = object.tags,
-        nodes = object.nodes,
-    })
-end
-
-function osm2pgsql.process_untagged_relation(object)
-    clean_tags(object.tags)
-
-    tables.relations:insert({
-        tags = object.tags,
-        members = object.members,
-    })
+-- If osm2pgsql is of version `2.0.0`, assign process_untagged_* functions:
+if osm2pgsql.version == '2.0.0' then
+    osm2pgsql.process_untagged_node = do_nodes
+    osm2pgsql.process_untagged_way = do_way
+    osm2pgsql.process_untagged_relation = do_relation
 end

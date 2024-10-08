@@ -90,7 +90,7 @@ The road graph tool consists of a set of components that are responsible for ind
 Before processing and loading data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to install several libraries: 
 * psql (for PostgreSQL)
 * osmium: osmium-tool (macOS: `brew install osmium-tool`, Ubuntu: `apt install osmium-tool`)
-* osm2pgsql (macOS: `brew install osm2pgsql`, Ubuntu: `apt install osm2pgsql` for version 1.6.0) - the current version of RGT is compatible with `2.0.0` version of `osm2pgsql`. Compatibility with version `1.11.0` is possible if the `untagged_*()` functions are commented out.
+* osm2pgsql (macOS: `brew install osm2pgsql`, Ubuntu: `apt install osm2pgsql` for version 1.6.0) - the current version of RGT is compatible with both `2.0.0` and `1.11.0` version of `osm2pgsql`.
 The PostgreSQL database needs PostGis extension in order to enable spatial and geographic capabilities within the database, which is essential for working with OSM data.
 Loading large OSM files to database is memory demanding so [documentation](https://osm2pgsql.org/doc/manual.html#system-requirements) suggests to have RAM of at least the size of the OSM file.
 

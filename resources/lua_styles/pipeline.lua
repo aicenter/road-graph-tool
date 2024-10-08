@@ -57,16 +57,15 @@ local function clean_tags(tags)
 	return next(tags) == nil
 end
 
--- Process every node in the input
-function osm2pgsql.process_node(object)
+-- Functions to process objects:
+local function do_nodes(object)
 	tables.nodes:insert({
 		geom = object:as_point(),
 		contracted = false,
 	})
 end
 
--- Process every way in the input
-function osm2pgsql.process_way(object)
+local function do_ways(object)
 	clean_tags(object.tags)
 
 	local nodes = object.nodes
@@ -94,8 +93,7 @@ function osm2pgsql.process_way(object)
 	end
 end
 
--- Process every relation in the input
-function osm2pgsql.process_relation(object)
+local function do_relations(object)
 	if clean_tags(object.tags) then
 		return
 	end
@@ -106,50 +104,14 @@ function osm2pgsql.process_relation(object)
 	})
 end
 
+-- Process tagged objects:
+osm2pgsql.process_node = do_nodes
+osm2pgsql.process_way = do_ways
+osm2pgsql.process_relation = do_relations
 
--- Process untagged objects:
-function osm2pgsql.process_untagged_node(object)
-	tables.nodes:insert({
-		geom = object:as_point(),
-		contracted = false,
-	})
-end
-
-function osm2pgsql.process_untagged_way(object)
-	clean_tags(object.tags)
-
-	local nodes = object.nodes
-
-	local oneway = object.tags.oneway == "yes"
-
-	-- clean additional tags
-	object.tags.oneway = nil
-
-	-- add to ways
-	tables.ways:insert({
-		geom = object:as_linestring(),
-		tags = object.tags,
-		oneway = oneway,
-		from = nodes[1],
-		to = nodes[#nodes],
-	})
-
-	-- add to nodes_ways
-	for index, value in ipairs(nodes) do
-		tables.nodes_ways:insert({
-			node_id = value,
-			position = index,
-		})
-	end
-end
-
-function osm2pgsql.process_untagged_relation(object)
-	if clean_tags(object.tags) then
-		return
-	end
-
-	tables.relations:insert({
-		tags = object.tags,
-		members = object.members,
-	})
+-- If osm2pgsql is of version `2.0.0`, assign process_untagged_* functions:
+if osm2pgsql.version == '2.0.0' then
+    osm2pgsql.process_untagged_node = do_nodes
+    osm2pgsql.process_untagged_way = do_ways
+    osm2pgsql.process_untagged_relation = do_relations
 end

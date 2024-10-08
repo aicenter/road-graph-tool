@@ -62,11 +62,11 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     else:  # local connection
         ssh_tunnel_port = config.db_server_port
 
-    if not force and not check_empty_or_nonexistent_tables(schema, config):
+    if not force and not check_empty_or_nonexistent_tables(schema):
         raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use '--force' flag to proceed.")
 
-    create_schema(schema, config)
-    add_postgis_extension(schema, config)
+    create_schema(schema)
+    add_postgis_extension(schema)
 
     cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
                "-P", str(ssh_tunnel_port), "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
@@ -106,7 +106,7 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
     logger.info("Post-processing completed.")
     return 0
 
-def import_osm_to_db(input_file: str, force: bool, style_file_path: str = DEFAULT_STYLE_FILE, schema: str = "public") -> int:
+def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DEFAULT_STYLE_FILE), schema: str = "public") -> int:
     """Renumbers IDs of OSM objects and sorts file by them, imports the new file to database specified in config.ini file.
 
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
@@ -199,4 +199,5 @@ def main(arg_list: list[str] | None = None):
             run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, coords)
     
 if __name__ == '__main__':
-    main()
+    # main()
+    main(["u", "resources/monaco.osm.pbf", "--force", "-sch", "osm_testing", "-l", str(STYLES_DIR / "simple.lua")])
