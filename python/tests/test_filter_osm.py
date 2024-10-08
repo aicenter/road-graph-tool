@@ -15,20 +15,8 @@ def expected_multipolygon_id():
         return f.read()
 
 @pytest.fixture
-def mock_subprocess_run(mocker):
-    return mocker.patch("subprocess.run")
-
-@pytest.fixture
-def mock_os_path_isfile(mocker):
-    return mocker.patch("os.path.isfile", return_value=True)
-
-@pytest.fixture
 def mock_open(mocker):
     return mocker.patch("builtins.open", mocker.mock_open())
-
-@pytest.fixture
-def mock_remove(mocker):
-    return mocker.patch("os.remove")
 
 # TESTS:
 

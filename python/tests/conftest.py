@@ -20,6 +20,10 @@ def mock_subprocess_run(mocker):
 def mock_os_path_isfile(mocker):
     return mocker.patch("os.path.isfile")
 
+@pytest.fixture
+def mock_remove(mocker):
+    return mocker.patch("os.remove")
+
 @pytest.fixture(scope="function")
 def db_connection():
     conn = psycopg2.connect(

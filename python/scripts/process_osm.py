@@ -89,16 +89,17 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
         logger.error(f"Error during import: {res}")
 
 def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, schema: str) -> int:
-    """Applies postprocessing SQL associated with **style_file_path** to data in schema after importing.
+    """Applies postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
+    style_file_path = os.path.basename(style_file_path)
     post_proc_dict = {"pipeline.lua": "after_import.sql"}
-
+    
     if style_file_path not in post_proc_dict:
         logger.warning(f"No post-processing defined for style {style_file_path}")
         return 0
 
-    sql_file_path = SQL_DIR / post_proc_dict[style_file_path]
-    command = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.host, "-p", 
+    sql_file_path = str(SQL_DIR / post_proc_dict[style_file_path])
+    command = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
                str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
     logger.info("Post-processing OSM data after import...")
@@ -122,7 +123,7 @@ def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DE
         raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
 
     # preprocessing
-    sort_renum_file = 'updated.osm.pbf'
+    sort_renum_file = str(RESOURCES_DIR / 'updated.osm.pbf')
     run_osmium_cmd('sr', input_file, sort_renum_file)
 
     # importing to database
@@ -204,4 +205,6 @@ def main(arg_list: list[str] | None = None):
     
 if __name__ == '__main__':
     # main()
-    main(["u", "resources/monaco.osm.pbf", "--force", "-sch", "osm_testing", "-l", str(STYLES_DIR / "simple.lua")])
+    # main(["u", "resources/monaco.osm.pbf", "--force", "-sch", "osm_testing", "-l", str(STYLES_DIR / "simple.lua")])
+    # postprocess_osm_import(config, 'pipeline.lua', 'public')
+    postprocess_osm_import(config, 'resources/pipeline.lua', 'public')
