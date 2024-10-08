@@ -3,14 +3,14 @@ local srid = 4326
 local tables = {}
 
 -- define table nodes:
-tables.nodes = osm2pgsql.define_node_table('mocknodes', {
+tables.nodes = osm2pgsql.define_node_table('test_nodes', {
     -- not_null = true: if invalid node, ignore it
     { column = 'geom', type = 'point', projection=srid, not_null = true },
     { column = 'tags', type = 'jsonb' },
 })
 
 -- define table ways:
-tables.ways = osm2pgsql.define_way_table('mockways', {
+tables.ways = osm2pgsql.define_way_table('test_ways', {
     -- not_null = true: if invalid way, ignore it
     { column = 'geom', type = 'linestring', projection=srid, not_null = true },
     { column = 'tags', type = 'jsonb' },
@@ -18,7 +18,7 @@ tables.ways = osm2pgsql.define_way_table('mockways', {
 })
 
 
-tables.relations = osm2pgsql.define_relation_table('mockrelations', {
+tables.relations = osm2pgsql.define_relation_table('test_relations', {
     { column = 'tags', type = 'jsonb' },
     { column = 'members', type = 'jsonb' },
 })

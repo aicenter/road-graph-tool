@@ -2,7 +2,6 @@ import tempfile
 import pytest
 import subprocess
 import os
-import psycopg2
 import xml.etree.ElementTree as ET
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
@@ -64,31 +63,25 @@ def test_find_min_max(bounding_box):
     assert max_lat == 15.0
 
 @pytest.mark.usefixtures("teardown_db")
-def test_run_osm2pgsql_cmd(db_connection):
-    style_file_path = str(TESTS_DIR / "mock_default.lua")
+def test_run_osm2pgsql_cmd(db_connection, test_schema, test_tables):
+    style_file_path = str(TESTS_DIR / "test_default.lua")
     input_file = str(TESTS_DIR / "bbox_test.osm")
-    schema = 'osm_testing'
 
-    run_osm2pgsql_cmd(config, input_file, style_file_path, schema, True)
+    run_osm2pgsql_cmd(config, input_file, style_file_path, test_schema, True)
+
+    expected_count = {test_tables[0]: 6, test_tables[1]: 0, test_tables[2]: 1}
 
     cursor = db_connection.cursor()
-    cursor.execute(f'SELECT COUNT(*) FROM {schema}.mocknodes;')
-    nodes_count = cursor.fetchone()[0]
-    assert nodes_count == 6
+    for table, count in expected_count.items():
+        cursor.execute(f'SELECT COUNT(*) FROM {test_schema}.{table};')
+        nodes_count = cursor.fetchone()[0]
+        assert nodes_count == count
 
-    cursor.execute(f'SELECT COUNT(*) FROM {schema}.mockways;')
-    ways_count = cursor.fetchone()[0]
-    assert ways_count == 0
-
-    cursor.execute(f'SELECT COUNT(*) FROM {schema}.mockrelations;')
-    relations_count = cursor.fetchone()[0]
-    assert relations_count == 1
-
-    cursor.execute(f'SELECT * FROM {schema}.mocknodes WHERE node_id=1;')
+    cursor.execute(f'SELECT * FROM {test_schema}.{test_tables[0]} WHERE node_id=1;')
     node = cursor.fetchone()
     assert node is not None
 
-    cursor.execute(f'SELECT * FROM {schema}.mocknodes WHERE node_id=7;')
+    cursor.execute(f'SELECT * FROM {test_schema}.{test_tables[0]} WHERE node_id=7;')
     node = cursor.fetchone()
     assert node is None
 
@@ -146,10 +139,10 @@ def test_run_osmium_cmd_sort_renumber(mocker, mock_subprocess_run):
     # tmp_file was deleted
     mock_remove.assert_called_once_with(tmp_file)
 
-def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd):
-    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [str(TESTS_DIR / "id_test.osm"), str(STYLES_DIR / 'simple.lua')])
-    import_osm_to_db(str(TESTS_DIR / "id_test.osm"), True, schema='osm_testing')
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'updated.osm.pbf', STYLES_DIR / 'simple.lua', 'osm_testing', True)
+def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd, test_schema):
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [str(TESTS_DIR / "id_test.osm"), str(STYLES_DIR / 'pipeline.lua')])
+    import_osm_to_db(str(TESTS_DIR / "id_test.osm"), True, schema=test_schema)
+    mock_run_osm2pgsql_cmd.assert_called_once_with(config, 'updated.osm.pbf', str(STYLES_DIR / 'pipeline.lua'), 'osm_testing', True)
 
 def test_import_to_db_invalid_file(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'simple.lua')
@@ -220,7 +213,7 @@ def test_main_bbox_valid(mocker, mock_run_osm2pgsql_cmd):
         mock_extract_bbox = mocker.patch('scripts.process_osm.extract_bbox', return_value=(10, 20, 30, 40))
         main(arg_list)
         mock_extract_bbox.assert_called_once_with(arg_list[3])
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'simple.lua', "public", False, "10,20,30,40")
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], STYLES_DIR / 'pipeline.lua', "public", False, "10,20,30,40")
 
 # relation_id missing
 def test_main_bbox_id_missing():

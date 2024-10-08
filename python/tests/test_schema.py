@@ -29,7 +29,6 @@ def test_add_postgis_extension(db_connection):
     
     assert result is not None
 
-
 @pytest.mark.usefixtures("teardown_db")
 def test_check_empty_or_nonexistent_tables_empty():
     schema = 'test_schema_empty'
@@ -39,13 +38,13 @@ def test_check_empty_or_nonexistent_tables_empty():
     assert result is True
 
 @pytest.mark.usefixtures("teardown_db")
-def test_check_empty_or_nonexistent_tables_not_empty(db_connection):
+def test_check_empty_or_nonexistent_tables_not_empty(db_connection, test_tables):
     schema = 'test_schema'
     
     create_schema(schema)
     cursor = db_connection.cursor()
-    cursor.execute(f"CREATE TABLE {schema}.nodes (id SERIAL PRIMARY KEY);")
-    cursor.execute(f"INSERT INTO {schema}.nodes (id) VALUES (1);")
+    cursor.execute(f"CREATE TABLE {schema}.{test_tables[0]} (id SERIAL PRIMARY KEY);")
+    cursor.execute(f"INSERT INTO {schema}.{test_tables[0]}(id) VALUES (1);")
     db_connection.commit()
     
     result = check_empty_or_nonexistent_tables(schema)
