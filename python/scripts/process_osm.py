@@ -109,7 +109,7 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
     else:
         logger.warning(f"No post-processing defined for style {style_file_path}")
 
-def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DEFAULT_STYLE_FILE), schema: str = "public") -> int:
+def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DEFAULT_STYLE_FILE), schema: str = "public"):
     """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
 
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
