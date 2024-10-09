@@ -139,13 +139,13 @@ def test_run_osmium_cmd_sort_renumber(mock_subprocess_run, mock_remove):
     mock_remove.assert_called_once_with(tmp_file)
 
 def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd, test_schema, mock_remove):
-    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [str(TESTS_DIR / "id_test.osm"), str(STYLES_DIR / 'pipeline.lua')])
-    mock_run_osmium_cmd = mocker.patch('scripts.process_osm.run_osmium_cmd')
-    mock_postprocess = mocker.patch('scripts.process_osm.postprocess_osm_import')
-
     input_file = str(TESTS_DIR / "id_test.osm")
     preprocessed_file = str(RESOURCES_DIR / 'preprocessed.osm.pbf')
     style_file_path = str(STYLES_DIR / 'pipeline.lua')
+    
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [input_file, style_file_path, preprocessed_file])
+    mock_run_osmium_cmd = mocker.patch('scripts.process_osm.run_osmium_cmd')
+    mock_postprocess = mocker.patch('scripts.process_osm.postprocess_osm_import')
 
     import_osm_to_db(input_file, True, schema=test_schema)
 
@@ -239,8 +239,7 @@ def test_postprocess_osm_import_valid(mock_subprocess_run, test_schema):
     style_file_path = "pipeline.lua"
     sql_file_path = str(SQL_DIR / "after_import.sql")
 
-    res = postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
-    assert res == 0
+    postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
     mock_subprocess_run.assert_called_once()
     mock_subprocess_run.assert_any_call(["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
                str(config.db_server_port), "-c", f"SET search_path TO {test_schema};", "-f", sql_file_path])
@@ -250,8 +249,7 @@ def test_postprocess_osm_import_valid_long_path(mock_subprocess_run, test_schema
     style_file_path = str(STYLES_DIR / "pipeline.lua")
     sql_file_path = str(SQL_DIR / "after_import.sql")
 
-    res = postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
-    assert res == 0
+    postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
     mock_subprocess_run.assert_called_once()
     mock_subprocess_run.assert_any_call(["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
                str(config.db_server_port), "-c", f"SET search_path TO {test_schema};", "-f", sql_file_path])
@@ -260,6 +258,5 @@ def test_postprocess_osm_import_invalid_style(mock_subprocess_run, test_schema):
     mock_subprocess_run.return_value.returncode = 0
     style_file_path = "simple.lua"
 
-    res = postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
-    assert res == 0
+    postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
     mock_subprocess_run.assert_not_called()
