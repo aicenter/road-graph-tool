@@ -8,7 +8,8 @@ from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
 from roadgraphtool.db import db
 from roadgraphtool.schema import *
-from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger, RESOURCES_DIR
+from roadgraphtool.log import setup_logger
+from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, RESOURCES_DIR
 from scripts.find_bbox import find_min_max
 
 SQL_DIR = Path(__file__).parent.parent.parent / "SQL"

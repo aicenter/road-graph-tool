@@ -9,21 +9,9 @@ import requests
 import logging
 
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError
+from roadgraphtool.log import setup_logger
 
 RESOURCES_DIR = Path(__file__).parent.parent.parent / "resources"
-
-def setup_logger(logger_name: str) -> logging.Logger:
-    log = logging.getLogger(logger_name)
-    log.setLevel(logging.INFO)
-    # setup formatting
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
-    handler.setFormatter(formatter)
-    log.addHandler(handler)
-    # stop logger from emitting messages
-    log.propagate = False
-    return log
 
 logger = setup_logger('filter_osm')
 
