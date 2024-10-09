@@ -1,14 +1,12 @@
 from typing import Optional, TYPE_CHECKING
 import psycopg2
+
 from roadgraphtool.credentials_config import CREDENTIALS as config
 
 if TYPE_CHECKING:
     from psycopg2 import connection
 
 TABLES = ["nodes", "ways"]
-
-class TableNotEmptyError(Exception):
-    pass
 
 def _get_connection() -> Optional['connection']:
     """Establishes a connection to the database and returns the connection object."""

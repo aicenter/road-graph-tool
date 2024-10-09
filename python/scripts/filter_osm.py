@@ -8,6 +8,8 @@ from typing import Any
 import requests
 import logging
 
+from roadgraphtool.exceptions import InvalidInputError, MissingInputError
+
 RESOURCES_DIR = Path(__file__).parent.parent.parent / "resources"
 
 def setup_logger(logger_name: str) -> logging.Logger:
@@ -24,12 +26,6 @@ def setup_logger(logger_name: str) -> logging.Logger:
     return log
 
 logger = setup_logger('filter_osm')
-
-class InvalidInputError(Exception):
-    pass
-
-class MissingInputError(Exception):
-    pass
 
 def is_valid_extension(file: str) -> bool:
     """Return True if the file has a valid extension.

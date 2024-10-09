@@ -5,9 +5,9 @@ import os
 import xml.etree.ElementTree as ET
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
+from roadgraphtool.exceptions import MissingInputError, InvalidInputError
 from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, setup_ssh_tunnel, postprocess_osm_import, STYLES_DIR, SQL_DIR, RESOURCES_DIR
 from scripts.find_bbox import find_min_max
-from scripts.filter_osm import MissingInputError, InvalidInputError
 from tests.test_filter_osm import TESTS_DIR
 
 @pytest.fixture

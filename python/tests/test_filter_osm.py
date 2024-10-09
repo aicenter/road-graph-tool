@@ -4,7 +4,8 @@ import tempfile
 import pytest
 import xml.etree.ElementTree as ET
 
-from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main, InvalidInputError, MissingInputError, RESOURCES_DIR
+from roadgraphtool.exceptions import InvalidInputError, MissingInputError
+from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main, RESOURCES_DIR
     
 TESTS_DIR = pathlib.Path(__file__).parent.parent.parent / "python/tests/data"
 

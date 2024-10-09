@@ -5,10 +5,11 @@ import subprocess
 import logging
 
 from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
-from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension, setup_logger, RESOURCES_DIR
-from scripts.find_bbox import find_min_max
+from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
 from roadgraphtool.db import db
 from roadgraphtool.schema import *
+from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger, RESOURCES_DIR
+from scripts.find_bbox import find_min_max
 
 SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
 STYLES_DIR = RESOURCES_DIR / "lua_styles"
@@ -55,7 +56,7 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
             os.remove(tmp_file)
 
 def setup_ssh_tunnel(config: CredentialsConfig) -> int:
-    """Sets up SSH tunnel if needed and returns port number."""
+    """Set up SSH tunnel if needed and returns port number."""
     if hasattr(config, "server"):  # remote connection
         db.start_or_restart_ssh_connection_if_needed()
         config.db_server_port = db.ssh_tunnel_local_port
@@ -85,35 +86,31 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     else:
         logger.info(f"Begin importing with: '{' '.join(cmd)}'")
     res = subprocess.run(cmd).returncode
-    if not res:
-        logger.info("Importing completed.")
-    else:
-        logger.error(f"Error during import: {res}")
+    if res:
+        raise SubprocessError(f"Error during import: {res}")
+    logger.info("Importing completed.")
 
-def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, schema: str) -> int:
-    """Applies postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
+def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, schema: str):
+    """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
     style_file_path = os.path.basename(style_file_path)
     
-    if style_file_path not in POSTPROCESS_DICT:
+    if style_file_path in POSTPROCESS_DICT:
+        sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
+        command = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
+                str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+
+        logger.info("Post-processing OSM data after import...")
+        res = subprocess.run(command).returncode
+
+        if res:
+            raise SubprocessError(f"Error during post-processing: {res}")
+        logger.info("Post-processing completed.")
+    else:
         logger.warning(f"No post-processing defined for style {style_file_path}")
-        return 0
-
-    sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
-    command = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
-               str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
-
-    logger.info("Post-processing OSM data after import...")
-    res = subprocess.run(command).returncode
-
-    if res != 0:
-        logger.error(f"Error during post-processing: {res}")
-        return res
-    logger.info("Post-processing completed.")
-    return 0
 
 def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DEFAULT_STYLE_FILE), schema: str = "public") -> int:
-    """Renumbers IDs of OSM objects and sorts file by them, imports the new file to database specified in config.ini file.
+    """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
 
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
