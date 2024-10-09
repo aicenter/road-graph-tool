@@ -1,5 +1,6 @@
 import hashlib
 import os
+import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from scripts.install_sql import main as pre_pocessing
 from scripts.process_osm import import_osm_to_db
 
 TEST_DATA_PATH = Path(__file__).parent / "data"
+TMP_DIR = Path(__file__).parent / "TMP"
 
 # Fixtures
 
@@ -25,6 +27,11 @@ def cleanup_for_base_flow():
 
     # 5) Environment destruction
     # remove all created files
+    if TMP_DIR.is_file() or TMP_DIR.is_symlink():
+        TMP_DIR.unlink()
+    elif TMP_DIR.is_dir():
+        shutil.rmtree(TMP_DIR)
+
     # test environment desctructor
     db.execute_sql("CALL test_env_destructor();")
     # TODO: remove tables from public scheme
@@ -231,7 +238,6 @@ def test_integration_base_flow():
     assert set([(0, 1), (0, 2), (0, 3), (0, 4), (1, 5)]) == set(component_data)
 
     # 4) Export data to files
-    TMP_DIR = Path(__file__).parent / "TMP"
     os.mkdir(str(TMP_DIR))
     map_path = TMP_DIR / "map"
     area_dir = TMP_DIR / "area_dir"
