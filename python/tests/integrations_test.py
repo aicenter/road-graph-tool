@@ -1,6 +1,9 @@
+import hashlib
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+import pytest
 
 from roadgraphtool.db import db
 from roadgraphtool.db_operations import (compute_strong_components,
@@ -12,6 +15,20 @@ from scripts.install_sql import main as pre_pocessing
 from scripts.process_osm import import_osm_to_db
 
 TEST_DATA_PATH = Path(__file__).parent / "data"
+
+# Fixtures
+
+
+@pytest.fixture()
+def cleanup_for_base_flow():
+    yield  # wait for the call after test
+
+    # 5) Environment destruction
+    # remove all created files
+    # test environment desctructor
+    db.execute_sql("CALL test_env_destructor();")
+    # TODO: remove tables from public scheme
+
 
 # Helper functions
 
@@ -77,6 +94,11 @@ def parse_osm_file(file_path):
         osm_data["ways"][way_id] = way_data
 
     return osm_data
+
+
+def get_file_md5_hash(file_path):
+    with open(file_path, "rb") as f:
+        return hashlib.md5(f.read()).hexdigest()
 
 
 # Testing functions
@@ -226,11 +248,33 @@ def test_integration_base_flow():
         "area_id": 1,
     }
     _ = export_nodes_edges(config)
-    assert False
 
-    # TODO: assert created files
+    # assert created files by expected hash
+    expected_hashes = {
+        str(map_path / "edges.csv"): "96b1bc002e872cc13ba6d83823889070",
+        str(map_path / "nodes.csv"): "7d582c1906dd68bd1c38b99baa6da191",
+        str(map_path / "shapefiles/edges.cpg"): "ae3b3df9970b49b6523e608759bc957d",
+        str(map_path / "shapefiles/edges.dbf"): "0d327b70d2394bed6a6fd412d7886bc8",
+        str(map_path / "shapefiles/edges.prj"): "c742bee3d4edfc2948a2ad08de1790a5",
+        str(map_path / "shapefiles/edges.shp"): "5854b916fbaf5dadef0d18891c8aa4c8",
+        str(map_path / "shapefiles/edges.shx"): "0544fbe8da9bfff9360bae6b2f1fefe9",
+        str(map_path / "shapefiles/nodes.cpg"): "ae3b3df9970b49b6523e608759bc957d",
+        str(map_path / "shapefiles/nodes.dbf"): "f774112b1580f9d93c7afe45e2a5ee9f",
+        str(map_path / "shapefiles/nodes.prj"): "c742bee3d4edfc2948a2ad08de1790a5",
+        str(map_path / "shapefiles/nodes.shp"): "6a5b95f286089ad19ba943410c25d5f5",
+        str(map_path / "shapefiles/nodes.shx"): "499035dc9713ee99510385119f067710",
+    }
+    passage = True
+    result_dict = dict()
 
-    # 5) Environment destruction
-    # test environment desctructor
-    db.execute_sql("CALL test_env_destructor();")
-    # TODO: remove tables from public scheme
+    for file_path, expected_hash in expected_hashes.items():
+        actual_hash = get_file_md5_hash(file_path)
+        result = expected_hash != actual_hash
+        result_dict[file_path] = {
+            "assertion_result": result,
+            "message": "Ok" if result else f"File content mismatch for {file_path}",
+        }
+        if not result:
+            passage = result
+
+    assert passage, f"Result dictionary of assertion: {result_dict}"
