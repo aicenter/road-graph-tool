@@ -228,6 +228,9 @@ def test_integration_base_flow():
     _ = export_nodes_edges(config)
     assert False
 
+    # TODO: assert created files
+
     # 5) Environment destruction
     # test environment desctructor
     db.execute_sql("CALL test_env_destructor();")
+    # TODO: remove tables from public scheme
