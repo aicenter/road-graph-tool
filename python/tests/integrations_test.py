@@ -111,7 +111,7 @@ def get_file_md5_hash(file_path):
 # Testing functions
 
 
-def test_integration_base_flow():
+def test_integration_base_flow(cleanup_for_base_flow):
     """
     Integration test:
         Base flow:
