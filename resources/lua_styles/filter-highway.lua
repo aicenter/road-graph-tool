@@ -1,4 +1,14 @@
--- Process nodes, ways, relations with highway tag
+-- Dynamically determine directory path and update package.path
+local separator = package.config:sub(1,1)
+function get_directory_path(sep)
+    local file_path = debug.getinfo(2, "S").source:sub(2)
+    local dir_path = file_path:match("(.*" .. sep .. ")")
+    return dir_path
+end
+local dir_path = get_directory_path(separator)
+package.path = package.path .. ";" .. dir_path .. "?.lua"
+local helper = require("helper")
+
 local srid = 4326
 
 local tables = {}
@@ -280,8 +290,8 @@ osm2pgsql.process_node = do_nodes
 osm2pgsql.process_way = do_ways
 osm2pgsql.process_relation = do_relations
 
--- If osm2pgsql is of version `2.0.0`, assign process_untagged_* functions:
-if osm2pgsql.version == '2.0.0' then
+-- If osm2pgsql is of version `2.0.0` or higher, assign process_untagged_* functions:
+if helper.compare_version(osm2pgsql.version, '2.0.0') then
     osm2pgsql.process_untagged_node = do_nodes
     osm2pgsql.process_untagged_way = do_ways
     osm2pgsql.process_untagged_relation = do_relations
