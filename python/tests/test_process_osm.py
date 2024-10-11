@@ -140,19 +140,15 @@ def test_run_osmium_cmd_sort_renumber(mock_subprocess_run, mock_remove):
 
 def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd, test_schema, mock_remove):
     input_file = str(TESTS_DIR / "id_test.osm")
-    preprocessed_file = str(RESOURCES_DIR / 'preprocessed.osm.pbf')
     style_file_path = str(STYLES_DIR / 'pipeline.lua')
     
-    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [input_file, style_file_path, preprocessed_file])
-    mock_run_osmium_cmd = mocker.patch('scripts.process_osm.run_osmium_cmd')
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [input_file, style_file_path])
     mock_postprocess = mocker.patch('scripts.process_osm.postprocess_osm_import')
 
     import_osm_to_db(input_file, True, schema=test_schema)
 
-    mock_run_osmium_cmd.assert_called_once_with('r', input_file, preprocessed_file)
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, preprocessed_file, style_file_path, test_schema, True)
+    mock_run_osm2pgsql_cmd.assert_called_once_with(config, input_file, style_file_path, test_schema, True)
     mock_postprocess.assert_called_once_with(config, style_file_path, test_schema)
-    mock_remove.assert_called_once_with(preprocessed_file)
 
 def test_import_to_db_invalid_file(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'simple.lua')

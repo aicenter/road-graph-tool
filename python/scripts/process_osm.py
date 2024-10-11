@@ -120,14 +120,9 @@ def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DE
     if not os.path.exists(style_file_path):
         raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
 
-    preprocessed_file = str(RESOURCES_DIR / 'preprocessed.osm.pbf')
-
     try:
-         # preprocessing
-        run_osmium_cmd('r', input_file, preprocessed_file)
-
         # importing to database
-        run_osm2pgsql_cmd(CREDENTIALS, preprocessed_file, style_file_path, schema, force)
+        run_osm2pgsql_cmd(CREDENTIALS, input_file, style_file_path, schema, force)
 
         # postprocessing
         postprocess_osm_import(CREDENTIALS, style_file_path, schema)
@@ -135,9 +130,7 @@ def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DE
         logger.error(f"Error during pre-processing: {e}")
     except SubprocessError as e:
         logger.error(f"Error during processing: {e}")
-    finally:
-        if os.path.exists(preprocessed_file):
-            os.remove(preprocessed_file)
+
 
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:

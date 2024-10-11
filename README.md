@@ -28,7 +28,7 @@ To execute the configured pipeline, follow these steps:
 1. Configure the database in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration). The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
 1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
 
-2. Preprocess data, import them into database and then postprocess the data in the database. There are two methods to achieve this:
+2. Import data into database and then postprocess the data in the database. There are two methods to achieve this:
     1. Execute `process_osm.py u COUNTRY.osm.pbf`. This triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
         > **_DATABASE and SSH CONFIGURATION:_** Tool _osm2pgsql_ uses connection to database specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
             If the server database requires password, store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format: `hostname:port:database:username:password`.
@@ -114,14 +114,13 @@ The primary function of  `process_osm.py` script is to import OSM data to the da
 The `u` flag triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
 
 #### Function [import_osm_to_db()](python/scripts/process_osm.py):
-- **Preprocesses** OSM file with `process_osm.py r` (for renumbering) - for further details on preprocessing, see [Section 1 of **Preprocessing of OSM file**](#1-preprocessing-of-osm-file).
 - **Imports** the data into the database (default schema is `public, but a different schema can be specified) with provided Lua *style file* - if omitted, the default style file [pipeline.lua](resources/lua_styles/pipeline.lua) is used. To customize the style file, set a new path for the [DEFAULT_STYLE_FILE](python/scripts/process_osm.py).
 - **Postprocesses** the data in database if specified in [POSTPROCESS_DICT](python/scripts/process_osm.py), which can be configured based on the *style file* used during importing
 
 ```bash
 python3 process_osm.py u [input_file] [-l style_file]
 ```
-> **_WARNING:_** Running this command will overwrite existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
+> **_WARNING:_** Running this command **will overwrite** existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
 
 E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
 ```bash
