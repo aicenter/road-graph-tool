@@ -11,9 +11,10 @@ from roadgraphtool.schema import *
 from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger, RESOURCES_DIR
 from scripts.find_bbox import find_min_max
 
+DEFAULT_STYLE_FILE = "pipeline.lua"
 SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
 STYLES_DIR = RESOURCES_DIR / "lua_styles"
-DEFAULT_STYLE_FILE = STYLES_DIR / "pipeline.lua"
+DEFAULT_STYLE_FILE_PATH = STYLES_DIR / DEFAULT_STYLE_FILE
 
 POSTPROCESS_DICT = {"pipeline.lua": "after_import.sql"}
 
@@ -109,7 +110,7 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
     else:
         logger.warning(f"No post-processing defined for style {style_file_path}")
 
-def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DEFAULT_STYLE_FILE), schema: str = "public"):
+def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DEFAULT_STYLE_FILE_PATH), schema: str = "public"):
     """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
 
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
@@ -150,7 +151,7 @@ b  : Extract greatest bounding box from given relation ID of
 )
     parser.add_argument('input_file', help="Path to input OSM file")
     parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', default=str(DEFAULT_STYLE_FILE), help="Path to style file (optional for 'b', 'u' flag) - default is 'pipeline.lua'")
+    parser.add_argument("-l", dest="style_file", nargs='?', default=str(DEFAULT_STYLE_FILE_PATH), help=f"Path to style file (optional for 'b', 'u' flag) - default is '{DEFAULT_STYLE_FILE}'")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
     parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")

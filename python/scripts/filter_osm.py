@@ -87,7 +87,8 @@ def extract_bbox(input_file: str, coords: str, strategy: str = None):
 
 def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bool):
     """Filter objects based on tags in expression file.
-    Nodes referenced in ways and members referenced in relations will not 
+
+    Untagged nodes and members referenced in ways and relations respectively will not 
     be added to output if omit_referenced set to True.
     """
     cmd = ["osmium", "tags-filter", input_file, "-e", expression_file, "-o", "filtered.osm.pbf"]
@@ -97,21 +98,36 @@ def run_osmium_filter(input_file: str, expression_file: str, omit_referenced: bo
     if not res.returncode:
         logger.info("Tag filtering completed.")
 
+def filter_highways(input_file: str, omit_referenced: bool):
+    """Filter objects with highway tag. 
+    
+    Untagged nodes and members referenced in ways and relations respectively will not 
+    be added to output if omit_referenced set to True.
+    """
+    content = "nwr/highway"
+    cmd = ["osmium", "tags-filter", input_file, content, "-o", "filtered.osm.pbf"]
+    if omit_referenced:
+        cmd.extend(["-R"])
+    res = subprocess.run(cmd)
+    if not res.returncode:
+        logger.info("Highway filtering completed.")
+
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Filter OSM files with various operations.", formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument("flag", choices=["id", "b", "f"], metavar="flag",
+    parser.add_argument("flag", choices=["id", "b", "f", "h"], metavar="flag",
                         help="""
 id : Filter geographic objects based on relation ID
 b  : Filter geographic objects based on bounding box (with osmium)
 f  : Filter objects based on tags in expression_file
+h  : Filter objects based on highway tag
 """)
     parser.add_argument('input_file', help='Path to input OSM file')
     parser.add_argument("-e", dest="expression_file", help="Path to expression file for filtering tags (required for 'f' flag)")
     parser.add_argument("-c", dest="coords", help="Bounding box coordinates or path to config file (required for 'b' flag)")
-    parser.add_argument("-rid", dest="relation_id", help="Relation ID (required for 'b' flag)")
+    parser.add_argument("-rid", dest="relation_id", help="Relation ID (required for 'id' flag)")
     parser.add_argument("-s", dest="strategy", help="Strategy type (optional for 'id', 'b' flags)")
-    parser.add_argument("-R", dest="omit_referenced", action="store_true", help="Omit referenced objects (optional for 'f' flag)")
+    parser.add_argument("-R", dest="omit_referenced", action="store_true", help="Omit referenced objects (optional for 'f', 'h' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
 
     args = parser.parse_args(arg_list)
@@ -158,6 +174,10 @@ def main(arg_list: list[str] | None = None):
                 raise FileNotFoundError(f"File '{args.expression_file}' does not exist.")
 
             run_osmium_filter(args.input_file, args.expression_file, args.omit_referenced)
+
+        case "h":
+            # Filter objects based on highway tag
+            filter_highways(args.input_file, args.omit_referenced)
 
 if __name__ == '__main__':
     main()

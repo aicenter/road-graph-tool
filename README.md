@@ -184,8 +184,9 @@ It's better to filter out only what we need with osmium (before processing with 
 
 ##### Osmium
 - ID can be found by specific filtering using `resources/expression-example.txt` or on OpenStreetMap - [more on how to filter](#32-filter-tags)
-    - note: `admin_level=*` expression represents administrative level of feature (borders of territorial political entities) - each country (even county) can have different numbering
     - use `name:en` for easiest filtering
+    > **_NOTE:_** `admin_level=*` expression represents administrative level of feature (borders of territorial political entities) - each country (even county) can have different numbering
+    
 - e.g. to find relation ID that bounds Vilnius city (ID: 1529146), run double [tag filtration](#32-filter-tags):
 ```bash
 # expressions-example.txt should contain: r/type=boundary
@@ -220,16 +221,26 @@ Filter specific objects based on tags.
 * use `resources/expressions-example.txt` to specify tags to be filtered in format: `[object_type]/[expression]` where:
     * `object_type`: n (nodes), w (ways), r (relations) - can be combined
     * `expression`: what it should match against
+    * [more details](https://docs.osmcode.org/osmium/latest/osmium-tags-filter.html)
 ```bash
 python3 filter_osm.py t [input_file] -e [expression_file] [-R]
 ```
 - Optional `-R` flag: nodes referenced in ways and members referenced in relations will not be added to output if `-R` flag is used
+- e.g. to filter out highway objects use:
+```bash
+# expression file contains: nwr/highway
+python3 filter_osm.py t [input_file] -e [expression_file]
+```
+* use `filter_osm.py h` to filter objects with highway tags (even referenced and untagged)
+
 #### 3.2.2 Flex output
-- Use lua style files to filter out desired objects.
-    - e.g.`resources/lua_styles/filter-highway.lua` filters nodes, ways and relations with highway tag
+- Use lua style files to filter out objects that have the **desired tag**.
+    - e.g. to filter out highway objects use `resources/lua_styles/filter-highway.lua` which filters nodes, ways and relations with **highway** flag
 ```bash
 python3 process_osm.py u lithuania-latest.osm.pbf -s resources/lua_styles/filter-highway.lua
 ```
+> **_NOTE:_** Unfortunately, **untagged** nodes and members **referenced** in ways and relations respectively can't be included as `osm2pgsql` processes objects in [certain order](https://osm2pgsql.org/doc/manual.html#the-after-callback-functions). Use `filter_osm.py` for filtering referenced objects too.
+
 - More examples of various Flex configurations can be found in the oficial [osm2pgsql GitHub project](https://github.com/osm2pgsql-dev/osm2pgsql/tree/master/flex-config).
 
 ### Logging
