@@ -30,8 +30,8 @@ To execute the configured pipeline, follow these steps:
 
 2. Import data into database and then postprocess the data in the database. There are two methods to achieve this:
     1. Execute `process_osm.py u COUNTRY.osm.pbf`. This triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
-        > **_DATABASE and SSH CONFIGURATION:_** Tool _osm2pgsql_ uses connection to database specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
-            If the server database requires password, store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format: `hostname:port:database:username:password`.
+        > **_DATABASE and SSH CONFIGURATION:_** Tool _osm2pgsql_ connects to database using credentials specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
+        Some databases require a password, so `pgpass.conf` file is automatically set up in root folder of the project when the `CREDENTIALS` is imported from [credentials_config.py](python/roadgraphtool/credentials_config.py).
 
         > **_SSH TUNNEL:_** To ensure the SSH tunnel is correctly set up for a remote database, provide `ssh` details in `config.ini`. SSH tunnel setup is handled with [set_ssh_to_db_server_and_set_port()](python/roadgraphtool/db.py).
 
@@ -42,15 +42,10 @@ To execute the configured pipeline, follow these steps:
 So in the end execution order may look like this:
 ```sh
 alias py=python3
-cd python/
 echo 'Pre-processing database...'
-py scripts/install_sql.py
+py python/scripts/install_sql.py
 echo "Importing OSM data to database"
 py scripts/process_osm.py u COUNTRY.osm.pbf
-"Begin importing with: 'osm2pgsql -d DATABASE_NAME -P 5432 -U USERNAME -x -S styles/pipeline.lua --output=flex COUNTRY.osm.pbf' ..."
-echo 'Post-processing database...'
-psql -d DATABASE_NAME -U USERNAME -f ../SQL/after_import.sql
-cd ../python/
 echo 'Executing main.py...'
 py main.py -a 1 -s 4326 -f False
 ```
@@ -122,7 +117,7 @@ python3 process_osm.py u [input_file] [-l style_file]
 ```
 > **_WARNING:_** Running this command **will overwrite** existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
 
-E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
+E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in root folder of the project).
 ```bash
 # runs with pipeline.lua
 python3 process_osm.py u lithuania-latest.osm.pbf

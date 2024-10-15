@@ -76,16 +76,15 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     create_schema(schema)
     add_postgis_extension(schema)
 
-    cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
-               "-P", str(port), "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
+    connection_uri = f"postgresql://{config.username}@{config.db_host}:{port}/{config.db_name}"
+    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
 
     if logger.level == logging.DEBUG:
         cmd.extend(['--log-level=debug'])
-        logger.debug(f"Begin importing with: '{' '.join(cmd)}'")
-    else:
-        logger.info(f"Begin importing with: '{' '.join(cmd)}'")
+    
+    logger.info(f"Begin importing with: '{' '.join(cmd)}'")
     res = subprocess.run(cmd).returncode
     if res:
         raise SubprocessError(f"Error during import: {res}")
@@ -127,8 +126,6 @@ def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DE
 
         # postprocessing
         postprocess_osm_import(CREDENTIALS, style_file_path, schema)
-    except InvalidInputError as e:
-        logger.error(f"Error during pre-processing: {e}")
     except SubprocessError as e:
         logger.error(f"Error during processing: {e}")
 
