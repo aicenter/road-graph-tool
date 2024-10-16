@@ -24,6 +24,5 @@ pytest python/tests/
 
 ## Database connection
 
-The `test_process_osm.py` script uses connection to database specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
-If the server database requires password, store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format:
-`hostname:port:database:username:password`.
+The `test_process_osm.py` script connects to database using credentials specified in `config.ini` file, so make sure to check that the connection details are correct.
+Some databases require a password, so `pgpass.conf` file is automatically set up in root folder of the project when the `CREDENTIALS` is imported from [credentials_config.py](../roadgraphtool/credentials_config.py).

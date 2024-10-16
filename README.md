@@ -28,10 +28,10 @@ To execute the configured pipeline, follow these steps:
 1. Configure the database in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration). The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
 1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
 
-2. Preprocess data, import them into database and then postprocess the data in the database. There are two methods to achieve this:
+2. Import data into database and then postprocess the data in the database. There are two methods to achieve this:
     1. Execute `process_osm.py u COUNTRY.osm.pbf`. This triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
-        > **_DATABASE and SSH CONFIGURATION:_** Tool _osm2pgsql_ uses connection to database specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
-            If the server database requires password, store it to your home directory in `.pgpass` (Ubuntu/MacOS, [Windows](https://www.postgresql.org/docs/current/libpq-pgpass.html)) file in following format: `hostname:port:database:username:password`.
+        > **_DATABASE and SSH CONFIGURATION:_** Tool _osm2pgsql_ connects to database using credentials specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
+        Some databases require a password, so `pgpass.conf` file is automatically set up in root folder of the project when the `CREDENTIALS` is imported from [credentials_config.py](python/roadgraphtool/credentials_config.py).
 
         > **_SSH TUNNEL:_** To ensure the SSH tunnel is correctly set up for a remote database, provide `ssh` details in `config.ini`. SSH tunnel setup is handled with [set_ssh_to_db_server_and_set_port()](python/roadgraphtool/db.py).
 
@@ -42,15 +42,10 @@ To execute the configured pipeline, follow these steps:
 So in the end execution order may look like this:
 ```sh
 alias py=python3
-cd python/
 echo 'Pre-processing database...'
-py scripts/install_sql.py
+py python/scripts/install_sql.py
 echo "Importing OSM data to database"
 py scripts/process_osm.py u COUNTRY.osm.pbf
-"Begin importing with: 'osm2pgsql -d DATABASE_NAME -P 5432 -U USERNAME -x -S styles/pipeline.lua --output=flex COUNTRY.osm.pbf' ..."
-echo 'Post-processing database...'
-psql -d DATABASE_NAME -U USERNAME -f ../SQL/after_import.sql
-cd ../python/
 echo 'Executing main.py...'
 py main.py -a 1 -s 4326 -f False
 ```
@@ -114,16 +109,15 @@ The primary function of  `process_osm.py` script is to import OSM data to the da
 The `u` flag triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
 
 #### Function [import_osm_to_db()](python/scripts/process_osm.py):
-- **Preprocesses** OSM file with `process_osm.py r` (for renumbering) - for further details on preprocessing, see [Section 1 of **Preprocessing of OSM file**](#1-preprocessing-of-osm-file).
 - **Imports** the data into the database (default schema is `public, but a different schema can be specified) with provided Lua *style file* - if omitted, the default style file [pipeline.lua](resources/lua_styles/pipeline.lua) is used. To customize the style file, set a new path for the [DEFAULT_STYLE_FILE](python/scripts/process_osm.py).
 - **Postprocesses** the data in database if specified in [POSTPROCESS_DICT](python/scripts/process_osm.py), which can be configured based on the *style file* used during importing
 
 ```bash
 python3 process_osm.py u [input_file] [-l style_file]
 ```
-> **_WARNING:_** Running this command will overwrite existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
+> **_WARNING:_** Running this command **will overwrite** existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
 
-E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in top folder).
+E.g. this command (described bellow) processes OSM file of Lithuania using Flex output and uploads it into database (all configurations should be provided in `config.ini` in root folder of the project).
 ```bash
 # runs with pipeline.lua
 python3 process_osm.py u lithuania-latest.osm.pbf
@@ -185,8 +179,9 @@ It's better to filter out only what we need with osmium (before processing with 
 
 ##### Osmium
 - ID can be found by specific filtering using `resources/expression-example.txt` or on OpenStreetMap - [more on how to filter](#32-filter-tags)
-    - note: `admin_level=*` expression represents administrative level of feature (borders of territorial political entities) - each country (even county) can have different numbering
     - use `name:en` for easiest filtering
+    > **_NOTE:_** `admin_level=*` expression represents administrative level of feature (borders of territorial political entities) - each country (even county) can have different numbering
+    
 - e.g. to find relation ID that bounds Vilnius city (ID: 1529146), run double [tag filtration](#32-filter-tags):
 ```bash
 # expressions-example.txt should contain: r/type=boundary
@@ -221,16 +216,26 @@ Filter specific objects based on tags.
 * use `resources/expressions-example.txt` to specify tags to be filtered in format: `[object_type]/[expression]` where:
     * `object_type`: n (nodes), w (ways), r (relations) - can be combined
     * `expression`: what it should match against
+    * [more details](https://docs.osmcode.org/osmium/latest/osmium-tags-filter.html)
 ```bash
 python3 filter_osm.py t [input_file] -e [expression_file] [-R]
 ```
 - Optional `-R` flag: nodes referenced in ways and members referenced in relations will not be added to output if `-R` flag is used
+- e.g. to filter out highway objects use:
+```bash
+# expression file contains: nwr/highway
+python3 filter_osm.py t [input_file] -e [expression_file]
+```
+* use `filter_osm.py h` to filter objects with highway tags (even referenced and untagged)
+
 #### 3.2.2 Flex output
-- Use lua style files to filter out desired objects.
-    - e.g.`resources/lua_styles/filter-highway.lua` filters nodes, ways and relations with highway tag
+- Use lua style files to filter out objects that have the **desired tag**.
+    - e.g. to filter out highway objects use `resources/lua_styles/filter-highway.lua` which filters nodes, ways and relations with **highway** flag
 ```bash
 python3 process_osm.py u lithuania-latest.osm.pbf -s resources/lua_styles/filter-highway.lua
 ```
+> **_NOTE:_** Unfortunately, **untagged** nodes and members **referenced** in ways and relations respectively can't be included as `osm2pgsql` processes objects in [certain order](https://osm2pgsql.org/doc/manual.html#the-after-callback-functions). Use `filter_osm.py` for filtering referenced objects too.
+
 - More examples of various Flex configurations can be found in the oficial [osm2pgsql GitHub project](https://github.com/osm2pgsql-dev/osm2pgsql/tree/master/flex-config).
 
 ### Logging

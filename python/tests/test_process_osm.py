@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
 from roadgraphtool.exceptions import MissingInputError, InvalidInputError
-from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, setup_ssh_tunnel, postprocess_osm_import, STYLES_DIR, SQL_DIR, RESOURCES_DIR
+from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, setup_ssh_tunnel, postprocess_osm_import, STYLES_DIR, SQL_DIR, DEFAULT_STYLE_FILE_PATH
 from scripts.find_bbox import find_min_max
 from tests.test_filter_osm import TESTS_DIR
 
@@ -140,19 +140,15 @@ def test_run_osmium_cmd_sort_renumber(mock_subprocess_run, mock_remove):
 
 def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd, test_schema, mock_remove):
     input_file = str(TESTS_DIR / "id_test.osm")
-    preprocessed_file = str(RESOURCES_DIR / 'preprocessed.osm.pbf')
-    style_file_path = str(STYLES_DIR / 'pipeline.lua')
+    style_file_path = str(DEFAULT_STYLE_FILE_PATH)
     
-    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [input_file, style_file_path, preprocessed_file])
-    mock_run_osmium_cmd = mocker.patch('scripts.process_osm.run_osmium_cmd')
+    mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [input_file, style_file_path])
     mock_postprocess = mocker.patch('scripts.process_osm.postprocess_osm_import')
 
     import_osm_to_db(input_file, True, schema=test_schema)
 
-    mock_run_osmium_cmd.assert_called_once_with('r', input_file, preprocessed_file)
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, preprocessed_file, style_file_path, test_schema, True)
+    mock_run_osm2pgsql_cmd.assert_called_once_with(config, input_file, style_file_path, test_schema, True)
     mock_postprocess.assert_called_once_with(config, style_file_path, test_schema)
-    mock_remove.assert_called_once_with(preprocessed_file)
 
 def test_import_to_db_invalid_file(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'simple.lua')
@@ -198,7 +194,7 @@ def test_main_default_style_valid(mocker):
         arg_list = ["u", tmp_file.name]
         mock_import_osm_to_db = mocker.patch('scripts.process_osm.import_osm_to_db')
         main(arg_list)
-        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, str(STYLES_DIR / 'pipeline.lua'), "public")
+        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, str(DEFAULT_STYLE_FILE_PATH), "public")
 
 def test_main_input_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
@@ -225,7 +221,7 @@ def test_main_bbox_valid(mocker, mock_run_osm2pgsql_cmd):
         mock_extract_bbox = mocker.patch('scripts.process_osm.extract_bbox', return_value=(10, 20, 30, 40))
         main(arg_list)
         mock_extract_bbox.assert_called_once_with(arg_list[3])
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], str(STYLES_DIR / 'pipeline.lua'), "public", False, "10,20,30,40")
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], str(DEFAULT_STYLE_FILE_PATH), "public", False, "10,20,30,40")
 
 # relation_id missing
 def test_main_bbox_id_missing():
@@ -236,20 +232,18 @@ def test_main_bbox_id_missing():
 
 def test_postprocess_osm_import_valid(mock_subprocess_run, test_schema):
     mock_subprocess_run.return_value.returncode = 0
-    style_file_path = "pipeline.lua"
     sql_file_path = str(SQL_DIR / "after_import.sql")
 
-    postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
+    postprocess_osm_import(config, str(DEFAULT_STYLE_FILE_PATH), test_schema)
     mock_subprocess_run.assert_called_once()
     mock_subprocess_run.assert_any_call(["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
                str(config.db_server_port), "-c", f"SET search_path TO {test_schema};", "-f", sql_file_path])
 
 def test_postprocess_osm_import_valid_long_path(mock_subprocess_run, test_schema):
     mock_subprocess_run.return_value.returncode = 0
-    style_file_path = str(STYLES_DIR / "pipeline.lua")
     sql_file_path = str(SQL_DIR / "after_import.sql")
 
-    postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
+    postprocess_osm_import(config, str(DEFAULT_STYLE_FILE_PATH), test_schema)
     mock_subprocess_run.assert_called_once()
     mock_subprocess_run.assert_any_call(["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
                str(config.db_server_port), "-c", f"SET search_path TO {test_schema};", "-f", sql_file_path])

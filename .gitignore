@@ -9,3 +9,4 @@ resources/germany.osm.pbf
 resources/monaco.osm.pbf
 resources/performance_report.json
 python/performance/performance_report.json
+pgpass.conf
