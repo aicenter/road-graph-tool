@@ -2,14 +2,14 @@ from typing import Optional, TYPE_CHECKING
 import psycopg2
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
-from roadgraphtool.log import setup_logger
+from roadgraphtool.log import LOGGER
 
 if TYPE_CHECKING:
     from psycopg2 import connection
 
 TABLES = ["nodes", "ways"]
 
-logger = setup_logger('schema')
+logger = LOGGER.get_logger('schema')
 
 def _get_connection() -> Optional['connection']:
     """Establishes a connection to the database and returns the connection object."""

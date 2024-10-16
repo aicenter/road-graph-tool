@@ -9,11 +9,11 @@ import requests
 import logging
 
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError
-from roadgraphtool.log import setup_logger
+from roadgraphtool.log import LOGGER
 
 RESOURCES_DIR = Path(__file__).parent.parent.parent / "resources"
 
-logger = setup_logger('filter_osm')
+logger = LOGGER.get_logger('filter_osm')
 
 def is_valid_extension(file: str) -> bool:
     """Return True if the file has a valid extension.

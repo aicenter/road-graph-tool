@@ -8,7 +8,7 @@ from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
 from roadgraphtool.db import db
 from roadgraphtool.schema import *
-from roadgraphtool.log import setup_logger
+from roadgraphtool.log import LOGGER
 from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, RESOURCES_DIR
 from scripts.find_bbox import find_min_max
 
@@ -19,7 +19,7 @@ DEFAULT_STYLE_FILE_PATH = STYLES_DIR / DEFAULT_STYLE_FILE
 
 POSTPROCESS_DICT = {"pipeline.lua": "after_import.sql"}
 
-logger = setup_logger('process_osm')
+logger = LOGGER.get_logger('process_osm')
 
 def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
     """Return tuple of floats based on bounding box coordinations."""

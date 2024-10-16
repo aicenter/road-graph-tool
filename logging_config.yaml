@@ -5,17 +5,22 @@ formatters:
   standard:
     format: '%(asctime)s - %(levelname)s - %(message)s'
     datefmt: '%Y-%m-%d %H:%M:%S'
+    use_color: true
+  file:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'
 
 handlers:
   console:
     class: logging.StreamHandler
     level: INFO
     formatter: standard
+    stream: ext://sys.stdout
   
   file:
     class: logging.FileHandler
     level: INFO
-    formatter: standard
+    formatter: file
     filename: 'roadgraphtool.log'
     mode: 'w'
 
