@@ -38,13 +38,10 @@ class CustomLogger:
 
             # set formatting
             for handler in logger.handlers:
-                # print(f"Handler: {type(handler)}")  # Print type of the handler
                 if isinstance(handler, logging.FileHandler):
                     handler.setFormatter(logging.Formatter(handler.formatter._fmt, handler.formatter.datefmt))
-                    # print("Using FileFormatter for file handler.")
                 elif isinstance(handler, logging.StreamHandler):
                     handler.setFormatter(ColorFormatter(handler.formatter._fmt, handler.formatter.datefmt))
-                    # print("Using ColorFormatter for stream handler.")
     
     def get_logger(self, logger_name: str) -> logging.Logger:
         return logging.getLogger(logger_name)
