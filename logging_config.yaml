@@ -11,24 +11,35 @@ handlers:
     class: logging.StreamHandler
     level: INFO
     formatter: standard
-    stream: ext://sys.stdout
+  
+  file:
+    class: logging.FileHandler
+    level: INFO
+    formatter: standard
+    filename: 'roadgraphtool.log'
+    mode: 'w'
 
 loggers:
   filter_osm:
     level: INFO
-    handlers: [console]
+    handlers: [console, file] 
     propagate: False
 
   process_osm:
     level: INFO
-    handlers: [console]
+    handlers: [console, file] 
     propagate: False
   
   install_sql:
     level: INFO
-    handlers: [console]
+    handlers: [console, file] 
+    propagate: False
+  
+  schema:
+    level: INFO
+    handlers: [console, file] 
     propagate: False
 
 root:
   level: WARNING
-  handlers: [console]
+  handlers: [console, file] 

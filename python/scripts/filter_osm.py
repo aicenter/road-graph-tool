@@ -26,8 +26,12 @@ def is_valid_extension(file: str) -> bool:
 def check_strategy(strategy: str | None):
     """Raise InvalidInputError if strategy type is not valid."""
     valid_strategies = ["simple", "complete_ways", "smart"]
-    if strategy and strategy not in valid_strategies:
-        raise InvalidInputError(f"Invalid strategy type. Call {os.path.basename(__file__)} -h/--help to display help.")
+    try:
+        if strategy and strategy not in valid_strategies:
+            raise InvalidInputError(f"Invalid strategy type. Call {os.path.basename(__file__)} -h/--help to display help.")
+    except InvalidInputError as e:
+        logger.error(e)
+        raise
     logger.debug("Strategy validity checked.")
 
 def load_multipolygon_by_id(relation_id: str) -> bytes | Any:
@@ -51,20 +55,24 @@ def extract_id(input_file: str, relation_id: str, strategy: str = None):
             cmd.extend(["-s", strategy])
         res = subprocess.run(cmd)
         if not res.returncode:
-            logger.debug("ID extraction completed.")
+            logger.info("ID extraction completed.")
     
 def extract_bbox(input_file: str, coords: str, strategy: str = None):
     """Extract data based on bounding box with osmium."""
     float_regex = r'[0-9]+(.[0-9]+)?' # should match four floats
     coords_regex = f'{float_regex},{float_regex},{float_regex},{float_regex}'
-    if re.match(coords_regex, coords):
-        logger.debug("Extracting bounding box with coords %s...", coords)
-        cmd = ["osmium", "extract", "-b", coords, input_file, "-o", "extracted-bbox.osm.pbf"]
-    elif os.path.isfile(coords) and coords.endswith((".json", ".geojson")):
-        logger.debug("Extracting bounding box with coords in file %s...", coords)
-        cmd = ["osmium", "extract", "-c", coords, input_file]
-    else:
-        raise InvalidInputError("Invalid coordinates or config file.")
+    try:
+        if re.match(coords_regex, coords):
+            logger.debug("Extracting bounding box with coords %s...", coords)
+            cmd = ["osmium", "extract", "-b", coords, input_file, "-o", "extracted-bbox.osm.pbf"]
+        elif os.path.isfile(coords) and coords.endswith((".json", ".geojson")):
+            logger.debug("Extracting bounding box with coords in file %s...", coords)
+            cmd = ["osmium", "extract", "-c", coords, input_file]
+        else:
+            raise InvalidInputError("Invalid coordinates or config file.")
+    except InvalidInputError as e:
+        logger.error(e)
+        raise
 
     if strategy:
         cmd.extend(["-s", strategy])
@@ -130,38 +138,54 @@ h  : Filter objects based on highway tag
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
 
-    if not os.path.exists(args.input_file):
-        raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
-    elif not is_valid_extension(args.input_file):
-        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-    
+    try:
+        if not os.path.exists(args.input_file):
+            raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
+        elif not is_valid_extension(args.input_file):
+            raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
+    except (FileNotFoundError, InvalidInputError) as e:
+        logger.error(e)
+        raise
+
     match args.flag:
         case "id":
             # Filter geographic objects based on relation ID
-            if not args.relation_id:
-                raise MissingInputError("Existing relation ID must be specified.")
-            
-            check_strategy(args.strategy)
-            
-            extract_id(args.input_file, args.relation_id, args.strategy)
+            try:
+                if not args.relation_id:
+                    raise MissingInputError("Existing relation ID must be specified.")
+                
+                check_strategy(args.strategy)
+                
+                extract_id(args.input_file, args.relation_id, args.strategy)
+            except MissingInputError as e:
+                logger.error(e)
+                raise
 
         case "b":
             # Filter geographic objects based on bounding box (with osmium)
-            if not args.coords:
-                raise MissingInputError("Coordinates or config file need to be specified with the 'b' flag.")
-            
-            check_strategy(args.strategy)
-            
-            extract_bbox(args.input_file, args.coords, args.strategy)
+            try:
+                if not args.coords:
+                    raise MissingInputError("Coordinates or config file need to be specified with the 'b' flag.")
+                
+                check_strategy(args.strategy)
+                
+                extract_bbox(args.input_file, args.coords, args.strategy)
+            except MissingInputError as e:
+                logger.error(e)
+                raise
 
         case "f":
             # Filter objects based on tags in expression_file
-            if not args.expression_file:
-                raise MissingInputError("Expression file needs to be specified.")
-            elif not os.path.exists(args.expression_file):
-                raise FileNotFoundError(f"File '{args.expression_file}' does not exist.")
+            try:
+                if not args.expression_file:
+                    raise MissingInputError("Expression file needs to be specified.")
+                elif not os.path.exists(args.expression_file):
+                    raise FileNotFoundError(f"File '{args.expression_file}' does not exist.")
 
-            run_osmium_filter(args.input_file, args.expression_file, args.omit_referenced)
+                run_osmium_filter(args.input_file, args.expression_file, args.omit_referenced)
+            except (MissingInputError, FileNotFoundError) as e:
+                logger.error(e)
+                raise
 
         case "h":
             # Filter objects based on highway tag
