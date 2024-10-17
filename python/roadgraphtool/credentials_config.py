@@ -2,6 +2,8 @@ import configparser
 import logging
 import os
 import pathlib
+import subprocess
+import stat
 
 
 def read_config(config_paths):
@@ -23,7 +25,9 @@ def read_config(config_paths):
 
 
 class CredentialsConfig:
-    CONFIG_PATHS = [f"{pathlib.Path(__file__).parent.parent.parent}/config.ini"]
+    PROJECT_PATH = pathlib.Path(__file__).parent.parent.parent
+    PGPASS_PATH = str(PROJECT_PATH / "pgpass.conf")
+    CONFIG_PATHS = [str(PROJECT_PATH / "config.ini")]
 
     def __init__(self):
         config = read_config(self.CONFIG_PATHS)
@@ -50,6 +54,8 @@ class CredentialsConfig:
                     self
                 )
             )
+        
+        self._setup_pgpass()
 
     def __str__(self):
         return "\n".join(
@@ -68,6 +74,16 @@ class CredentialsConfig:
                 "   server: {}".format(self.server),
             ]
         )
+    
+    def _setup_pgpass(self):
+        """Create pgpass file or rewrite its content."""
+        # hostname:port:database:username:password
+        content = f"{self.db_host}:{self.db_server_port}:{self.db_name}:{self.username}:{self.db_password}"
+        with open(self.PGPASS_PATH, 'w') as pgfile:
+            pgfile.write(content)
+        os.chmod(self.PGPASS_PATH, stat.S_IRUSR | stat.S_IWUSR)
+        os.environ['PGPASSFILE'] = self.PGPASS_PATH
+
 
 
 CREDENTIALS = CredentialsConfig()

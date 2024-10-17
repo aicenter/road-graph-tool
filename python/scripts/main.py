@@ -6,7 +6,7 @@ import psycopg2.errors
 
 from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.db import db
-from scripts.process_osm import import_osm_to_db
+from scripts.process_osm import import_osm_to_db, DEFAULT_STYLE_FILE
 from roadgraphtool.export import get_map_nodes_from_db
 
 
@@ -145,7 +145,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '-sf', '--style-file',
         dest='style_file',
-        help="Optional style file path for -i/--import. Default is 'default.lua' otherwise.",
+        help=f"Optional style file path for -i/--import. Default is '{DEFAULT_STYLE_FILE}' otherwise.",
         required=False
     )
     parser.add_argument(
