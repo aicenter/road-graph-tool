@@ -1,8 +1,10 @@
 import argparse
-import argparse
 import json
 import logging
 import psycopg2.errors
+import yaml
+import types
+
 
 from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.db import db
@@ -165,7 +167,33 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def parse_config_file(config_file: str):
+    with open(config_file, 'r',encoding="UTF-8") as file:
+        config_dict = yaml.safe_load(file)
+    return dict2obj(config_dict)
+
+
+def dict2obj(data):
+    """Convert dictionary to object. Taken from https://stackoverflow.com/questions/66208077"""
+    if type(data) is list:
+        return list(map(dict2obj, data))
+    elif type(data) is dict:
+        sns = types.SimpleNamespace()
+        for key, value in data.items():
+            setattr(sns, key, dict2obj(value))
+        return sns
+    else:
+        return data
+
+
+
+
 def main(arg_list: list[str] | None = None):
+    config_file = "config_example.yml"
+    args = parse_config_file(config_file)
+    print(args.jde.to.na)
+
+
     parser = configure_arg_parser()
     args = parser.parse_args(arg_list)
 
