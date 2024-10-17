@@ -2,11 +2,14 @@ from typing import Optional, TYPE_CHECKING
 import psycopg2
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
+from roadgraphtool.log import LOGGER
 
 if TYPE_CHECKING:
     from psycopg2 import connection
 
 TABLES = ["nodes", "ways"]
+
+logger = LOGGER.get_logger('schema')
 
 def _get_connection() -> Optional['connection']:
     """Establishes a connection to the database and returns the connection object."""
@@ -18,8 +21,9 @@ def _get_connection() -> Optional['connection']:
             host=config.db_host,
             port=config.db_server_port
         )
-    except psycopg2.DatabaseError as error:
-        raise Exception(f"Error connecting to the database: {str(error)}")
+    except psycopg2.DatabaseError as e:
+        logger.error(f"Error connecting to the database: {str(e)}")
+        raise
 
 def create_schema(schema: str):
     """Creates a new schema in the database."""
@@ -28,8 +32,9 @@ def create_schema(schema: str):
             with conn.cursor() as cur:
                 query = f'CREATE SCHEMA if not exists "{schema}";'
                 cur.execute(query)
-    except (psycopg2.DatabaseError, Exception) as error:
-        raise Exception(f"Error: {str(error)}")
+    except (psycopg2.DatabaseError, Exception) as e:
+        logger.error(f"Error with database: {str(e)}")
+        raise
     
 def add_postgis_extension(schema: str):
     """Adds the PostGIS extension to the specified schema."""
@@ -38,8 +43,9 @@ def add_postgis_extension(schema: str):
             with conn.cursor() as cur:
                 query = f'CREATE EXTENSION if not exists postgis SCHEMA "{schema}";'
                 cur.execute(query)
-    except (psycopg2.DatabaseError, Exception) as error:
-        raise Exception(f"Error: {str(error)}")
+    except (psycopg2.DatabaseError, Exception) as e:
+        logger.error(f"Error with database: {str(e)}")
+        raise
 
 def check_empty_or_nonexistent_tables(schema: str, tables: list = TABLES) -> bool:
     """Returns True, if all tables from TABLES are non-existent or empty. 
@@ -58,5 +64,6 @@ def check_empty_or_nonexistent_tables(schema: str, tables: list = TABLES) -> boo
                         if has_data: # at least one table from TABLES exists and isn't empty
                             return False
         return True
-    except (psycopg2.DatabaseError, Exception) as error:
-        raise Exception(f"Error: {str(error)}")
+    except (psycopg2.DatabaseError, Exception) as e:
+        logger.error(f"Error with database: {str(e)}")
+        raise
