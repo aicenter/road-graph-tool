@@ -161,6 +161,12 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         help="Force overwrite of data in existing tables in schema.",
         required=False
     )
+    parser.add_argument(
+        "-W", 
+        dest="password", 
+        action="store_true", 
+        help="Force password prompt instead of using pgpass file.")
+
 
     return parser
 
@@ -170,7 +176,7 @@ def main(arg_list: list[str] | None = None):
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        import_osm_to_db(args.input_file, args.force, args.style_file, args.schema)
+        import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
     
     area_id = args.area_id
     area_srid = args.area_srid
