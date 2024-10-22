@@ -2,7 +2,6 @@ import configparser
 import logging
 import os
 import pathlib
-import subprocess
 import stat
 
 
