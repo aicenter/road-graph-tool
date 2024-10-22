@@ -69,6 +69,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     """Import data from input_file to database specified in config using osm2pgsql tool."""
 
     port = setup_ssh_tunnel(config)
+    logger.debug(f"Port is: {port}")
 
     if not force and not check_empty_or_nonexistent_tables(schema):
         raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use '--force' flag to proceed.")
@@ -85,7 +86,10 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
         cmd.extend(['--log-level=debug'])
     
     logger.info(f"Begin importing with: '{' '.join(cmd)}'")
+    config.setup_pgpass()
     res = subprocess.run(cmd).returncode
+    config.remove_pgpass()
+
     if res:
         raise SubprocessError(f"Error during import: {res}")
     logger.info("Importing completed.")

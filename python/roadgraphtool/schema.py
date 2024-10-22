@@ -11,13 +11,14 @@ TABLES = ["nodes", "ways"]
 def _get_connection() -> Optional['connection']:
     """Establishes a connection to the database and returns the connection object."""
     try:
-        return psycopg2.connect(
+        connection = psycopg2.connect(
             dbname=config.db_name,
             user=config.username,
             password=config.db_password,
             host=config.db_host,
             port=config.db_server_port
         )
+        return connection
     except psycopg2.DatabaseError as error:
         raise Exception(f"Error connecting to the database: {str(error)}")
 

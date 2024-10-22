@@ -54,8 +54,6 @@ class CredentialsConfig:
                     self
                 )
             )
-        
-        self._setup_pgpass()
 
     def __str__(self):
         return "\n".join(
@@ -75,14 +73,25 @@ class CredentialsConfig:
             ]
         )
     
-    def _setup_pgpass(self):
-        """Create pgpass file or rewrite its content."""
+    def setup_pgpass(self):
+        """Create pgpass file or rewrite its content.
+
+        WARNING: This method should be called before connecting to the database 
+        and file should be removed after the connection is closed - use remove_pgpass() method.
+        """
         # hostname:port:database:username:password
         content = f"{self.db_host}:{self.db_server_port}:{self.db_name}:{self.username}:{self.db_password}"
         with open(self.PGPASS_PATH, 'w') as pgfile:
             pgfile.write(content)
         os.chmod(self.PGPASS_PATH, stat.S_IRUSR | stat.S_IWUSR)
         os.environ['PGPASSFILE'] = self.PGPASS_PATH
+        logging.info(f"Created pgpass file: {self.PGPASS_PATH}")
+
+    def remove_pgpass(self):
+        """Remove pgpass file if exists."""
+        if os.path.exists(self.PGPASS_PATH):
+            os.remove(self.PGPASS_PATH)
+            logging.info(f"Removed pgpass file: {self.PGPASS_PATH}")
 
 
 

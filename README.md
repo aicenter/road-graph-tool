@@ -31,7 +31,7 @@ To execute the configured pipeline, follow these steps:
 2. Import data into database and then postprocess the data in the database. There are two methods to achieve this:
     1. Execute `process_osm.py u COUNTRY.osm.pbf`. This triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
         > **_DATABASE and SSH CONFIGURATION:_** Tool _osm2pgsql_ connects to database using credentials specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
-        Some databases require a password, so `pgpass.conf` file is automatically set up in root folder of the project when the `CREDENTIALS` is imported from [credentials_config.py](python/roadgraphtool/credentials_config.py).
+        Some databases require a password, so `pgpass.conf` file needs to be set up in root folder of the project - use `CREDENTIALS.setup_pgpass()` and `CREDENTIALS.remove_pgpass()` when connecting to database.
 
         > **_SSH TUNNEL:_** To ensure the SSH tunnel is correctly set up for a remote database, provide `ssh` details in `config.ini`. SSH tunnel setup is handled with [set_ssh_to_db_server_and_set_port()](python/roadgraphtool/db.py).
 
