@@ -4,30 +4,20 @@ import tempfile
 import pytest
 import xml.etree.ElementTree as ET
 
-from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main, InvalidInputError, MissingInputError
+from roadgraphtool.exceptions import InvalidInputError, MissingInputError
+from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main, RESOURCES_DIR
     
+TESTS_DIR = pathlib.Path(__file__).parent.parent.parent / "python/tests/data"
+
 @pytest.fixture
 def expected_multipolygon_id():
-    parent_dir = pathlib.Path(__file__).parent
-    file_path = str(parent_dir) + "/data/expected_multipolygon_id.osm"
+    file_path = TESTS_DIR / "expected_multipolygon_id.osm"
     with open(file_path, 'rb') as f:
         return f.read()
 
 @pytest.fixture
-def mock_subprocess_run(mocker):
-    return mocker.patch("subprocess.run")
-
-@pytest.fixture
-def mock_os_path_isfile(mocker):
-    return mocker.patch("os.path.isfile", return_value=True)
-
-@pytest.fixture
 def mock_open(mocker):
     return mocker.patch("builtins.open", mocker.mock_open())
-
-@pytest.fixture
-def mock_remove(mocker):
-    return mocker.patch("os.remove")
 
 # TESTS:
 
@@ -82,9 +72,8 @@ def test_load_multipolygon_by_id_contains_id(mocker, expected_multipolygon_id):
     
 def test_extract_id_contains_id():
     relation_id = 5986438
-    parent_dir = pathlib.Path(__file__).parent.parent.parent
-    input_file = str(parent_dir) + "/python/tests/data/id_test.osm"
-    output_file = str(parent_dir) +  "/resources/id_extract.osm"
+    input_file = TESTS_DIR / "id_test.osm"
+    output_file = RESOURCES_DIR /  "id_extract.osm"
 
     extract_id(input_file, relation_id)
 

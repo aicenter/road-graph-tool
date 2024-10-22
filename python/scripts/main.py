@@ -1,12 +1,14 @@
 import argparse
-import argparse
 import json
 import logging
 import psycopg2.errors
+import yaml
+import types
+
 
 from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.db import db
-from scripts.process_osm import import_osm_to_db
+from scripts.process_osm import import_osm_to_db, DEFAULT_STYLE_FILE
 from roadgraphtool.export import get_map_nodes_from_db
 
 
@@ -145,7 +147,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '-sf', '--style-file',
         dest='style_file',
-        help="Optional style file path for -i/--import. Default is 'default.lua' otherwise.",
+        help=f"Optional style file path for -i/--import. Default is '{DEFAULT_STYLE_FILE}' otherwise.",
         required=False
     )
     parser.add_argument(
@@ -154,16 +156,55 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         help="Optional schema argument for -i/--import. Default is 'public' otherwise.",
         required=False
     )
+    parser.add_argument(
+        '--force',
+        dest='force',
+        action="store_true",
+        help="Force overwrite of data in existing tables in schema.",
+        required=False
+    )
+    parser.add_argument(
+        "-W", 
+        dest="password", 
+        action="store_true", 
+        help="Force password prompt instead of using pgpass file.")
+
 
     return parser
 
 
-def main(arg_list: list[str] | None = None) -> int:
+def parse_config_file(config_file: str):
+    with open(config_file, 'r',encoding="UTF-8") as file:
+        config_dict = yaml.safe_load(file)
+    return dict2obj(config_dict)
+
+
+def dict2obj(data):
+    """Convert dictionary to object. Taken from https://stackoverflow.com/questions/66208077"""
+    if type(data) is list:
+        return list(map(dict2obj, data))
+    elif type(data) is dict:
+        sns = types.SimpleNamespace()
+        for key, value in data.items():
+            setattr(sns, key, dict2obj(value))
+        return sns
+    else:
+        return data
+
+
+
+
+def main(arg_list: list[str] | None = None):
+    config_file = "config_example.yml"
+    args = parse_config_file(config_file)
+    print(args.jde.to.na)
+
+
     parser = configure_arg_parser()
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        file_size = import_osm_to_db(args.input_file, args.style_file, args.schema)
+        import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
     
     area_id = args.area_id
     area_srid = args.area_srid
@@ -210,8 +251,6 @@ def main(arg_list: list[str] | None = None) -> int:
 
     logging.info("Execution of compute_speeds_from_neighborhood_segments")
     compute_speeds_from_neighborhood_segments(area_id, area_srid)
-
-    return file_size
 
 if __name__ == '__main__':
     main()

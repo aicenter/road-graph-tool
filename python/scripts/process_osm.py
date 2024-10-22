@@ -1,15 +1,22 @@
 import argparse
 import os
+from pathlib import Path
 import subprocess
 import logging
 
-import psycopg2
-from roadgraphtool.credentials_config import CREDENTIALS as config, CredentialsConfig
-from scripts.filter_osm import InvalidInputError, MissingInputError, load_multipolygon_by_id, is_valid_extension, setup_logger
-from scripts.find_bbox import find_min_max
+from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
+from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
 from roadgraphtool.db import db
+from roadgraphtool.schema import *
+from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger, RESOURCES_DIR
+from scripts.find_bbox import find_min_max
 
-DEFAULT_STYLE_FILE = "resources/lua_styles/default.lua"
+DEFAULT_STYLE_FILE = "pipeline.lua"
+SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
+STYLES_DIR = RESOURCES_DIR / "lua_styles"
+DEFAULT_STYLE_FILE_PATH = STYLES_DIR / DEFAULT_STYLE_FILE
+
+POSTPROCESS_DICT = {"pipeline.lua": "after_import.sql"}
 
 logger = setup_logger('process_osm')
 
@@ -49,89 +56,92 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
                     logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
 
-def schema_exists(schema: str, config: CredentialsConfig) -> bool:
-    try:
-        with psycopg2.connect(dbname=config.db_name,
-            user=config.username,
-            password=config.db_password,
-            host=config.db_host,
-            port=config.db_server_port) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT schema_name FROM information_schema.schemata WHERE schema_name = %s;", (schema,))
-                res = cur.fetchone()
-                return res is not None
-    except (psycopg2.DatabaseError, Exception) as error:
-        return str(error)
+def setup_ssh_tunnel(config: CredentialsConfig) -> int:
+    """Set up SSH tunnel if needed and returns port number."""
+    if hasattr(config, "server"):  # remote connection
+        db.start_or_restart_ssh_connection_if_needed()
+        config.db_server_port = db.ssh_tunnel_local_port
+        return db.ssh_tunnel_local_port
+    # local connection
+    return config.db_server_port
 
-def create_schema(schema: str, config: CredentialsConfig):
-    try:
-        with psycopg2.connect(dbname=config.db_name,
-            user=config.username,
-            password=config.db_password,
-            host=config.db_host,
-            port=config.db_server_port) as conn:
-            with conn.cursor() as cur:
-                query = f'CREATE SCHEMA "{schema}";'
-                cur.execute(query)
-    except (psycopg2.DatabaseError, Exception) as error:
-        return str(error)
-    
-def add_postgis_extension(schema: str, config: CredentialsConfig):
-    try:
-        with psycopg2.connect(dbname=config.db_name,
-            user=config.username,
-            password=config.db_password,
-            host=config.db_host,
-            port=config.db_server_port) as conn:
-            with conn.cursor() as cur:
-                query = f'CREATE EXTENSION postgis SCHEMA "{schema}";'
-                cur.execute(query)
-    except (psycopg2.DatabaseError, Exception) as error:
-        return str(error)
+def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, schema: str, force: bool, password: bool, coords: str| list[int] = None):
+    """Import data from input_file to database specified in config using osm2pgsql tool."""
 
-def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, schema: str, coords: str| list[int] = None):
-    """Import data from input_file using osm2pgsql."""
+    port = setup_ssh_tunnel(config)
+    logger.debug(f"Port is: {port}")
 
-    if hasattr(config, "server"): # remote connection
-        ssh_tunnel_port = 1113 # check roadgraphtool.db.ssh_tunnel_local_port (needs to be same)
-        db.set_ssh_to_db_server_and_set_port()
-    else:  # local connection
-        ssh_tunnel_port = config.db_server_port
+    if not force and not check_empty_or_nonexistent_tables(schema):
+        raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use '--force' flag to proceed.")
 
-    if not schema_exists(schema, config):
-        create_schema(schema, config)
-    add_postgis_extension(schema, config)
+    create_schema(schema)
+    add_postgis_extension(schema)
 
-    cmd = ["osm2pgsql", "-d", config.db_name, "-U", config.username, "-W", "-H", config.db_host, 
-            "-P", str(ssh_tunnel_port), "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
-
+    connection_uri = f"postgresql://{config.username}@{config.db_host}:{port}/{config.db_name}"
+    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
 
     if logger.level == logging.DEBUG:
         cmd.extend(['--log-level=debug'])
-        logger.debug(f"Begin importing with: '{' '.join(cmd)}'")
+    
+    if password:
+        cmd.extend(["-W"])
+    
+    logger.info(f"Begin importing with: '{' '.join(cmd)}'")
+
+    if not password:
+        config.setup_pgpass()
+    
+    res = subprocess.run(cmd).returncode
+    
+    if not password:
+        config.remove_pgpass()
+
+    if res:
+        raise SubprocessError(f"Error during import: {res}")
+    logger.info("Importing completed.")
+
+def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, schema: str):
+    """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
+    """
+    style_file_path = os.path.basename(style_file_path)
+    
+    if style_file_path in POSTPROCESS_DICT:
+        sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
+        command = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
+                str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+
+        logger.info("Post-processing OSM data after import...")
+        res = subprocess.run(command).returncode
+
+        if res:
+            raise SubprocessError(f"Error during post-processing: {res}")
+        logger.info("Post-processing completed.")
     else:
-        logger.info(f"Begin importing with: '{' '.join(cmd)}'")
-    res = subprocess.run(cmd)
-    if not res.returncode:
-        logger.info("Importing completed.")
+        logger.warning(f"No post-processing defined for style {style_file_path}")
 
-def import_osm_to_db(input_file: str, style_file_path: str = None, schema: str = "public") -> int:
-    """Return the size of OSM file in bytes if file found and imports OSM file do database specified in config.ini file.
+def import_osm_to_db(input_file: str, force: bool, password: bool, style_file_path: str = str(DEFAULT_STYLE_FILE_PATH), schema: str = "public"):
+    """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
 
-    The **default.lua** style file is used if not specified or set otherwise.
+    The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
     if not os.path.exists(input_file) or not is_valid_extension(input_file):
         raise FileNotFoundError("No valid file to import was found.")
-    file_size = os.path.getsize(input_file)
 
-    if style_file_path is None:
-        style_file_path = DEFAULT_STYLE_FILE
     if not os.path.exists(style_file_path):
         raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
-    run_osm2pgsql_cmd(config, input_file, style_file_path, schema)
-    return file_size
+
+    try:
+        # importing to database
+        run_osm2pgsql_cmd(CREDENTIALS, input_file, style_file_path, schema, force, password)
+
+        # postprocessing
+        postprocess_osm_import(CREDENTIALS, style_file_path, schema)
+    except SubprocessError as e:
+        logger.error(f"Error during processing: {e}")
+
+
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.", formatter_class=argparse.RawTextHelpFormatter)
@@ -144,16 +154,18 @@ ie : Display extended information about OSM file
 s  : Sort OSM file based on IDs
 r  : Renumber object IDs in OSM file
 sr : Sort and renumber objects in OSM file
-u  : Upload OSM file to PostgreSQL database using osm2pgsql
+u  : Preprocess and upload OSM file to PostgreSQL database using osm2pgsql
 b  : Extract greatest bounding box from given relation ID of 
      input_file and upload to PostgreSQL database using osm2pgsql"""
 )
     parser.add_argument('input_file', help="Path to input OSM file")
     parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', default="resources/lua_styles/default.lua", help="Path to style file (optional for 'b', 'u' flag)")
+    parser.add_argument("-l", dest="style_file", nargs='?', default=str(DEFAULT_STYLE_FILE_PATH), help=f"Path to style file (optional for 'b', 'u' flag) - default is '{DEFAULT_STYLE_FILE}'")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
-    parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Database schema (required for 'b', 'u' tag)")
+    parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")
+    parser.add_argument("--force", dest="force", action="store_true", help="Force overwrite of data in existing tables in schema (for 'b', 'u' flag)")
+    parser.add_argument("-W", dest="password", action="store_true", help="Force password prompt instead of using pgpass file (for 'b', 'u' flag)")
 
     args = parser.parse_args(arg_list)
 
@@ -174,7 +186,7 @@ def main(arg_list: list[str] | None = None):
     elif args.style_file:
         if not os.path.exists(args.style_file):
             raise FileNotFoundError(f"File '{args.style_file}' does not exist.")
-        elif not args.style_file.endswith(".lua"):
+        elif not str(args.style_file).endswith(".lua"):
             raise InvalidInputError("File must have the '.lua' extension.")
     
     match args.flag:
@@ -189,8 +201,9 @@ def main(arg_list: list[str] | None = None):
             run_osmium_cmd(args.flag, args.input_file, args.output_file)
     
         case "u":
-            # Upload OSM file to PostgreSQL database
-            run_osm2pgsql_cmd(config, args.input_file, args.style_file, args.schema)
+            # Preprocess and upload OSM file to PostgreSQL database and then postprocess the data
+            import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
+
         case "b":
             # Extract bounding box based on relation ID and import to PostgreSQL
             if not args.relation_id:
@@ -199,7 +212,7 @@ def main(arg_list: list[str] | None = None):
             min_lon, min_lat, max_lon, max_lat = extract_bbox(args.relation_id)
             coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
 
-            run_osm2pgsql_cmd(config, args.input_file, args.style_file, args.schema, coords)
+            run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, args.password, coords)
     
 if __name__ == '__main__':
     main()
