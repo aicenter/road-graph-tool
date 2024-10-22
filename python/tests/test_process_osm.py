@@ -67,7 +67,7 @@ def test_run_osm2pgsql_cmd(db_connection, test_schema, test_tables):
     style_file_path = str(TESTS_DIR / "test_default.lua")
     input_file = str(TESTS_DIR / "bbox_test.osm")
 
-    run_osm2pgsql_cmd(config, input_file, style_file_path, test_schema, True)
+    run_osm2pgsql_cmd(config, input_file, style_file_path, test_schema, True, False)
 
     expected_count = {test_tables[0]: 6, test_tables[1]: 0, test_tables[2]: 1}
 
@@ -92,7 +92,7 @@ def test_setup_ssh_tunnel():
     if hasattr(config, "server"):
         assert port == 1113 # should match db.ssh_tunnel_local_port in dp.py
     else:
-        assert port == 5432 # should match config.database.db_server_port
+        assert port == config.db_server_port # should match config.db_server_port
 
 def test_run_osmium_cmd_renumber(renumber_test_files):
     input_file, output_file = renumber_test_files
@@ -145,15 +145,15 @@ def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd, test_schema, mock_re
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path in [input_file, style_file_path])
     mock_postprocess = mocker.patch('scripts.process_osm.postprocess_osm_import')
 
-    import_osm_to_db(input_file, True, schema=test_schema)
+    import_osm_to_db(input_file, True, False, schema=test_schema)
 
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, input_file, style_file_path, test_schema, True)
+    mock_run_osm2pgsql_cmd.assert_called_once_with(config, input_file, style_file_path, test_schema, True, False)
     mock_postprocess.assert_called_once_with(config, style_file_path, test_schema)
 
 def test_import_to_db_invalid_file(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'simple.lua')
     with pytest.raises(FileNotFoundError, match="No valid file to import was found."):
-        import_osm_to_db(str(TESTS_DIR / "id_test.osm"), False)
+        import_osm_to_db(str(TESTS_DIR / "id_test.osm"), False, False)
 
 def test_main_invalid_inputfile():
     arg_list = ["d", "invalid_file.osm"]
@@ -194,14 +194,14 @@ def test_main_default_style_valid(mocker):
         arg_list = ["u", tmp_file.name]
         mock_import_osm_to_db = mocker.patch('scripts.process_osm.import_osm_to_db')
         main(arg_list)
-        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, str(DEFAULT_STYLE_FILE_PATH), "public")
+        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, False, str(DEFAULT_STYLE_FILE_PATH), "public")
 
 def test_main_input_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
-        arg_list = ["u", tmp_input.name, "-l", tmp_lua.name]
+        arg_list = ["u", tmp_input.name, "-l", tmp_lua.name, '-W']
         mock_import_osm_to_db = mocker.patch('scripts.process_osm.import_osm_to_db')
         main(arg_list)
-        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, arg_list[3], "public")
+        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, True, arg_list[3], "public")
 
 def test_main_style_file_invalid():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
@@ -221,7 +221,7 @@ def test_main_bbox_valid(mocker, mock_run_osm2pgsql_cmd):
         mock_extract_bbox = mocker.patch('scripts.process_osm.extract_bbox', return_value=(10, 20, 30, 40))
         main(arg_list)
         mock_extract_bbox.assert_called_once_with(arg_list[3])
-        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], str(DEFAULT_STYLE_FILE_PATH), "public", False, "10,20,30,40")
+        mock_run_osm2pgsql_cmd.assert_called_once_with(config, arg_list[1], str(DEFAULT_STYLE_FILE_PATH), "public", False, False, "10,20,30,40")
 
 # relation_id missing
 def test_main_bbox_id_missing():
