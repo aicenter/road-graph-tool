@@ -92,11 +92,13 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     logger.debug(' '.join(cmd))
 
     if pgpass:
+        logger.info("Setting up pgpass file...")
         config.setup_pgpass()
     
     res = subprocess.run(cmd).returncode
     
     if pgpass:
+        logger.info("Deleting pgpass file...")
         config.remove_pgpass()
 
     if res:
