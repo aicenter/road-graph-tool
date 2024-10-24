@@ -67,7 +67,7 @@ def test_run_osm2pgsql_cmd(db_connection, test_schema, test_tables):
     style_file_path = str(TESTS_DIR / "test_default.lua")
     input_file = str(TESTS_DIR / "bbox_test.osm")
 
-    run_osm2pgsql_cmd(config, input_file, style_file_path, test_schema, True, False)
+    run_osm2pgsql_cmd(config, input_file, style_file_path, test_schema, True, True)
 
     expected_count = {test_tables[0]: 6, test_tables[1]: 0, test_tables[2]: 1}
 
@@ -198,10 +198,10 @@ def test_main_default_style_valid(mocker):
 
 def test_main_input_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
-        arg_list = ["u", tmp_input.name, "-l", tmp_lua.name, '-W']
+        arg_list = ["u", tmp_input.name, "-l", tmp_lua.name]
         mock_import_osm_to_db = mocker.patch('scripts.process_osm.import_osm_to_db')
         main(arg_list)
-        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, True, arg_list[3], "public")
+        mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, False, arg_list[3], "public")
 
 def test_main_style_file_invalid():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
