@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 TABLES = ["nodes", "ways"]
 
-def _get_connection() -> Optional['connection']:
+def get_connection() -> Optional['connection']:
     """Establishes a connection to the database and returns the connection object."""
     try:
         connection = psycopg2.connect(
@@ -25,7 +25,7 @@ def _get_connection() -> Optional['connection']:
 def create_schema(schema: str):
     """Creates a new schema in the database."""
     try:
-        with _get_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 query = f'CREATE SCHEMA if not exists "{schema}";'
                 cur.execute(query)
@@ -35,7 +35,7 @@ def create_schema(schema: str):
 def add_postgis_extension(schema: str):
     """Adds the PostGIS extension to the specified schema."""
     try:
-        with _get_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 query = f'CREATE EXTENSION if not exists postgis SCHEMA "{schema}";'
                 cur.execute(query)
@@ -46,7 +46,7 @@ def check_empty_or_nonexistent_tables(schema: str, tables: list = TABLES) -> boo
     """Returns True, if all tables from TABLES are non-existent or empty. 
     Returns False if at least one isn't empty."""
     try:
-        with _get_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 for t in tables:
                     query =  f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '{schema}' AND table_name = '{t}');"
