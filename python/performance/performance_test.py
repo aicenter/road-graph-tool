@@ -17,8 +17,8 @@ import psycopg2
 import platform
 import json
 
+from roadgraphtool.schema import _get_connection
 from scripts.process_osm import import_osm_to_db
-from roadgraphtool.credentials_config import CREDENTIALS
 from scripts.main import main as pipeline_main
 
 MARKDOWN_FILE = "python/performance/perf_report.md"
@@ -131,11 +131,11 @@ def read_json() -> dict:
         data = json.load(f)
     return data
 
-def get_db_table_sizes(config: dict, schema: str) -> dict:
+def get_db_table_sizes(schema: str) -> dict:
     """Return dictionary containing the sizes of all tables 
     in the **schema** of the database."""
     try:
-        with psycopg2.connect(**config) as conn:
+        with _get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(f"""
                     SELECT table_name, pg_size_pretty(size) 
@@ -152,16 +152,18 @@ def get_db_table_sizes(config: dict, schema: str) -> dict:
     except (psycopg2.DatabaseError, Exception) as error:
         raise error
 
-def monitor_performance(config: dict, input_file: str, schema: str, style_file: str, importing: bool) -> dict:
+def monitor_performance(input_file: str, schema: str, style_file: str, importing: bool) -> dict:
     """Return dictionary of monitored time, file size, date of import and table sizes
     after running the **import_osm_to_db()** function."""
+    file_size = os.path.getsize(input_file)
+
     start_time = time.time()
 
     if importing:
-        file_size = import_osm_to_db(input_file, style_file, schema=schema)
+        import_osm_to_db(input_file, True, False, style_file, schema=schema)
     else:
         # TODO:
-        area_id = 51 # placeholder - area id based on data
+        area_id = 1 # placeholder - area id based on data
         pipeline_main(['a', area_id, '-i', '-sf', style_file])
 
     elapsed_time = time.time() - start_time
@@ -170,20 +172,20 @@ def monitor_performance(config: dict, input_file: str, schema: str, style_file: 
             "performance_metrics": {"total_time": elapsed_time, "test_runs": 1},
             "file_size": convert_B_to_readable(file_size),
             "date_import": datetime.today().strftime('%d.%m.%Y'),
-            "db_table_sizes": get_db_table_sizes(config, schema)
+            "db_table_sizes": get_db_table_sizes(schema)
         }
 
-def get_db_version(config: dict) -> str:
+def get_db_version() -> str:
     """Return version of database."""
     try:
-        with psycopg2.connect(**config) as conn:
+        with _get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT split_part(version(), ' ', 1) || ' ' || current_setting('server_version') as db_info;")
                 return cur.fetchone()[0]
     except (psycopg2.DatabaseError, Exception) as error:
         return str(error)
 
-def monitor(config: dict, input_file: str, location: str, mode: str, network_conn: str, schema: str, style_file: str, importing: bool) -> dict:
+def monitor(input_file: str, location: str, mode: str, network_conn: str, schema: str, style_file: str, importing: bool) -> dict:
     """Monitors HW metrics, time, memory and DB table sizes."""
     # Get hardware info
     hw_metrics = get_hw_config()
@@ -191,8 +193,8 @@ def monitor(config: dict, input_file: str, location: str, mode: str, network_con
     mode_conn = f"{mode}_{network_conn}"
     hw_metrics["data_info"] = {
         mode_conn: {
-            "db_info": get_db_version(config),
-            location: monitor_performance(config, input_file, schema, style_file, importing)
+            "db_info": get_db_version(),
+            location: monitor_performance(input_file, schema, style_file, importing)
         }
     }
     return hw_metrics
@@ -239,7 +241,7 @@ def get_network_config() -> str:
             connection = 'ethernet'
     return connection
 
-def update_performance(current: dict, old: dict, location: str, mode: str, connection: str, config: dict):
+def update_performance(current: dict, old: dict, location: str, mode: str, connection: str):
     """Update JSON file with new data based on location, connection and mode."""
     mode_conn = f"{mode}_{connection}"
     location_data = old["data_info"].get(mode_conn, {}).get(location, {})
@@ -253,7 +255,7 @@ def update_performance(current: dict, old: dict, location: str, mode: str, conne
             old["data_info"][mode_conn][location] = current
         else:
             # create mode_conn and add location with metrics
-            version_info = get_db_version(config)
+            version_info = get_db_version()
             old["data_info"][mode_conn] = {"db_info": version_info,
                                            location: current}
 
@@ -265,9 +267,10 @@ def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     
     loc_parser = subparsers.add_parser('l', help="Specify the name of location to include in statistics.")
     loc_parser.add_argument('location', help="Specify the location name.")
-    loc_parser.add_argument('-i', dest='importing', action="store_true", help="Enable performance test of importing only.")
+    loc_parser.add_argument('-i', '--input-file', dest='input_file', type=str, help="Specify the path to the input file.")
+    loc_parser.add_argument('-I', dest='importing', action="store_true", help="Enable performance test of importing only.")
     loc_parser.add_argument('-m', dest='mode', required=True, help="Specify the database mode (local/remote) for '-i' flag.")
-    loc_parser.add_argument('-s', dest='schema', required=True, help="Specify the database schema for '-i' flag.")
+    loc_parser.add_argument('-s', dest='schema', default='public', help="Specify the database schema for '-i' flag.")
     loc_parser.add_argument("-sf", dest="style_file", default="resources/lua_styles/default.lua", help="Path to style file for '-i' flag.")
     
     md_parser = subparsers.add_parser('md', help="Convert JSON to Markdown.")
@@ -276,13 +279,6 @@ def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(arg_list)
 
 def main(arg_list: list[str] | None = None):
-    config = {
-        "host": CREDENTIALS.db_host,
-        "dbname": CREDENTIALS.db_name,
-        "user": CREDENTIALS.username,
-        "password": CREDENTIALS.db_password,
-        "port": CREDENTIALS.db_server_port
-    }
     args = parse_args(arg_list)
     match args.command:
         case 'md':
@@ -290,22 +286,27 @@ def main(arg_list: list[str] | None = None):
             header = f"of {args.header}" if args.header else args.header
             write_markdown(json_data, header)
         case 'l':
-            location = args.location
-            mode = args.mode
-            schema = args.schema
+            location, mode, schema = args.location, args.mode, args.schema
             conn = get_network_config()
             if file_exists(JSON_FILE):
                 metrics = read_json()
-                new_metrics = monitor_performance(config, args.input_file, schema, args.style_file, args.importing)
-                update_performance(new_metrics, metrics, location, mode, conn, config)
+                new_metrics = monitor_performance(args.input_file, schema, args.style_file, args.importing)
+                update_performance(new_metrics, metrics, location, mode, conn)
                 write_json(metrics)
             else:
-                metrics = monitor(config, args.input_file, location, mode, conn, schema, args.style_file, args.importing)
+                metrics = monitor(args.input_file, location, mode, conn, schema, args.style_file, args.importing)
                 write_json(metrics)
 
 
 if __name__ == '__main__':
-    # main()
-    main(['md', '-mh', 'importing on server'])
-    # main(['l', 'monaco', '-i', '-m','local', '-s', 'osm_testing', '-sf', 'resources/lua_styles/pipeline.lua'])
-    # main(['l', 'monaco', '-m','local', '-s', 'osm_testing', '-i', '-sf', 'resources/lua_styles/pipeline.lua'])
+    main()
+    # main(['md', '-mh', 'importing on local machine'])
+
+    # local wireless
+    # main(['l', 'czechia', '-i', 'resources/czechia.osm.pbf', '-m', 'local', '-I', '-sf', 'resources/lua_styles/pipeline.lua'])
+    # main(['l', 'germany', '-i', 'resources/germany.osm.pbf', '-m', 'local', '-I', '-sf', 'resources/lua_styles/pipeline.lua'])
+
+    # remote wireless and ethernet
+    # main(['l', 'czechia', '-i', 'resources/czechia.osm.pbf', '-m', 'remote', '-s', 'testing', '-I', '-sf', 'resources/lua_styles/pipeline.lua'])
+    # main(['l', 'monaco', '-i', 'resources/monaco.osm.pbf', '-m', 'remote', '-s', 'testing', '-I', '-sf', 'resources/lua_styles/pipeline.lua'])
+    # main(['l', 'germany', '-i', 'resources/germany.osm.pbf', '-m', 'remote', '-I', '-sf', 'resources/lua_styles/pipeline.lua'])
