@@ -2,7 +2,8 @@ import xml.etree.ElementTree as ET
 import sys
 
 
-def find_min_max(xml):
+def find_min_max(xml) -> tuple[float, float, float, float]:
+    """Return tuple of floats representing bounding box borders."""
     root = ET.fromstring(xml)
 
     min_lon = float('inf')

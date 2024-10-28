@@ -153,7 +153,7 @@ class __Database:
             return None
 
     @connect_db_if_required
-    def execute_sql(self, query, *args, use_transactions=True) -> None:
+    def execute_sql(self, query, *args, schema='public', use_transactions=True) -> None:
         """
         Execute SQL that doesn't return any value.
         """
@@ -161,7 +161,9 @@ class __Database:
             if not use_transactions:
                 connection.execution_options(isolation_level="AUTOCOMMIT")
             with connection.begin():
+                connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
                 connection.execute(sqlalchemy.text(query), *args)
+                connection.execute(sqlalchemy.text(f"SET search_path TO public;"))
 
     @connect_db_if_required
     def execute_sql_and_fetch_all_rows(self, query, *args) -> list[Row]:
@@ -186,15 +188,25 @@ class __Database:
                 cursor.close()
                 return retcode
 
+    def set_schema(self, schema: str):
+        """
+        Set search path to schema
+        """
+        with self._sqlalchemy_engine.connect() as connection:
+            with connection.begin():
+                connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
+
     @connect_db_if_required
-    def execute_query_to_geopandas(self, sql: str, **kwargs) -> pd.DataFrame:
+    def execute_query_to_geopandas(self, sql: str, schema='public', **kwargs) -> pd.DataFrame:
         """
         Execute sql and load the result to Pandas DataFrame
 
         kwargs are the same as for the pd.read_sql_query(), notably
         index_col=None
         """
+        self.set_schema(schema)
         data = gpd.read_postgis(sql, self._sqlalchemy_engine, **kwargs)
+        self.set_schema('public')
         return data
 
     @connect_db_if_required
@@ -237,6 +249,60 @@ class __Database:
     @connect_db_if_required
     def db_table_to_pandas(self, table_name: str, **kwargs) -> pd.DataFrame:
         return pd.read_sql_table(table_name, con=self._sqlalchemy_engine, **kwargs)
+
+    @connect_db_if_required
+    def create_schema(self, schema_name: str) -> None:
+        """
+        Create a new schema.
+        """
+        create_schema_sql = f"CREATE SCHEMA IF NOT EXISTS {schema_name};"
+        self.execute_sql(create_schema_sql)
+
+    @connect_db_if_required
+    def drop_schema(self, schema_name: str, cascade: bool = False) -> None:
+        """
+        Drop a schema.
+        If cascade is True, will drop all objects in the schema.
+        """
+        drop_schema_sql = f"DROP SCHEMA IF EXISTS {schema_name} {'CASCADE' if cascade else ''};"
+        self.execute_sql(drop_schema_sql)
+
+    @connect_db_if_required
+    def copy_table_structure(self, table_name: str, main_schema: str, new_schema: str) -> None:
+        """
+        Copy the table structure and dependencies (without data) from the main schema to the new schema.
+        """
+        table_exists_query = f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = '{new_schema.lower()}' 
+                AND table_name = '{table_name.lower()}'
+            );
+        """
+        table_exists = self.execute_sql_and_fetch_all_rows(table_exists_query)[0][0]
+
+        if not table_exists:
+            copy_sql = f"""
+                CREATE TABLE {new_schema}.{table_name} (LIKE {main_schema}.{table_name} INCLUDING ALL);
+            """
+            self.execute_sql(copy_sql)
+        else:
+            logging.info(f"Table {table_name} already exists in schema {new_schema}. Skipping creation.")
+
+    @connect_db_if_required
+    def copy_all_tables_to_new_schema(self, main_schema: str, new_schema: str) -> None:
+        """
+        Copy all table structures (without data) from the main schema to the new schema.
+        """
+        tables_query = f"""
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema = '{main_schema}' AND table_type = 'BASE TABLE';
+        """
+        tables = self.execute_sql_and_fetch_all_rows(tables_query)
+
+        for table in tables:
+            table_name = table[0]
+            self.copy_table_structure(table_name, main_schema, new_schema)
 
 
 # db singleton
