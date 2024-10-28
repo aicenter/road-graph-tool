@@ -64,7 +64,7 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
 
 def setup_ssh_tunnel(config: CredentialsConfig) -> int:
     """Set up SSH tunnel if needed and returns port number."""
-    if hasattr(config, "server"):  # remote connection
+    if hasattr(config, "server") and config.server is not None:  # remote connection
         db.start_or_restart_ssh_connection_if_needed()
         config.db_server_port = db.ssh_tunnel_local_port
         return db.ssh_tunnel_local_port
@@ -109,7 +109,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
 
     if res:
         raise SubprocessError(f"Error during import: {res}")
-logger.info("Importing completed.")
+    logger.info("Importing completed.")
 
 def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, schema: str):
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
