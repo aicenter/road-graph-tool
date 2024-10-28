@@ -132,7 +132,7 @@ def test_integration_base_flow(cleanup_for_base_flow):
     # change the main schema
     db.execute_sql("CALL test_env_constructor();")
 
-    import_osm_to_db(str(TEST_DATA_PATH / "integration_test.osm"), schema="test_env")
+    import_osm_to_db(str(TEST_DATA_PATH / "integration_test.osm"), force=True, schema="test_env")
 
     insert_area(
         1,

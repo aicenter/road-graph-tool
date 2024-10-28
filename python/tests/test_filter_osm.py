@@ -1,10 +1,15 @@
 import os
 import pathlib
 import tempfile
-import pytest
 import xml.etree.ElementTree as ET
 
-from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main, InvalidInputError, MissingInputError
+import pytest
+
+from scripts.filter_osm import (InvalidInputError, MissingInputError,
+                                check_strategy, extract_bbox, extract_id,
+                                is_valid_extension, load_multipolygon_by_id,
+                                main)
+
 
 @pytest.fixture
 def expected_multipolygon_id():
@@ -51,10 +56,14 @@ def test_check_strategy():
     assert check_strategy("simple") == None
     assert check_strategy("complete_ways") == None
     assert check_strategy("smart") == None
-    with pytest.raises(InvalidInputError, match="Invalid strategy type. Call filter_osm.py -h/--help to display help."):
+    with pytest.raises(
+        InvalidInputError,
+        match="Invalid strategy type. Call filter_osm.py -h/--help to display help.",
+    ):
         check_strategy("invalid_strategy")
 
-def test_load_multipolygon_by_id_url(mocker,expected_multipolygon_id):
+
+def test_load_multipolygon_by_id_url(mocker, expected_multipolygon_id):
     relation_id = 5986438
     url = f"https://www.openstreetmap.org/api/0.6/relation/{relation_id}/full"
 
@@ -212,7 +221,10 @@ def test_main_id_startegy_valid(mocker):
 def test_main_b_missing_coord():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
         arg_list = ["b", tmp_file.name]
-        with pytest.raises(MissingInputError, match="Coordinates or config file need to be specified with the 'b' flag."):
+        with pytest.raises(
+            MissingInputError,
+            match="Coordinates or config file need to be specified with the 'b' flag.",
+        ):
             main(arg_list)
 
 

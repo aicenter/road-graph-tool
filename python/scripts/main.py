@@ -1,5 +1,6 @@
 import argparse
 import logging
+
 import psycopg2.errors
 
 from roadgraphtool.db_operations import (
@@ -36,37 +37,39 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         required=False,
     )
     parser.add_argument(
-        '-i',
-        '--import',
-        dest='importing', 
-        action="store_true", 
-        help='Import OSM data to database specified in config.ini'
+        "-i",
+        "--import",
+        dest="importing",
+        action="store_true",
+        help="Import OSM data to database specified in config.ini",
     )
     parser.add_argument(
-        '-if',
-        '--input-file',
-        dest='input_file',
+        "-if",
+        "--input-file",
+        dest="input_file",
         required=True,
-        help='Input OSM file path for -i/--import.'
+        help="Input OSM file path for -i/--import.",
     )
     parser.add_argument(
-        '-sf', '--style-file',
-        dest='style_file',
+        "-sf",
+        "--style-file",
+        dest="style_file",
         help="Optional style file path for -i/--import. Default is 'default.lua' otherwise.",
-        required=False
+        required=False,
     )
     parser.add_argument(
-        '-sch', '--schema',
-        dest='schema',
+        "-sch",
+        "--schema",
+        dest="schema",
         help="Optional schema argument for -i/--import. Default is 'public' otherwise.",
-        required=False
+        required=False,
     )
     parser.add_argument(
-        '--force',
-        dest='force',
+        "--force",
+        dest="force",
         action="store_true",
         help="Force overwrite of data in existing tables in schema.",
-        required=False
+        required=False,
     )
 
     return parser
@@ -78,7 +81,7 @@ def main(arg_list: list[str] | None = None):
 
     if args.importing:
         import_osm_to_db(args.input_file, args.force, args.style_file, args.schema)
-    
+
     area_id = args.area_id
     area_srid = args.area_srid
     fill_speed = args.fill_speed
@@ -126,5 +129,5 @@ def main(arg_list: list[str] | None = None):
     compute_speeds_from_neighborhood_segments(area_id, area_srid)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
