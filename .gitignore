@@ -4,9 +4,12 @@ __pycache__/
 resources/lua_styles/mydef.lua
 .pytest_cache
 config.ini
-resources/to_import.osm.pbf
+resources/czechia.osm.pbf
+resources/germany.osm.pbf
+resources/monaco.osm.pbf
 resources/performance_report.json
 python/performance/performance_report.json
+pgpass.conf
 
 # poetry environment exclusions
 poetry.lock

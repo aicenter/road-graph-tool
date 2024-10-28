@@ -2,14 +2,18 @@ import argparse
 import logging
 
 import psycopg2.errors
+import yaml
+import types
+
 
 from roadgraphtool.db_operations import (
     assign_average_speed_to_all_segments_in_area, compute_speeds_for_segments,
     compute_speeds_from_neighborhood_segments, compute_strong_components,
     contract_graph_in_area, get_area_for_demand, insert_area,
     select_network_nodes_in_area)
+from roadgraphtool.credentials_config import CREDENTIALS
+from scripts.process_osm import import_osm_to_db, DEFAULT_STYLE_FILE
 from roadgraphtool.export import get_map_nodes_from_db
-from scripts.process_osm import import_osm_to_db
 
 
 def configure_arg_parser() -> argparse.ArgumentParser:
@@ -37,51 +41,81 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         required=False,
     )
     parser.add_argument(
-        "-i",
-        "--import",
-        dest="importing",
-        action="store_true",
-        help="Import OSM data to database specified in config.ini",
+        '-i',
+        '--import',
+        dest='importing', 
+        action="store_true", 
+        help='Import OSM data to database specified in config.ini'
     )
     parser.add_argument(
-        "-if",
-        "--input-file",
-        dest="input_file",
+        '-if',
+        '--input-file',
+        dest='input_file', 
         required=True,
-        help="Input OSM file path for -i/--import.",
+        help='Input OSM file path for -i/--import.'
     )
     parser.add_argument(
-        "-sf",
-        "--style-file",
-        dest="style_file",
-        help="Optional style file path for -i/--import. Default is 'default.lua' otherwise.",
-        required=False,
+        '-sf', '--style-file',
+        dest='style_file',
+        help=f"Optional style file path for -i/--import. Default is '{DEFAULT_STYLE_FILE}' otherwise.",
+        required=False
     )
     parser.add_argument(
-        "-sch",
-        "--schema",
-        dest="schema",
+        '-sch', '--schema',
+        dest='schema',
         help="Optional schema argument for -i/--import. Default is 'public' otherwise.",
-        required=False,
+        required=False
     )
     parser.add_argument(
-        "--force",
-        dest="force",
+        '--force',
+        dest='force',
         action="store_true",
         help="Force overwrite of data in existing tables in schema.",
-        required=False,
+        required=False
     )
+    parser.add_argument(
+        "-W",
+        dest="password",
+        action="store_true",
+        help="Force password prompt instead of using pgpass file.")
+
 
     return parser
 
 
+def parse_config_file(config_file: str):
+    with open(config_file, 'r',encoding="UTF-8") as file:
+        config_dict = yaml.safe_load(file)
+    return dict2obj(config_dict)
+
+
+def dict2obj(data):
+    """Convert dictionary to object. Taken from https://stackoverflow.com/questions/66208077"""
+    if type(data) is list:
+        return list(map(dict2obj, data))
+    elif type(data) is dict:
+        sns = types.SimpleNamespace()
+        for key, value in data.items():
+            setattr(sns, key, dict2obj(value))
+        return sns
+    else:
+        return data
+
+
+
+
 def main(arg_list: list[str] | None = None):
+    config_file = "config_example.yml"
+    args = parse_config_file(config_file)
+    print(args.jde.to.na)
+
+
     parser = configure_arg_parser()
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        import_osm_to_db(args.input_file, args.force, args.style_file, args.schema)
-
+        import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
+    
     area_id = args.area_id
     area_srid = args.area_srid
     fill_speed = args.fill_speed
