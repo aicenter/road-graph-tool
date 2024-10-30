@@ -1,15 +1,17 @@
 import argparse
 import json
 import logging
+import sys
+
 import psycopg2.errors
-import yaml
-import types
+from pathlib import Path
 
-
-from roadgraphtool.credentials_config import CREDENTIALS
+from roadgraphtool.config import parse_config_file
+import roadgraphtool.db
 from roadgraphtool.db import db
-from scripts.process_osm import import_osm_to_db, DEFAULT_STYLE_FILE
+from roadgraphtool.process_osm import import_osm_to_db
 from roadgraphtool.export import get_map_nodes_from_db
+from setuptools.command.setopt import config_file
 
 
 def get_area_for_demand(
@@ -147,7 +149,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '-sf', '--style-file',
         dest='style_file',
-        help=f"Optional style file path for -i/--import. Default is '{DEFAULT_STYLE_FILE}' otherwise.",
+        help=f"Optional style file path for -i/--import. Default is 'pipeline.lua' otherwise.",
         required=False
     )
     parser.add_argument(
@@ -173,84 +175,68 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_config_file(config_file: str):
-    with open(config_file, 'r',encoding="UTF-8") as file:
-        config_dict = yaml.safe_load(file)
-    return dict2obj(config_dict)
+def main():
+    logging.basicConfig(level=logging.INFO)
+
+    args = sys.argv
+
+    if len(args) < 2:
+        logging.error("You have to provide a path to the config file as an argument.")
+        return -1
+
+    config = parse_config_file(Path(args[1]))
+    roadgraphtool.db.init_db(config)
+    # print(args.jde.to.na)
 
 
-def dict2obj(data):
-    """Convert dictionary to object. Taken from https://stackoverflow.com/questions/66208077"""
-    if type(data) is list:
-        return list(map(dict2obj, data))
-    elif type(data) is dict:
-        sns = types.SimpleNamespace()
-        for key, value in data.items():
-            setattr(sns, key, dict2obj(value))
-        return sns
-    else:
-        return data
-
-
-
-
-def main(arg_list: list[str] | None = None):
-    config_file = "config_example.yml"
-    args = parse_config_file(config_file)
-    print(args.jde.to.na)
-
-
-    parser = configure_arg_parser()
-    args = parser.parse_args(arg_list)
-
-    if args.importing:
-        import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
+    if config.importer.activated:
+        import_osm_to_db(config)
     
-    area_id = args.area_id
-    area_srid = args.area_srid
-    fill_speed = args.fill_speed
+    # area_id = args.area_id
+    # area_srid = args.area_srid
+    # fill_speed = args.fill_speed
 
-    logging.info("selecting nodes")
-    nodes = select_network_nodes_in_area(area_id)
-    logging.info("selected network nodes in area_id = {}".format(area_id))
-    print(nodes)
-
-    logging.info("contracting graph")
-    contract_graph_in_area(area_id, area_srid, fill_speed)
-
-    logging.info("computing strong components for area_id = {}".format(area_id))
-    compute_strong_components(area_id)
-    logging.info("storing the results in the component_data table")
-
-    insert_area("test1", [])
-
-    area = get_area_for_demand(
-        4326,
-        [1, 2, 3],
-        [1, 2, 3],
-        1000,
-        5,
-        "2023-01-01 00:00:00",
-        "2023-12-31 23:59:59",
-        (50.0, 10.0),
-        5000,
-    )
-    print(area)
-
-    logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
-    try:
-        assign_average_speed_to_all_segments_in_area(area_id, area_srid)
-    except psycopg2.errors.InvalidParameterValue as e:
-        logging.info("Expected Error: ", e)
-
-    nodes = get_map_nodes_from_db(area_id)
-    print(nodes)
-
-    logging.info("Execution of compute_speeds_for_segments")
-    compute_speeds_for_segments(area_id, 1, 12, 1)
-
-    logging.info("Execution of compute_speeds_from_neighborhood_segments")
-    compute_speeds_from_neighborhood_segments(area_id, area_srid)
+    # logging.info("selecting nodes")
+    # nodes = select_network_nodes_in_area(area_id)
+    # logging.info("selected network nodes in area_id = {}".format(area_id))
+    # print(nodes)
+    #
+    # logging.info("contracting graph")
+    # contract_graph_in_area(area_id, area_srid, fill_speed)
+    #
+    # logging.info("computing strong components for area_id = {}".format(area_id))
+    # compute_strong_components(area_id)
+    # logging.info("storing the results in the component_data table")
+    #
+    # insert_area("test1", [])
+    #
+    # area = get_area_for_demand(
+    #     4326,
+    #     [1, 2, 3],
+    #     [1, 2, 3],
+    #     1000,
+    #     5,
+    #     "2023-01-01 00:00:00",
+    #     "2023-12-31 23:59:59",
+    #     (50.0, 10.0),
+    #     5000,
+    # )
+    # print(area)
+    #
+    # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
+    # try:
+    #     assign_average_speed_to_all_segments_in_area(area_id, area_srid)
+    # except psycopg2.errors.InvalidParameterValue as e:
+    #     logging.info("Expected Error: ", e)
+    #
+    # nodes = get_map_nodes_from_db(area_id)
+    # print(nodes)
+    #
+    # logging.info("Execution of compute_speeds_for_segments")
+    # compute_speeds_for_segments(area_id, 1, 12, 1)
+    #
+    # logging.info("Execution of compute_speeds_from_neighborhood_segments")
+    # compute_speeds_from_neighborhood_segments(area_id, area_srid)
 
 
 if __name__ == '__main__':

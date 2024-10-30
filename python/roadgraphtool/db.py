@@ -9,8 +9,6 @@ import geopandas as gpd
 from pathlib import Path
 from sqlalchemy.engine import Row
 
-from roadgraphtool.credentials_config import CREDENTIALS
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
 
 
@@ -39,9 +37,9 @@ class __Database:
     Import as:
     from db import db
     """
-    config = CREDENTIALS
 
-    def __init__(self):
+    def __init__(self, config):
+        self.config = config
         # If private key specified, assume ssh connection and try to set it up
         self.db_server_port = self.config.db_server_port
         self.db_name = self.config.db_name
@@ -286,4 +284,8 @@ class __Database:
 
 
 # db singleton
-db = __Database()
+db = None
+
+def init_db(config):
+    global db
+    db = __Database(config.db)

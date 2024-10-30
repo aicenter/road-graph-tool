@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 from roadgraphtool.credentials_config import CREDENTIALS as config
 from roadgraphtool.exceptions import MissingInputError, InvalidInputError
-from scripts.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, setup_ssh_tunnel, postprocess_osm_import, STYLES_DIR, SQL_DIR, DEFAULT_STYLE_FILE_PATH
+from roadgraphtool.process_osm import run_osmium_cmd, main, import_osm_to_db, run_osm2pgsql_cmd, setup_ssh_tunnel, postprocess_osm_import, STYLES_DIR, SQL_DIR, DEFAULT_STYLE_FILE_PATH
 from scripts.find_bbox import find_min_max
 from tests.test_filter_osm import TESTS_DIR
 
