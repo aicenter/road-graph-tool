@@ -3,8 +3,11 @@ import os
 from pathlib import Path
 import subprocess
 import logging
+import stat
 
 from sqlalchemy.sql.coercions import schema
+
+import roadgraphtool.exec
 
 from roadgraphtool.config import parse_config_file, get_path_from_config
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
@@ -70,16 +73,24 @@ def setup_pgpass(config):
     WARNING: This method should be called before connecting to the database
     and file should be removed after the connection is closed - use remove_pgpass() method.
     """
-    # hostname:port:database:username:password
-
     db_config = config.db
+    pgpass_config_path = Path(config.importer.pgpass_file).expanduser().resolve()
 
+    # hostname:port:database:username:password
     content = f"{db_config.db_host}:{db_config.db_server_port}:{db_config.db_name}:{db_config.username}:{db_config.db_password}"
-    with open(self.PGPASS_PATH, 'w') as pgfile:
+    with open(pgpass_config_path, 'w') as pgfile:
         pgfile.write(content)
-    os.chmod(self.PGPASS_PATH, stat.S_IRUSR | stat.S_IWUSR)
-    os.environ['PGPASSFILE'] = self.PGPASS_PATH
-    logging.info(f"Created pgpass file: {self.PGPASS_PATH}")
+    os.chmod(pgpass_config_path, stat.S_IRUSR | stat.S_IWUSR)
+    os.environ['PGPASSFILE'] = str(pgpass_config_path)
+    logging.info(f"Created pgpass file: {pgpass_config_path}")
+
+def remove_pgpass(config):
+    """Remove pgpass file if exists."""
+    pgpass_config_path = config.importer.pgpass_file
+
+    if os.path.exists(pgpass_config_path):
+        os.remove(pgpass_config_path)
+        logging.info(f"Removed pgpass file: {pgpass_config_path}")
 
 
 def run_osm2pgsql_cmd(
@@ -112,7 +123,7 @@ def run_osm2pgsql_cmd(
     add_postgis_extension(schema)
 
     connection_uri = f"postgresql://{db_config.username}@{db_config.db_host}:{port}/{db_config.db_name}"
-    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", importer_config.style_file, importer_config.input_file, "-x", f"--schema={schema}"]
+    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", importer_config.style_file, str(importer_config.input_file), "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
 
@@ -127,31 +138,33 @@ def run_osm2pgsql_cmd(
 
     if pgpass:
         logger.info("Setting up pgpass file...")
-        config.setup_pgpass()
-    
-    res = subprocess.run(cmd).returncode
-    
-    if pgpass:
-        logger.info("Deleting pgpass file...")
-        config.remove_pgpass()
-
+        setup_pgpass(config)
+    try:
+        res = roadgraphtool.exec.call_executable(cmd, output_type=roadgraphtool.exec.ReturnContent.EXIT_CODE)
+    finally:
+        if pgpass:
+            logger.info("Deleting pgpass file...")
+            remove_pgpass(config)
     if res:
         raise SubprocessError(f"Error during import: {res}")
+
     logger.info("Importing completed.")
 
 def postprocess_osm_import(config):
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
-    style_file_path = os.path.basename(config.importer.style_file_path)
+    style_file_path = os.path.basename(config.importer.style_file)
+    db_config = config.db
     
     if style_file_path in POSTPROCESS_DICT:
         sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
-        cmd = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
-                str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+        cmd = ["psql", "-d", db_config.db_name, "-U", db_config.username, "-h", db_config.db_host, "-p",
+                str(db_config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
         logger.info("Post-processing OSM data after import...")
         logger.debug(' '.join(cmd))
-        res = subprocess.run(cmd).returncode
+
+        res = roadgraphtool.exec.call_executable(cmd)
 
         if res:
             raise SubprocessError(f"Error during post-processing: {res}")
@@ -204,7 +217,7 @@ b  : Extract greatest bounding box from given relation ID of
 )
     parser.add_argument('input_file', help="Path to input OSM file")
     parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', help=f"Path to style file (optional for 'b', 'u' flag) - default is '{DEFAULT_STYLE_FILE}'")
+    parser.add_argument("-l", dest="style_file", nargs='?', help=f"Path to style file (optional for 'b', 'u' flag) - default is 'pipeline.lua'")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
     parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")

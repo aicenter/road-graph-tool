@@ -134,8 +134,9 @@ class __Database:
             return psycopg2_connection
         except psycopg2.OperationalError as er:
             logging.error(str(er))
-            logging.info("Tunnel status: %s", str(self.ssh_server.tunnel_is_up))
-            return None
+            if hasattr(self, 'ssh_server'):
+                logging.info("Tunnel status: %s", str(self.ssh_server.tunnel_is_up))
+            raise
 
     @connect_db_if_required
     def execute_sql(self, query, *args, schema='public', use_transactions=True) -> None:

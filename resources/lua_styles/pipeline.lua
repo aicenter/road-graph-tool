@@ -1,12 +1,17 @@
 -- Dynamically determine directory path and update package.path
-local separator = package.config:sub(1,1)
-function get_directory_path(sep)
+function get_directory_path()
+    -- Get the file path of the currently executing script
     local file_path = debug.getinfo(2, "S").source:sub(2)
-    local dir_path = file_path:match("(.*" .. sep .. ")")
+    
+    -- Match up to the last directory separator (either / or \)
+    local dir_path = file_path:match("(.*[\\/])")
+    
     return dir_path
 end
-local dir_path = get_directory_path(separator)
+
+local dir_path = get_directory_path()
 package.path = package.path .. ";" .. dir_path .. "?.lua"
+
 local helper = require("helper")
 
 local tables = {}

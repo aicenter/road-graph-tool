@@ -2,10 +2,12 @@ import sys
 import logging
 import platform
 import subprocess
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
+from enum import Enum
 
 signal_status_codes = {
-    1: {'signal': 'SIGHUP', 'action': '3', 'desc': 'Hangup detected on controlling terminal or death of controlling process'},
+    1: {'signal': 'SIGHUP', 'action': '3',
+        'desc': 'Hangup detected on controlling terminal or death of controlling process'},
     2: {'signal': 'SIGINT', 'action': '3', 'desc': 'Interrupt from keyboard'},
     3: {'signal': 'SIGQUIT', 'action': '3', 'desc': 'Quit from keyboard'},
     4: {'signal': 'SIGILL', 'action': '3', 'desc': 'Illegal Instruction'},
@@ -19,6 +21,12 @@ signal_status_codes = {
 }
 
 
+class ReturnContent(Enum):
+    STDOUT = 1
+    BOOL = 2
+    EXIT_CODE = 3
+
+
 def decode_exit_status_code(code: int) -> Optional[Tuple[int, str, str, str]]:
     os_name = platform.system()
     if os_name == 'Linux':
@@ -30,7 +38,8 @@ def decode_exit_status_code(code: int) -> Optional[Tuple[int, str, str, str]]:
     return None
 
 
-def call_executable(command: List[str], timeout: Optional[int] = None) -> bool:
+def call_executable(command: List[str], timeout: Optional[int] = None, output_type: ReturnContent = ReturnContent.BOOL) -> \
+Union[str, bool, int]:
     try:
         logging.info("Calling external command: %s", " ".join(command))
         args = {
@@ -42,13 +51,21 @@ def call_executable(command: List[str], timeout: Optional[int] = None) -> bool:
         if timeout:
             args['timeout'] = timeout
 
-        subprocess.check_call(**args)
-        return True
+        result = subprocess.run(**args, check=True)
+
+        if output_type == ReturnContent.STDOUT:
+            return result.stdout
+        elif output_type == ReturnContent.BOOL:
+            return True
+        else:
+            return result.returncode
 
     except FileNotFoundError:
         logging.error("Executable %s not found. Check if the full path to the executable is in "
                       "the system PATH environment variable.", command[0])
-        return False
+        if output_type == ReturnContent.BOOL:
+            return False
+        raise
 
     except subprocess.CalledProcessError as command_error:
         logging.error("Executable run failed for command: %s", command_error.cmd)
@@ -61,6 +78,11 @@ def call_executable(command: List[str], timeout: Optional[int] = None) -> bool:
         if command_error.output:
             logging.error("Executable output START\n%s", command_error.output)
             logging.error("Executable output END.")
-        return False
+        if output_type == ReturnContent.BOOL:
+            return False
+        raise
     except subprocess.TimeoutExpired:
         logging.warning("Timeout expired (%d)", timeout)
+        if output_type == ReturnContent.BOOL:
+            return False
+        raise
