@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import logging
 
-from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
+from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
 from roadgraphtool.db import db
 from roadgraphtool.schema import *
@@ -56,19 +56,19 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
                     logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
 
-def setup_ssh_tunnel(config: CredentialsConfig) -> int:
+def setup_ssh_tunnel() -> int:
     """Set up SSH tunnel if needed and returns port number."""
-    if hasattr(config, "server"):  # remote connection
+    if hasattr(CREDENTIALS, "server") and CREDENTIALS.server is not None:  # remote connection
         db.start_or_restart_ssh_connection_if_needed()
-        config.db_server_port = db.ssh_tunnel_local_port
+        CREDENTIALS.db_server_port = db.ssh_tunnel_local_port
         return db.ssh_tunnel_local_port
     # local connection
-    return config.db_server_port
+    return CREDENTIALS.db_server_port
 
-def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, schema: str, force: bool, pgpass: bool, coords: str| list[int] = None):
-    """Import data from input_file to database specified in config using osm2pgsql tool."""
+def run_osm2pgsql_cmd(input_file: str, style_file_path: str, schema: str, force: bool, pgpass: bool, coords: str| list[int] = None):
+    """Import data from input_file to database specified in *config.ini* using osm2pgsql tool."""
 
-    port = setup_ssh_tunnel(config)
+    port = setup_ssh_tunnel(CREDENTIALS)
     logger.debug(f"Port is: {port}")
 
     if not force and not check_empty_or_nonexistent_tables(schema):
@@ -77,7 +77,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     create_schema(schema)
     add_postgis_extension(schema)
 
-    connection_uri = f"postgresql://{config.username}@{config.db_host}:{port}/{config.db_name}"
+    connection_uri = f"postgresql://{CREDENTIALS.username}@{CREDENTIALS.db_host}:{port}/{CREDENTIALS.db_name}"
     cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
@@ -93,27 +93,27 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
 
     if pgpass:
         logger.info("Setting up pgpass file...")
-        config.setup_pgpass()
+        CREDENTIALS.setup_pgpass()
     
     res = subprocess.run(cmd).returncode
     
     if pgpass:
         logger.info("Deleting pgpass file...")
-        config.remove_pgpass()
+        CREDENTIALS.remove_pgpass()
 
     if res:
         raise SubprocessError(f"Error during import: {res}")
     logger.info("Importing completed.")
 
-def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, schema: str):
+def postprocess_osm_import(style_file_path: str, schema: str):
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
     style_file_path = os.path.basename(style_file_path)
     
     if style_file_path in POSTPROCESS_DICT:
         sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
-        cmd = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
-                str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+        cmd = ["psql", "-d", CREDENTIALS.db_name, "-U", CREDENTIALS.username, "-h", CREDENTIALS.db_host, "-p", 
+                str(CREDENTIALS.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
         logger.info("Post-processing OSM data after import...")
         logger.debug(' '.join(cmd))
@@ -126,7 +126,7 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
         logger.warning(f"No post-processing defined for style {style_file_path}")
 
 def import_osm_to_db(input_file: str, force: bool, pgpass: bool, style_file_path: str = str(DEFAULT_STYLE_FILE_PATH), schema: str = "public"):
-    """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
+    """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in *config.ini* file.
 
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
@@ -138,10 +138,10 @@ def import_osm_to_db(input_file: str, force: bool, pgpass: bool, style_file_path
 
     try:
         # importing to database
-        run_osm2pgsql_cmd(CREDENTIALS, input_file, style_file_path, schema, force, pgpass)
+        run_osm2pgsql_cmd(input_file, style_file_path, schema, force, pgpass)
 
         # postprocessing
-        postprocess_osm_import(CREDENTIALS, style_file_path, schema)
+        postprocess_osm_import(style_file_path, schema)
     except SubprocessError as e:
         logger.error(f"Error during processing: {e}")
 
