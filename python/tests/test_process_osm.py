@@ -90,7 +90,7 @@ def test_run_osm2pgsql_cmd(db_connection, test_schema, test_tables):
 def test_setup_ssh_tunnel():
     port = setup_ssh_tunnel(config)
     if hasattr(config, "server"):
-        assert port == 1113 # should match db.ssh_tunnel_local_port in dp.py
+        assert port == 1113 # should match db.ssh_tunnel_local_port in db.py
     else:
         assert port == config.db_server_port # should match config.db_server_port
 
@@ -198,7 +198,7 @@ def test_main_default_style_valid(mocker):
 
 def test_main_input_style_valid(mocker):
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_input, tempfile.NamedTemporaryFile(suffix=".lua") as tmp_lua:
-        arg_list = ["u", tmp_input.name, "-l", tmp_lua.name, '-W']
+        arg_list = ["u", tmp_input.name, "-l", tmp_lua.name, '-P']
         mock_import_osm_to_db = mocker.patch('scripts.process_osm.import_osm_to_db')
         main(arg_list)
         mock_import_osm_to_db.assert_called_once_with(arg_list[1], False, True, arg_list[3], "public")

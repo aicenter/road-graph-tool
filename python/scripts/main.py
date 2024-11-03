@@ -164,10 +164,10 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         required=False
     )
     parser.add_argument(
-        "-W", 
-        dest="password", 
+        "-P", 
+        dest="pgpass", 
         action="store_true", 
-        help="Force password prompt instead of using pgpass file.")
+        help="Force using pgpass file instead of password prompt.")
 
 
     return parser
@@ -204,7 +204,7 @@ def main(arg_list: list[str] | None = None):
     args = parser.parse_args(arg_list)
 
     if args.importing:
-        import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
+        import_osm_to_db(args.input_file, args.force, args.pgpass, args.style_file, args.schema)
     
     area_id = args.area_id
     area_srid = args.area_srid
