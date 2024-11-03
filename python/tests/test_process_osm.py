@@ -67,7 +67,7 @@ def test_run_osm2pgsql_cmd(db_connection, test_schema, test_tables):
     style_file_path = str(TESTS_DIR / "test_default.lua")
     input_file = str(TESTS_DIR / "bbox_test.osm")
 
-    run_osm2pgsql_cmd(config, input_file, style_file_path, test_schema, True, True)
+    run_osm2pgsql_cmd(input_file, style_file_path, test_schema, True, True)
 
     expected_count = {test_tables[0]: 6, test_tables[1]: 0, test_tables[2]: 1}
 
@@ -88,8 +88,8 @@ def test_run_osm2pgsql_cmd(db_connection, test_schema, test_tables):
     cursor.close()
 
 def test_setup_ssh_tunnel():
-    port = setup_ssh_tunnel(config)
-    if hasattr(config, "server"):
+    port = setup_ssh_tunnel()
+    if hasattr(config, "server") and config.server is not None:
         assert port == 1113 # should match db.ssh_tunnel_local_port in dp.py
     else:
         assert port == config.db_server_port # should match config.db_server_port
@@ -147,8 +147,8 @@ def test_import_to_db_valid(mocker, mock_run_osm2pgsql_cmd, test_schema, mock_re
 
     import_osm_to_db(input_file, True, False, schema=test_schema)
 
-    mock_run_osm2pgsql_cmd.assert_called_once_with(config, input_file, style_file_path, test_schema, True, False)
-    mock_postprocess.assert_called_once_with(config, style_file_path, test_schema)
+    mock_run_osm2pgsql_cmd.assert_called_once_with(input_file, style_file_path, test_schema, True, False)
+    mock_postprocess.assert_called_once_with(style_file_path, test_schema)
 
 def test_import_to_db_invalid_file(mocker):
     mocker.patch('scripts.process_osm.os.path.exists', side_effect=lambda path: path == STYLES_DIR / 'simple.lua')
@@ -234,7 +234,7 @@ def test_postprocess_osm_import_valid(mock_subprocess_run, test_schema):
     mock_subprocess_run.return_value.returncode = 0
     sql_file_path = str(SQL_DIR / "after_import.sql")
 
-    postprocess_osm_import(config, str(DEFAULT_STYLE_FILE_PATH), test_schema)
+    postprocess_osm_import(str(DEFAULT_STYLE_FILE_PATH), test_schema)
     mock_subprocess_run.assert_called_once()
     mock_subprocess_run.assert_any_call(["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
                str(config.db_server_port), "-c", f"SET search_path TO {test_schema};", "-f", sql_file_path])
@@ -243,7 +243,7 @@ def test_postprocess_osm_import_valid_long_path(mock_subprocess_run, test_schema
     mock_subprocess_run.return_value.returncode = 0
     sql_file_path = str(SQL_DIR / "after_import.sql")
 
-    postprocess_osm_import(config, str(DEFAULT_STYLE_FILE_PATH), test_schema)
+    postprocess_osm_import(str(DEFAULT_STYLE_FILE_PATH), test_schema)
     mock_subprocess_run.assert_called_once()
     mock_subprocess_run.assert_any_call(["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
                str(config.db_server_port), "-c", f"SET search_path TO {test_schema};", "-f", sql_file_path])
@@ -252,5 +252,5 @@ def test_postprocess_osm_import_invalid_style(mock_subprocess_run, test_schema):
     mock_subprocess_run.return_value.returncode = 0
     style_file_path = "simple.lua"
 
-    postprocess_osm_import(config, str(STYLES_DIR / style_file_path), test_schema)
+    postprocess_osm_import(str(STYLES_DIR / style_file_path), test_schema)
     mock_subprocess_run.assert_not_called()

@@ -68,7 +68,7 @@ def setup_ssh_tunnel() -> int:
 def run_osm2pgsql_cmd(input_file: str, style_file_path: str, schema: str, force: bool, pgpass: bool, coords: str| list[int] = None):
     """Import data from input_file to database specified in *config.ini* using osm2pgsql tool."""
 
-    port = setup_ssh_tunnel(CREDENTIALS)
+    port = setup_ssh_tunnel()
     logger.debug(f"Port is: {port}")
 
     if not force and not check_empty_or_nonexistent_tables(schema):
