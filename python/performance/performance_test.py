@@ -17,7 +17,7 @@ import psycopg2
 import platform
 import json
 
-from roadgraphtool.schema import _get_connection
+from roadgraphtool.schema import get_connection
 from scripts.process_osm import import_osm_to_db
 from scripts.main import main as pipeline_main
 
@@ -135,7 +135,7 @@ def get_db_table_sizes(schema: str) -> dict:
     """Return dictionary containing the sizes of all tables 
     in the **schema** of the database."""
     try:
-        with _get_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(f"""
                     SELECT table_name, size
@@ -178,7 +178,7 @@ def monitor_performance(input_file: str, schema: str, style_file: str, importing
 def get_db_version() -> str:
     """Return version of database."""
     try:
-        with _get_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT split_part(version(), ' ', 1) || ' ' || current_setting('server_version') as db_info;")
                 return cur.fetchone()[0]
