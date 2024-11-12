@@ -68,9 +68,9 @@ def generate_markdown_row(location: str, data: dict) -> str:
 
     time = format_time(total_time / runs)
 
-    nodes_size = convert_to_readable_size(int(get_table_size_from_dict("nodes", db_table_sizes)))
-    ways_size = convert_to_readable_size(int(get_table_size_from_dict("ways", db_table_sizes)))
-    relations_size = convert_to_readable_size(int(get_table_size_from_dict("relations", db_table_sizes)))
+    nodes_size = get_table_size_from_dict("nodes", db_table_sizes)
+    ways_size = get_table_size_from_dict("ways", db_table_sizes)
+    relations_size = get_table_size_from_dict("relations", db_table_sizes)
 
     return f"| {location.title()} | {file_size} | {date} | {time} | {nodes_size} | {ways_size} | {relations_size} |"
 
@@ -300,6 +300,6 @@ def main(arg_list: list[str] | None = None):
 
 if __name__ == '__main__':
     # main()
-    main(['md', '-mh', 'importing on server'])
+    main(['md', '-mh', 'importing from local machine'])
     # main(['l', 'monaco', '-i', '-m','local', '-s', 'osm_testing', '-sf', 'resources/lua_styles/pipeline.lua'])
     # main(['l', 'monaco', '-m','local', '-s', 'osm_testing', '-i', '-sf', 'resources/lua_styles/pipeline.lua'])

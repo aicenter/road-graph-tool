@@ -1,0 +1,82 @@
+{
+    "system_info": {
+        "system": "Linux",
+        "version": "#40~22.04.3-Ubuntu SMP PREEMPT_DYNAMIC Tue Jul 30 17:30:19 UTC 2"
+    },
+    "cpu_info": {
+        "logical_cores": 8
+    },
+    "memory_info": {
+        "total_memory": 16.54
+    },
+    "disk_info": {
+        "total_disk_space": 502.39
+    },
+    "osm_info": {
+        "osm_version": "2.0.0"
+    },
+    "data_info": {
+        "local_wireless":{
+            "db_info": "14.12 (Ubuntu 14.12-0ubuntu0.22.04.1)",
+            "czechia": {
+                "performance_metrics": {
+                    "total_time": 619.9813530445099,
+                    "test_runs": 2
+                },
+                "file_size": "860.05 MB",
+                "date_import": "2.10.2024",
+                "db_table_sizes": {
+                    "nodes": "11 GB",
+                    "ways": "5285 MB",
+                    "relations": "106 MB",
+                    "osm2pgsql_properties": "32 kB"
+                }
+            },
+            "germany": {
+                "performance_metrics": {
+                    "total_time": 4820.867632389069,
+                    "test_runs": 2
+                },
+                "file_size": "4.33 GB",
+                "date_import": "2.10.2024",
+                "db_table_sizes": {
+                    "osm2pgsql_properties": "32 kB",
+                    "relations": "504 MB",
+                    "nodes": "49 GB",
+                    "ways": "31 GB"
+                }
+            }
+        },
+        "remote_ethernet": {
+            "db_info": "PostgreSQL 16.1 (Debian 16.1-1.pgdg110+1)",
+            "czechia": {
+                "performance_metrics": {
+                    "total_time": 1239.470529556276,
+                    "test_runs": 2
+                },
+                "file_size": "860.05 MB",
+                "date_import": "22.10.2024",
+                "db_table_sizes": {
+                    "osm2pgsql_properties": "32 kB",
+                    "relations": "107 MB",
+                    "ways": "5285 MB",
+                    "nodes": "11 GB"
+                }
+            },
+            "germany": {
+                "performance_metrics": {
+                    "total_time": 17843.474812984467,
+                    "test_runs": 2
+                },
+                "file_size": "4.33 GB",
+                "date_import": "4.11.2024",
+                "db_table_sizes": {
+                    "osm2pgsql_properties": "32 kB",
+                    "relations": "504 MB",
+                    "ways": "31 GB",
+                    "nodes": "49 GB"
+                }
+            }
+        }
+    }
+}
