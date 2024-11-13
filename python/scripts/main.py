@@ -5,7 +5,6 @@ import psycopg2.errors
 import yaml
 import types
 
-
 from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.db import db
 from scripts.process_osm import import_osm_to_db, DEFAULT_STYLE_FILE
@@ -13,15 +12,15 @@ from roadgraphtool.export import get_map_nodes_from_db
 
 
 def get_area_for_demand(
-    srid_plain: int,
-    dataset_ids: list,
-    zone_types: list,
-    buffer_meters: int,
-    min_requests_in_zone: int,
-    datetime_min: str,
-    datetime_max: str,
-    center_point: tuple,
-    max_distance_from_center_point_meters: int,
+        srid_plain: int,
+        dataset_ids: list,
+        zone_types: list,
+        buffer_meters: int,
+        min_requests_in_zone: int,
+        datetime_min: str,
+        datetime_max: str,
+        center_point: tuple,
+        max_distance_from_center_point_meters: int,
 ) -> list:
     sql_query = """
             select * from get_area_for_demand(
@@ -58,7 +57,7 @@ def insert_area(name: str, coordinates: list):
 
 
 def contract_graph_in_area(
-    target_area_id: int, target_area_srid: int, fill_speed: bool = True
+        target_area_id: int, target_area_srid: int, fill_speed: bool = True
 ):
     sql_query = f'call public.contract_graph_in_area({target_area_id}::smallint, {target_area_srid}::int{", FALSE" if not fill_speed else ""})'
     db.execute_sql(sql_query)
@@ -72,7 +71,7 @@ def select_network_nodes_in_area(target_area_id: int) -> list:
 
 
 def assign_average_speed_to_all_segments_in_area(
-    target_area_id: int, target_area_srid: int
+        target_area_id: int, target_area_srid: int
 ):
     sql_query = (
         f"call public.assign_average_speed_to_all_segments_in_area({target_area_id}::smallint, "
@@ -87,7 +86,7 @@ def compute_strong_components(target_area_id: int):
 
 
 def compute_speeds_for_segments(
-    target_area_id: int, speed_records_dataset: int, hour: int, day_of_week: int
+        target_area_id: int, speed_records_dataset: int, hour: int, day_of_week: int
 ):
     sql_query = (
         f"call public.compute_speeds_for_segments({target_area_id}::smallint, "
@@ -97,7 +96,7 @@ def compute_speeds_for_segments(
 
 
 def compute_speeds_from_neighborhood_segments(
-    target_area_id: int, target_area_srid: int
+        target_area_id: int, target_area_srid: int
 ):
     sql_query = (
         f"call public.compute_speeds_from_neighborhood_segments({target_area_id}::smallint, "
@@ -133,14 +132,14 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '-i',
         '--import',
-        dest='importing', 
-        action="store_true", 
+        dest='importing',
+        action="store_true",
         help='Import OSM data to database specified in config.ini'
     )
     parser.add_argument(
         '-if',
         '--input-file',
-        dest='input_file', 
+        dest='input_file',
         required=True,
         help='Input OSM file path for -i/--import.'
     )
@@ -164,17 +163,16 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         required=False
     )
     parser.add_argument(
-        "-W", 
-        dest="password", 
-        action="store_true", 
+        "-W",
+        dest="password",
+        action="store_true",
         help="Force password prompt instead of using pgpass file.")
-
 
     return parser
 
 
 def parse_config_file(config_file: str):
-    with open(config_file, 'r',encoding="UTF-8") as file:
+    with open(config_file, 'r', encoding="UTF-8") as file:
         config_dict = yaml.safe_load(file)
     return dict2obj(config_dict)
 
@@ -192,20 +190,28 @@ def dict2obj(data):
         return data
 
 
+def pokusy(input_file: str = "default", force: bool = False, schema: str = "public"):
+    print(input_file)
+    print(force)
+    print(schema)
 
 
 def main(arg_list: list[str] | None = None):
-    config_file = "config_example.yml"
+    config_file = "config.yml"
     args = parse_config_file(config_file)
-    print(args.jde.to.na)
 
+    # pokusy(**args.importing.__dict__)
 
-    parser = configure_arg_parser()
-    args = parser.parse_args(arg_list)
+    # exit(0)
+
+    # parser = configure_arg_parser()
+    # args = parser.parse_args(arg_list)
 
     if args.importing:
-        import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
-    
+        # import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
+        import_osm_to_db(args)
+        # import_osm_to_db(args.input_file, args.force, args.password, schema=args.schema)
+
     area_id = args.area_id
     area_srid = args.area_srid
     fill_speed = args.fill_speed

@@ -11,6 +11,8 @@ from roadgraphtool.schema import *
 from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger, RESOURCES_DIR
 from scripts.find_bbox import find_min_max
 
+AREA_ID_SEQUENCE = "dataset_id_seq"
+
 DEFAULT_STYLE_FILE = "pipeline.lua"
 SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
 STYLES_DIR = RESOURCES_DIR / "lua_styles"
@@ -20,12 +22,14 @@ POSTPROCESS_DICT = {"pipeline.lua": "after_import.sql"}
 
 logger = setup_logger('process_osm')
 
+
 def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
     """Return tuple of floats based on bounding box coordinations."""
     content = load_multipolygon_by_id(relation_id)
     min_lon, min_lat, max_lon, max_lat = find_min_max(content)
     logger.debug(f"Bounding box found: {min_lon},{min_lat},{max_lon},{max_lat}.")
     return min_lon, min_lat, max_lon, max_lat
+
 
 def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
     """Run osmium command based on flag."""
@@ -56,6 +60,7 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
                     logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
 
+
 def setup_ssh_tunnel(config: CredentialsConfig) -> int:
     """Set up SSH tunnel if needed and returns port number."""
     if hasattr(config, "server"):  # remote connection
@@ -65,7 +70,9 @@ def setup_ssh_tunnel(config: CredentialsConfig) -> int:
     # local connection
     return config.db_server_port
 
-def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, schema: str, force: bool, pgpass: bool, coords: str| list[int] = None):
+
+def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, schema: str, force: bool, pgpass: bool,
+                      coords: str | list[int] = None):
     """Import data from input_file to database specified in config using osm2pgsql tool."""
 
     port = setup_ssh_tunnel(config)
@@ -84,19 +91,19 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
 
     if logger.level == logging.DEBUG:
         cmd.extend(['--log-level=debug'])
-    
+
     if not pgpass:
         cmd.extend(["-W"])
-    
+
     logger.info(f"Begin importing...")
     logger.debug(' '.join(cmd))
 
     if pgpass:
         logger.info("Setting up pgpass file...")
         config.setup_pgpass()
-    
+
     res = subprocess.run(cmd).returncode
-    
+
     if pgpass:
         logger.info("Deleting pgpass file...")
         config.remove_pgpass()
@@ -105,15 +112,16 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
         raise SubprocessError(f"Error during import: {res}")
     logger.info("Importing completed.")
 
-def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, schema: str):
+
+def postprocess_osm_import_old(config: CredentialsConfig, style_file_path: str, schema: str):
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
     style_file_path = os.path.basename(style_file_path)
-    
+
     if style_file_path in POSTPROCESS_DICT:
         sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
-        cmd = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
-                str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+        cmd = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p",
+               str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
         logger.info("Post-processing OSM data after import...")
         logger.debug(' '.join(cmd))
@@ -125,30 +133,156 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
     else:
         logger.warning(f"No post-processing defined for style {style_file_path}")
 
-def import_osm_to_db(input_file: str, force: bool, pgpass: bool, style_file_path: str = str(DEFAULT_STYLE_FILE_PATH), schema: str = "public"):
+
+# def import_osm_to_db(input_file: str, force: bool, pgpass: bool, style_file_path: str = str(DEFAULT_STYLE_FILE_PATH), schema: str = "public"):
+def import_osm_to_db(args):
     """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
 
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
-    if not os.path.exists(input_file) or not is_valid_extension(input_file):
+    if not os.path.exists(args.input_file) or not is_valid_extension(args.input_file):
         raise FileNotFoundError("No valid file to import was found.")
 
-    if not os.path.exists(style_file_path):
-        raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
+    if not os.path.exists(args.style_file):
+        raise FileNotFoundError(f"Style file {args.style_file_path} does not exist.")
 
     try:
         # importing to database
-        run_osm2pgsql_cmd(CREDENTIALS, input_file, style_file_path, schema, force, pgpass)
+        run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, args.password)
 
-        # postprocessing
-        postprocess_osm_import(CREDENTIALS, style_file_path, schema)
+        postprocess_osm_import(args)
+        # postprocess_osm_import(CREDENTIALS, style_file_path, schema)
     except SubprocessError as e:
         logger.error(f"Error during processing: {e}")
 
 
+def check_and_print_warning(overlaps: dict[str, list[tuple]]):
+    for (element_type, overlap) in overlaps.items():
+        if overlap:
+            logger.warning(f"{len(overlap)} {element_type} with the same ID are already in the database and not added.")
+    pass
+
+
+def postprocess_osm_import(args):
+    try:
+        with get_connection() as connection:
+
+            schema = args.schema
+            target_schema = args.target_schema
+
+
+            area_id= create_area(connection, target_schema, args.input_file, args.area_name)
+
+            overlaps = {}
+            overlaps['nodes'] = get_overlapping_elements(connection, schema, 'nodes')
+            overlaps['ways'] = get_overlapping_elements(connection, schema, 'ways')
+            overlaps['relations'] = get_overlapping_elements(connection, schema, 'relations')
+
+            check_and_print_warning(overlaps)
+
+            copy_nodes(connection, schema, target_schema, area_id)
+            copy_ways(connection, schema, target_schema, area_id)
+            copy_relations(connection, schema, target_schema, area_id)
+            # copy_nodes_ways(connection, schema, target_schema, area_id)
+
+            return area_id
+    except (psycopg2.DatabaseError, Exception) as error:
+        raise Exception(f"Error: {str(error)}")
+
+
+def generate_area_id(connection, target_schema):
+    with connection.cursor() as cursor:
+        query = f'''
+                SELECT nextval('"{target_schema}"."{AREA_ID_SEQUENCE}"') 
+'''
+        cursor.execute(query)
+        return cursor.fetchone()[0]
+
+
+
+def create_area(connection, target_schema:str, input_file: str, area_name: str):
+    # TODO: add geom
+    area_id = generate_area_id(connection, target_schema)
+    with connection.cursor() as cursor:
+        query = f'''
+                INSERT INTO "{target_schema}".areas (id, "name", description)
+                VALUES ({area_id},'{area_name}','{input_file}') '''
+        cursor.execute(query)
+    return area_id
+
+
+def copy_nodes(connection, import_schema: str, target_schema: str, area_id: int):
+    logger.debug("Copying nodes")
+    with connection.cursor() as cursor:
+        query = f'''
+                INSERT INTO "{target_schema}".nodes (id,tags,geom, area)
+                SELECT id, tags, geom, {area_id}
+                FROM "{import_schema}".nodes i
+                WHERE NOT EXISTS
+                    (SELECT id
+                        FROM "{target_schema}".nodes e
+                        WHERE i.id = e.id)'''
+        cursor.execute(query)
+
+
+def copy_nodes_ways(connection, import_schema: str, target_schema: str, area_id: int):
+    logger.debug("Copying nodes ways")
+    with connection.cursor() as cursor:
+        query = f'''
+                INSERT INTO "{target_schema}".nodes_ways (way_id,node_id,"position",area)
+                SELECT way_id,node_id,"position", {area_id}
+                FROM "{import_schema}".nodes_ways i
+                WHERE EXISTS
+                    (SELECT id
+                        FROM "{target_schema}".ways e
+                        WHERE i.way_id = e.id AND e.area = {area_id})'''
+        cursor.execute(query)
+
+
+def copy_ways(connection, import_schema: str, target_schema: str, area_id: int):
+    logger.debug("Copying ways")
+    with connection.cursor() as cursor:
+        query = f'''
+                INSERT INTO "{target_schema}".ways (id, tags, geom,"from","to", oneway, area)
+                SELECT id, tags, geom,"from","to", oneway, {area_id}
+                FROM "{import_schema}".ways i
+                WHERE NOT EXISTS
+                    (SELECT id
+                        FROM "{target_schema}".ways e
+                        WHERE i.id = e.id)'''
+        cursor.execute(query)
+
+
+def copy_relations(connection, import_schema: str, target_schema: str, area_id: int):
+    logger.debug("Copying relations")
+    with connection.cursor() as cursor:
+        query = f'''
+                INSERT INTO "{target_schema}".relations (id,tags,members, area)
+                SELECT id, tags, members, {area_id}
+                FROM "{import_schema}".relations i
+                WHERE NOT EXISTS
+                    (SELECT id
+                        FROM "{target_schema}".relations e
+                        WHERE i.id = e.id)'''
+        cursor.execute(query)
+
+
+def get_overlapping_elements(connection, schema: str, table_name: str):
+    with connection.cursor() as cursor:
+        query = f'''
+                SELECT id 
+                FROM "{schema}"."{table_name}" i
+                WHERE EXISTS
+                    (SELECT id
+                    FROM "{table_name}" e
+                    WHERE i.id = e.id);'''
+        cursor.execute(query)
+        return cursor.fetchall()
+
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.", formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.",
+                                     formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument("flag", choices=["d", "i", "ie", "s", "r", "sr", "b", "u"], metavar="flag",
                         help="""
@@ -161,13 +295,15 @@ sr : Sort and renumber objects in OSM file
 u  : Preprocess and upload OSM file to PostgreSQL database using osm2pgsql
 b  : Extract greatest bounding box from given relation ID of 
      input_file and upload to PostgreSQL database using osm2pgsql"""
-)
+                        )
     parser.add_argument('input_file', help="Path to input OSM file")
     parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', default=str(DEFAULT_STYLE_FILE_PATH), help=f"Path to style file (optional for 'b', 'u' flag) - default is '{DEFAULT_STYLE_FILE}'")
+    parser.add_argument("-l", dest="style_file", nargs='?', default=str(DEFAULT_STYLE_FILE_PATH),
+                        help=f"Path to style file (optional for 'b', 'u' flag) - default is '{DEFAULT_STYLE_FILE}'")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
-    parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")
+    parser.add_argument("-sch", "--schema", dest="schema", default="public",
+                        help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")
     parser.add_argument("--force", dest="force", action="store_true", help="Force overwrite of data in existing tables in schema (for 'b', 'u' flag)")
     parser.add_argument("-P", dest="pgpass", action="store_true", help="Force using pgpass file instead of password prompt (for 'b', 'u' flag)")
 
@@ -179,6 +315,7 @@ b  : Extract greatest bounding box from given relation ID of
             handler.setLevel(logging.DEBUG)
 
     return args
+
 
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
@@ -192,7 +329,7 @@ def main(arg_list: list[str] | None = None):
             raise FileNotFoundError(f"File '{args.style_file}' does not exist.")
         elif not str(args.style_file).endswith(".lua"):
             raise InvalidInputError("File must have the '.lua' extension.")
-    
+
     match args.flag:
         case 'd' | 'i' | 'ie':
             # Display content or (extended) information of OSM file
@@ -203,7 +340,7 @@ def main(arg_list: list[str] | None = None):
             if not args.output_file:
                 raise MissingInputError("An output file must be specified with '-o' flag.")
             run_osmium_cmd(args.flag, args.input_file, args.output_file)
-    
+
         case "u":
             # Preprocess and upload OSM file to PostgreSQL database and then postprocess the data
             import_osm_to_db(args.input_file, args.force, args.pgpass, args.style_file, args.schema)
@@ -217,6 +354,7 @@ def main(arg_list: list[str] | None = None):
             coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
 
             run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, args.pgpass, coords)
-    
+
+
 if __name__ == '__main__':
     main()
