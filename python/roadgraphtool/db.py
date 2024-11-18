@@ -161,14 +161,22 @@ class __Database:
             if not use_transactions:
                 connection.execution_options(isolation_level="AUTOCOMMIT")
             with connection.begin():
-                connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
+                search_path = connection.execute(sqlalchemy.text("SHOW search_path;")).all()[0][0]
+                connection.execute(sqlalchemy.text(f"SET search_path TO {','.join([schema, search_path])};"))
                 connection.execute(sqlalchemy.text(query), *args)
-                connection.execute(sqlalchemy.text(f"SET search_path TO public;"))
+                connection.execute(sqlalchemy.text(f"SET search_path TO {search_path};"))
 
     @connect_db_if_required
-    def execute_sql_and_fetch_all_rows(self, query, *args) -> list[Row]:
+    def execute_sql_and_fetch_all_rows(self, query, *args, schema=None) -> list[Row]:
         with self._sqlalchemy_engine.connect() as conn:
-            result = conn.execute(sqlalchemy.text(query), *args).all()
+            result = None
+            if schema:
+                search_path = conn.execute(sqlalchemy.text("SHOW search_path;")).all()[0][0]
+                conn.execute(sqlalchemy.text(f"SET search_path TO {','.join([schema, search_path])};"))
+                result = conn.execute(sqlalchemy.text(query), *args).all()
+                conn.execute(sqlalchemy.text(f"SET search_path TO {search_path};"))
+            else:
+                result = conn.execute(sqlalchemy.text(query), *args).all()
             return result
 
     @connect_db_if_required

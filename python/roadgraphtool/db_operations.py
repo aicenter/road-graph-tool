@@ -42,10 +42,10 @@ def get_area_for_demand(
 
 
 def contract_graph_in_area(
-    target_area_id: int, target_area_srid: int, fill_speed: bool = True
+    target_area_id: int, target_area_srid: int, fill_speed: bool = True, schema=None
 ):
     sql_query = f'call public.contract_graph_in_area({target_area_id}::smallint, {target_area_srid}::int{", FALSE" if not fill_speed else ""})'
-    db.execute_sql(sql_query)
+    db.execute_sql(sql_query, schema=schema)
 
 
 def select_network_nodes_in_area(target_area_id: int) -> list:
@@ -65,9 +65,9 @@ def assign_average_speed_to_all_segments_in_area(
     db.execute_sql(sql_query)
 
 
-def compute_strong_components(target_area_id: int):
+def compute_strong_components(target_area_id: int, schema=None):
     sql_query = f"call public.compute_strong_components({target_area_id}::smallint)"
-    db.execute_sql(sql_query)
+    db.execute_sql(sql_query, schema=schema)
 
 
 def compute_speeds_for_segments(

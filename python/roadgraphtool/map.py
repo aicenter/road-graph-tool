@@ -22,10 +22,11 @@ def add_node_highway_tags(nodes, G):
             nodes.loc[nodes.index[[v]], 'highway'] = tag
 
 
-def _get_map_from_db(config: dict) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
-    nodes = get_map_nodes_from_db(config['area_id'])
+def _get_map_from_db(config: dict, schema: str | None = None) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    schema = schema if schema else 'public'
+    nodes = get_map_nodes_from_db(config['area_id'], schema)
     logging.info(f"{len(nodes)} nodes fetched from db")
-    edges = get_map_edges_from_db(config)
+    edges = get_map_edges_from_db(config, schema)
     logging.info(f"{len(edges)} edges fetched from db")
     return nodes, edges
 
@@ -91,7 +92,7 @@ def _save_graph_shapefile(nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, shap
     edges.to_file(str(filepath_edges), driver="ESRI Shapefile", index=False, encoding="utf-8")
 
 
-def get_map(config: Dict) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+def get_map(config: Dict, schema: str | None = None) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """
     Loads filtered map nodes geodataframe. If th dataframe is not generated yet, then the map is downloaded
     and processed to obtain the filtered nodes dataframe
@@ -121,7 +122,7 @@ def get_map(config: Dict) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
         if 'place' in config['map']:
             nodes, edges = _get_map(config)
         else:
-            nodes, edges = _get_map_from_db(config)
+            nodes, edges = _get_map_from_db(config, schema=schema)
 
         # save map to shapefile (for visualising)
         map_dir = config["map"]["path"]
@@ -135,7 +136,7 @@ def get_map(config: Dict) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     # Filter nodes by config/area. Only these nodes should be used for demand/vehicle generation/selection
     if 'area' in config:
         sql = f"""SELECT geom FROM areas WHERE name = '{config['area']}'"""
-        area_shape = db.execute_query_to_geopandas(sql)
+        area_shape = db.execute_query_to_geopandas(sql, schema=schema if schema else 'public')
         mask = nodes.within(area_shape.loc[0, 'geom'])
         nodes = nodes.loc[mask]
 

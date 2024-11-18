@@ -5,7 +5,7 @@ import sys
 from roadgraphtool.db import db
 
 
-def insert_area(id: int | None, name: str, description: str | None, geom: dict):
+def insert_area(id: int | None, name: str, description: str | None, geom: dict, schema: str | None = None):
     """
     Insert a new area into the areas table.
 
@@ -18,16 +18,21 @@ def insert_area(id: int | None, name: str, description: str | None, geom: dict):
     Returns:
     None
     """
+    schema = "public" if schema is None else schema
+
     if description is None:
         description = ""
+
     # result ignored as the pgsql function returns void
     if id is None:
         db.execute_sql(
-            f"SELECT insert_area('{name}', '{json.dumps(geom)}', NULL, '{description}')"
+            f"SELECT insert_area('{name}', '{json.dumps(geom)}', NULL, '{description}')",
+            schema=schema
         )
     else:
         db.execute_sql(
-            f"SELECT insert_area('{name}', '{json.dumps(geom)}', {id}, '{description}')"
+            f"SELECT insert_area('{name}', '{json.dumps(geom)}', {id}, '{description}')",
+            schema=schema
         )
 
 

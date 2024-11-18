@@ -17,6 +17,7 @@ from scripts.process_osm import import_osm_to_db
 
 TEST_DATA_PATH = Path(__file__).parent / "data"
 TMP_DIR = Path(__file__).parent / "TMP"
+TEST_SCHEMA = "test_env"
 
 # Fixtures
 
@@ -132,22 +133,23 @@ def test_integration_base_flow(cleanup_for_base_flow):
     # change the main schema
     db.execute_sql("CALL test_env_constructor();")
 
-    import_osm_to_db(str(TEST_DATA_PATH / "integration_test.osm"), force=True, schema="test_env")
+    import_osm_to_db(str(TEST_DATA_PATH / "integration_test.osm"), force=True, pgpass=False, schema=TEST_SCHEMA)
 
     insert_area(
         1,
         "Deutschland",
         "test area",
         read_area(str(TEST_DATA_PATH / "integration_area.json")),
+        schema=f"{TEST_SCHEMA}, public"
     )
 
     # read osm file to dictionary
     osm_dict = parse_osm_file(TEST_DATA_PATH / "integration_test.osm")
-    print(osm_dict)
 
     # Test that importing osm data and area was done successfully
     nodes = db.execute_sql_and_fetch_all_rows(
-        "SELECT id, ST_X(geom), ST_Y(geom) FROM nodes;"
+        "SELECT id, ST_X(geom), ST_Y(geom) FROM nodes;",
+        schema=TEST_SCHEMA
     )
     nodes_set = set(nodes)
 
@@ -162,7 +164,8 @@ def test_integration_base_flow(cleanup_for_base_flow):
     assert nodes_set == expected_nodes_set
 
     ways = db.execute_sql_and_fetch_all_rows(
-        'SELECT id, tags, "from", "to", oneway FROM ways;'
+        'SELECT id, tags, "from", "to", oneway FROM ways;',
+        schema=TEST_SCHEMA
     )
 
     ways_set = set(
@@ -193,7 +196,8 @@ def test_integration_base_flow(cleanup_for_base_flow):
     assert expected_ways_set == ways_set
 
     nodes_ways = db.execute_sql_and_fetch_all_rows(
-        "SELECT way_id, node_id FROM nodes_ways;"
+        "SELECT way_id, node_id FROM nodes_ways;",
+        schema=TEST_SCHEMA
     )
     nodes_ways_set = set(nodes_ways)
 
@@ -205,7 +209,8 @@ def test_integration_base_flow(cleanup_for_base_flow):
     assert nodes_ways_set == expected_nodes_ways
 
     area = db.execute_sql_and_fetch_all_rows(
-        "SELECT id, name, description FROM areas;"
+        "SELECT id, name, description FROM areas;",
+        schema=TEST_SCHEMA
     )[0]
 
     expected_area = (1, "Deutschland", "test area")
@@ -213,29 +218,31 @@ def test_integration_base_flow(cleanup_for_base_flow):
     assert area == expected_area
 
     # 2) Call contraction
-    contract_graph_in_area(1, 4326, fill_speed=False)
+    contract_graph_in_area(1, 4326, fill_speed=False, schema=TEST_SCHEMA)
 
     # GET updated data from db and assert
     contracted_nodes = db.execute_sql_and_fetch_all_rows(
-        "SELECT id FROM nodes WHERE contracted;"
+        "SELECT id FROM nodes WHERE contracted;",
+        schema=TEST_SCHEMA
     )
-    assert set([(6,), (7,), (8,)]) == set(contracted_nodes)
+    assert {(6,), (7,), (8,)} == set(contracted_nodes)
 
-    edges = db.execute_sql_and_fetch_all_rows('SELECT "from", "to" FROM edges;')
+    edges = db.execute_sql_and_fetch_all_rows('SELECT "from", "to" FROM edges;', schema=TEST_SCHEMA)
 
-    assert set([(3, 4), (2, 1), (1, 2), (5, 3), (5, 2), (4, 3), (2, 3), (3, 2)]) == set(
+    assert {(3, 4), (2, 1), (1, 2), (5, 3), (5, 2), (4, 3), (2, 3), (3, 2)} == set(
         edges
     )
 
     # 3) Call Compute Strong Components
-    compute_strong_components(1)
+    compute_strong_components(1, schema=TEST_SCHEMA)
 
     # GET updated data from db and assert
     component_data = db.execute_sql_and_fetch_all_rows(
-        "SELECT component_id, node_id FROM component_data"
+        "SELECT component_id, node_id FROM component_data",
+        schema=TEST_SCHEMA
     )
 
-    assert set([(0, 1), (0, 2), (0, 3), (0, 4), (1, 5)]) == set(component_data)
+    assert {(0, 1), (0, 2), (0, 3), (0, 4), (1, 5)} == set(component_data)
 
     # 4) Export data to files
     os.mkdir(str(TMP_DIR))
@@ -253,7 +260,7 @@ def test_integration_base_flow(cleanup_for_base_flow):
         "area": "Deutschland",
         "area_id": 1,
     }
-    _ = export_nodes_edges(config)
+    _ = export_nodes_edges(config, schema=f"{TEST_SCHEMA}, \"$user\"")
 
     # assert created files by expected hash
     expected_hashes = {
