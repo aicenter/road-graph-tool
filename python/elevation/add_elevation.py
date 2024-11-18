@@ -4,8 +4,9 @@ import psycopg2
 import psycopg2.extras
 import argparse
 import time
+import numpy as np
 
-from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
+from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.schema import get_connection
 from scripts.filter_osm import setup_logger
 
@@ -14,29 +15,29 @@ CHUNK_SIZE = 5000
 
 logger = setup_logger('elevation')
 
-def load_coords(config: CredentialsConfig, table_name: str, schema: str) -> list:
+def load_coords(table_name: str, schema: str) -> np.ndarray:
     """Returns list of node IDs and coordinations."""
-    coords = list()
+    coords = []
     query = f" SELECT node_id, ST_Y(geom), ST_X(geom) FROM {schema}.{table_name};"
 
     try:
-        with get_connection(config) as conn:
+        with get_connection() as conn:
             with conn.cursor('node_cursor') as cur:
                 cur.execute(query)
                 while True:
                     chunk = cur.fetchmany(CHUNK_SIZE)
                     if not chunk:
                         break
-                    coords.append(chunk)
-        return coords
+                    coords.extend(chunk)
+        return np.array(coords, dtype=object)
     except (psycopg2.DatabaseError, Exception) as error:
         raise Exception(f"Error: {str(error)}")
 
-def process_chunks(config: CredentialsConfig, schema: str, chunks_list: list):
-    for chunk in chunks_list:
+def process_chunks(schema: str, chunks_array: np.ndarray):
+    for chunk in np.array_split(chunks_array, len(chunks_array) // CHUNK_SIZE + 1):
         json_chunk = prepare_coords(chunk)
         updated_json_chunk = get_elevation(json_chunk)
-        store_elevations(config, schema, chunk, updated_json_chunk)
+        store_elevations(schema, chunk, updated_json_chunk)
 
 
 def prepare_coords(chunk: list) -> dict:
@@ -56,7 +57,7 @@ def get_elevation(json_chunk: dict) -> dict:
         json_chunk['locations'][i]['ele'] = 200
     return json_chunk
 
-def setup_database(config: CredentialsConfig, table_name: str, schema: str):
+def setup_database(table_name: str, schema: str):
     """Create table and column for elevations"""
     table_query = f"""
     CREATE TABLE IF NOT EXISTS {schema}.elevations (
@@ -66,7 +67,7 @@ def setup_database(config: CredentialsConfig, table_name: str, schema: str):
     """
     column_query = f"""ALTER TABLE {schema}.{table_name} ADD COLUMN IF NOT EXISTS elevation REAL;"""
     try:
-        with get_connection(config) as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(table_query)
                 cur.execute(column_query)
@@ -74,20 +75,20 @@ def setup_database(config: CredentialsConfig, table_name: str, schema: str):
     except (psycopg2.DatabaseError, Exception) as error:
         raise Exception(f"Error: {str(error)}")
 
-def store_elevations(config: CredentialsConfig, schema: str, coord_chunk: list, elevation_chunk: list):
+def store_elevations(schema: str, coord_chunk: list, elevation_chunk: list):
     """Stores elevation data from given chunks into the database table."""
     insert_query = f""" INSERT INTO {schema}.elevations (node_id, elevation) VALUES %s; """
     data_tuples = [(coord[0], location['ele']) 
                    for coord, location in zip(coord_chunk, elevation_chunk['locations'])]
     try:
-        with get_connection(config) as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 psycopg2.extras.execute_values(cur, insert_query, data_tuples)
         conn.commit()
     except (psycopg2.DatabaseError, Exception) as error:
         raise Exception(f"Error: {str(error)}")
 
-def update_and_drop_table(config: CredentialsConfig, table_name: str, schema: str):
+def update_and_drop_table(table_name: str, schema: str):
     """Updates table with elevations and deletes elevations table."""
     update_query = f"""
     UPDATE {schema}.{table_name}
@@ -97,7 +98,7 @@ def update_and_drop_table(config: CredentialsConfig, table_name: str, schema: st
     """
     drop_query = f"""DROP TABLE {schema}.elevations;"""
     try:
-        with get_connection(config) as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(update_query)
                 cur.execute(drop_query)
@@ -130,10 +131,11 @@ def main(arg_list: list[str] | None = None):
 
     start = time.time()
 
-    setup_database(CREDENTIALS, table_name, schema)
-    coords = load_coords(CREDENTIALS, table_name, schema)
-    process_chunks(CREDENTIALS, schema, coords)
-    update_and_drop_table(CREDENTIALS, table_name, schema)
+    setup_database(table_name, schema)
+    coords = load_coords(table_name, schema)
+    print(coords.shape)
+    # process_chunks(schema, coords)
+    # update_and_drop_table(table_name, schema)
     
     end = time.time()
 
@@ -141,4 +143,4 @@ def main(arg_list: list[str] | None = None):
 
 if __name__ == '__main__':
     # main()
-    main(['nodes', '-sch', 'osm_testing'])
+    main(['nodes', '-sch', 'testing'])
