@@ -31,7 +31,7 @@ To execute the configured pipeline, follow these steps:
 2. Import data into database and then postprocess the data in the database. There are two methods to achieve this:
     1. Execute `process_osm.py u COUNTRY.osm.pbf`. This triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
         > **_DATABASE and SSH CONFIGURATION:_** Tool _osm2pgsql_ connects to database using credentials specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
-        Some databases require a password, so `pgpass.conf` file is automatically set up in root folder of the project when the `CREDENTIALS` is imported from [credentials_config.py](python/roadgraphtool/credentials_config.py).
+        Some databases require a password, so either you are prompted to enter a password or use `-P` flag to have `pgpass.conf` file set-up in root folder of the project - use `CREDENTIALS.setup_pgpass()` and `CREDENTIALS.remove_pgpass()` when connecting to database.
 
         > **_SSH TUNNEL:_** To ensure the SSH tunnel is correctly set up for a remote database, provide `ssh` details in `config.ini`. SSH tunnel setup is handled with [set_ssh_to_db_server_and_set_port()](python/roadgraphtool/db.py).
 
@@ -113,7 +113,7 @@ The `u` flag triggers [import_osm_to_db()](#function-import_osm_to_db) function,
 - **Postprocesses** the data in database if specified in [POSTPROCESS_DICT](python/scripts/process_osm.py), which can be configured based on the *style file* used during importing
 
 ```bash
-python3 process_osm.py u [input_file] [-l style_file]
+python3 process_osm.py u [input_file] [-sf style_file]
 ```
 > **_WARNING:_** Running this command **will overwrite** existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
 
@@ -122,7 +122,7 @@ E.g. this command (described bellow) processes OSM file of Lithuania using Flex 
 # runs with pipeline.lua
 python3 process_osm.py u lithuania-latest.osm.pbf
 # runs with simple.lua script
-python3 process_osm.py u lithuania-latest.osm.pbf -l resources/lua_styles/simple.lua
+python3 process_osm.py u lithuania-latest.osm.pbf -sf resources/lua_styles/simple.lua
 ```
 
 **Nodes in Lithuania:**

@@ -1,7 +1,7 @@
 from typing import Optional, TYPE_CHECKING
 import psycopg2
 
-from roadgraphtool.credentials_config import CREDENTIALS as config
+from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.log import LOGGER
 
 if TYPE_CHECKING:
@@ -11,16 +11,19 @@ TABLES = ["nodes", "ways"]
 
 logger = LOGGER.get_logger('schema')
 
-def _get_connection() -> Optional['connection']:
+logger = LOGGER.get_logger('schema')
+
+def get_connection() -> Optional['connection']:
     """Establishes a connection to the database and returns the connection object."""
     try:
-        return psycopg2.connect(
-            dbname=config.db_name,
-            user=config.username,
-            password=config.db_password,
-            host=config.db_host,
-            port=config.db_server_port
+        connection = psycopg2.connect(
+            dbname=CREDENTIALS.db_name,
+            user=CREDENTIALS.username,
+            password=CREDENTIALS.db_password,
+            host=CREDENTIALS.db_host,
+            port=CREDENTIALS.db_server_port
         )
+        return connection
     except psycopg2.DatabaseError as e:
         logger.error(f"Error connecting to the database: {str(e)}")
         raise
@@ -28,7 +31,7 @@ def _get_connection() -> Optional['connection']:
 def create_schema(schema: str):
     """Creates a new schema in the database."""
     try:
-        with _get_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 query = f'CREATE SCHEMA if not exists "{schema}";'
                 cur.execute(query)
@@ -39,7 +42,7 @@ def create_schema(schema: str):
 def add_postgis_extension(schema: str):
     """Adds the PostGIS extension to the specified schema."""
     try:
-        with _get_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 query = f'CREATE EXTENSION if not exists postgis SCHEMA "{schema}";'
                 cur.execute(query)
@@ -51,7 +54,7 @@ def check_empty_or_nonexistent_tables(schema: str, tables: list = TABLES) -> boo
     """Returns True, if all tables from TABLES are non-existent or empty. 
     Returns False if at least one isn't empty."""
     try:
-        with _get_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 for t in tables:
                     query =  f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '{schema}' AND table_name = '{t}');"

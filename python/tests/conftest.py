@@ -1,7 +1,6 @@
-import psycopg2
 import pytest
 
-from roadgraphtool.credentials_config import CREDENTIALS as config
+from roadgraphtool.schema import get_connection
 
 @pytest.fixture
 def test_tables():
@@ -26,13 +25,7 @@ def mock_remove(mocker):
 
 @pytest.fixture(scope="function")
 def db_connection():
-    conn = psycopg2.connect(
-        dbname=config.db_name,
-        user=config.username,
-        password=config.db_password,
-        host=config.db_host,
-        port=config.db_server_port
-    )
+    conn = get_connection()
     yield conn
     conn.close()
 

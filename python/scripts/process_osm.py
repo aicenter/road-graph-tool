@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import logging
 
-from roadgraphtool.credentials_config import CREDENTIALS, CredentialsConfig
+from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
 from roadgraphtool.db import db
 from roadgraphtool.schema import *
@@ -61,19 +61,20 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
                     logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
 
-def setup_ssh_tunnel(config: CredentialsConfig) -> int:
+def setup_ssh_tunnel() -> int:
     """Set up SSH tunnel if needed and returns port number."""
-    if hasattr(config, "server"):  # remote connection
+    if hasattr(CREDENTIALS, "server") and CREDENTIALS.server is not None:  # remote connection
         db.start_or_restart_ssh_connection_if_needed()
-        config.db_server_port = db.ssh_tunnel_local_port
+        CREDENTIALS.db_server_port = db.ssh_tunnel_local_port
         return db.ssh_tunnel_local_port
     # local connection
-    return config.db_server_port
+    return CREDENTIALS.db_server_port
 
-def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_path: str, schema: str, force: bool, coords: str| list[int] = None):
-    """Import data from input_file to database specified in config using osm2pgsql tool."""
+def run_osm2pgsql_cmd(input_file: str, style_file_path: str, schema: str, force: bool, pgpass: bool, coords: str| list[int] = None):
+    """Import data from input_file to database specified in *config.ini* using osm2pgsql tool."""
 
-    port = setup_ssh_tunnel(config)
+    port = setup_ssh_tunnel()
+    logger.debug(f"Port is: {port}")
 
     try:
         if not force and not check_empty_or_nonexistent_tables(schema):
@@ -85,7 +86,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     create_schema(schema)
     add_postgis_extension(schema)
 
-    connection_uri = f"postgresql://{config.username}@{config.db_host}:{port}/{config.db_name}"
+    connection_uri = f"postgresql://{CREDENTIALS.username}@{CREDENTIALS.db_host}:{port}/{CREDENTIALS.db_name}"
     cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", style_file_path, input_file, "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
@@ -93,9 +94,23 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
     if logger.level == logging.DEBUG:
         cmd.extend(['--log-level=debug'])
     
+    if not pgpass:
+        cmd.extend(["-W"])
+    
     try:
-        logger.info(f"Begin importing with: '{' '.join(cmd)}'")
+        logger.info(f"Begin importing...")
+        logger.debug(' '.join(cmd))
+
+        if pgpass:
+            logger.info("Setting up pgpass file...")
+            CREDENTIALS.setup_pgpass()
+    
         res = subprocess.run(cmd).returncode
+    
+        if pgpass:
+            logger.info("Deleting pgpass file...")
+            CREDENTIALS.remove_pgpass()
+
         if res:
             logger.error(f"Error during import: {res}")
             raise SubprocessError(f"Error during import: {res}")
@@ -104,7 +119,7 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
         logger.error(e)
         raise
 
-def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, schema: str):
+def postprocess_osm_import(style_file_path: str, schema: str):
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
     style_file_path = os.path.basename(style_file_path)
@@ -112,11 +127,12 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
     try:
         if style_file_path in POSTPROCESS_DICT:
             sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
-            command = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
-                    str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+            cmd = ["psql", "-d", CREDENTIALS.db_name, "-U", CREDENTIALS.username, "-h", CREDENTIALS.db_host, "-p", 
+                    str(CREDENTIALS.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
             logger.info("Post-processing OSM data after import...")
-            res = subprocess.run(command).returncode
+            logger.debug(' '.join(cmd))
+            res = subprocess.run(cmd).returncode
 
             if res:
                 raise SubprocessError(f"Error during post-processing: {res}")
@@ -127,8 +143,8 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
         logger.error(e)
         raise
 
-def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DEFAULT_STYLE_FILE_PATH), schema: str = "public"):
-    """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
+def import_osm_to_db(input_file: str, force: bool, pgpass: bool, style_file_path: str = str(DEFAULT_STYLE_FILE_PATH), schema: str = "public"):
+    """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in *config.ini* file.
 
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
@@ -140,10 +156,10 @@ def import_osm_to_db(input_file: str, force: bool, style_file_path: str = str(DE
             raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
 
         # importing to database
-        run_osm2pgsql_cmd(CREDENTIALS, input_file, style_file_path, schema, force)
+        run_osm2pgsql_cmd(input_file, style_file_path, schema, force, pgpass)
 
         # postprocessing
-        postprocess_osm_import(CREDENTIALS, style_file_path, schema)
+        postprocess_osm_import(style_file_path, schema)
     except (SubprocessError, FileNotFoundError) as e:
         logger.error(e)
         raise
@@ -167,11 +183,12 @@ b  : Extract greatest bounding box from given relation ID of
 )
     parser.add_argument('input_file', help="Path to input OSM file")
     parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', default=str(DEFAULT_STYLE_FILE_PATH), help=f"Path to style file (optional for 'b', 'u' flag) - default is '{DEFAULT_STYLE_FILE}'")
+    parser.add_argument('-sf', '--style-file', dest="style_file", nargs='?', default=str(DEFAULT_STYLE_FILE_PATH), help=f"Path to style file (optional for 'b', 'u' flag) - default is '{DEFAULT_STYLE_FILE}'")
     parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
     parser.add_argument("-sch", "--schema", dest="schema", default="public", help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")
     parser.add_argument("--force", dest="force", action="store_true", help="Force overwrite of data in existing tables in schema (for 'b', 'u' flag)")
+    parser.add_argument("-P", dest="pgpass", action="store_true", help="Force using pgpass file instead of password prompt (for 'b', 'u' flag)")
 
     args = parser.parse_args(arg_list)
 
@@ -216,7 +233,7 @@ def main(arg_list: list[str] | None = None):
             
         case "u":
             # Preprocess and upload OSM file to PostgreSQL database and then postprocess the data
-            import_osm_to_db(args.input_file, args.force, args.style_file, args.schema)
+            import_osm_to_db(args.input_file, args.force, args.pgpass, args.style_file, args.schema)
 
         case "b":
             # Extract bounding box based on relation ID and import to PostgreSQL
@@ -231,7 +248,7 @@ def main(arg_list: list[str] | None = None):
                 logger.error(e)
                 raise
             
-            run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, coords)
+            run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, args.pgpass, coords)
 
             
 
