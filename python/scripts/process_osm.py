@@ -8,7 +8,8 @@ from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
 from roadgraphtool.db import db
 from roadgraphtool.schema import *
-from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger, RESOURCES_DIR
+from roadgraphtool.log import LOGGER
+from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, RESOURCES_DIR
 from scripts.find_bbox import find_min_max
 
 DEFAULT_STYLE_FILE = "pipeline.lua"
@@ -18,7 +19,7 @@ DEFAULT_STYLE_FILE_PATH = STYLES_DIR / DEFAULT_STYLE_FILE
 
 POSTPROCESS_DICT = {"pipeline.lua": "after_import.sql"}
 
-logger = setup_logger('process_osm')
+logger = LOGGER.get_logger('process_osm')
 
 def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
     """Return tuple of floats based on bounding box coordinations."""
@@ -29,8 +30,12 @@ def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
 
 def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
     """Run osmium command based on flag."""
-    if output_file and not is_valid_extension(output_file):
-        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
+    try:
+        if output_file and not is_valid_extension(output_file):
+            raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
+    except InvalidInputError as e:
+        logger.error(e)
+        raise
     match flag:
         case "d":
             subprocess.run(["osmium", "show", input_file])
@@ -71,8 +76,12 @@ def run_osm2pgsql_cmd(input_file: str, style_file_path: str, schema: str, force:
     port = setup_ssh_tunnel()
     logger.debug(f"Port is: {port}")
 
-    if not force and not check_empty_or_nonexistent_tables(schema):
-        raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use '--force' flag to proceed.")
+    try:
+        if not force and not check_empty_or_nonexistent_tables(schema):
+            raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use '--force' flag to proceed.")
+    except TableNotEmptyError as e:
+        logger.error(e)
+        raise
 
     create_schema(schema)
     add_postgis_extension(schema)
@@ -88,62 +97,72 @@ def run_osm2pgsql_cmd(input_file: str, style_file_path: str, schema: str, force:
     if not pgpass:
         cmd.extend(["-W"])
     
-    logger.info(f"Begin importing...")
-    logger.debug(' '.join(cmd))
+    try:
+        logger.info(f"Begin importing...")
+        logger.debug(' '.join(cmd))
 
-    if pgpass:
-        logger.info("Setting up pgpass file...")
-        CREDENTIALS.setup_pgpass()
-    
-    res = subprocess.run(cmd).returncode
-    
-    if pgpass:
-        logger.info("Deleting pgpass file...")
-        CREDENTIALS.remove_pgpass()
+        if pgpass:
+            logger.info("Setting up pgpass file...")
+            CREDENTIALS.setup_pgpass()
+        
+        res = subprocess.run(cmd).returncode
+        
+        if pgpass:
+            logger.info("Deleting pgpass file...")
+            CREDENTIALS.remove_pgpass()
 
-    if res:
-        raise SubprocessError(f"Error during import: {res}")
-    logger.info("Importing completed.")
+        if res:
+            logger.error(f"Error during import: {res}")
+            raise SubprocessError(f"Error during import: {res}")
+        logger.info("Importing completed.")
+    except SubprocessError as e:
+        logger.error(e)
+        raise
 
 def postprocess_osm_import(style_file_path: str, schema: str):
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
     style_file_path = os.path.basename(style_file_path)
     
-    if style_file_path in POSTPROCESS_DICT:
-        sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
-        cmd = ["psql", "-d", CREDENTIALS.db_name, "-U", CREDENTIALS.username, "-h", CREDENTIALS.db_host, "-p", 
-                str(CREDENTIALS.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+    try:
+        if style_file_path in POSTPROCESS_DICT:
+            sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
+            cmd = ["psql", "-d", CREDENTIALS.db_name, "-U", CREDENTIALS.username, "-h", CREDENTIALS.db_host, "-p", 
+                    str(CREDENTIALS.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
-        logger.info("Post-processing OSM data after import...")
-        logger.debug(' '.join(cmd))
-        res = subprocess.run(cmd).returncode
+            logger.info("Post-processing OSM data after import...")
+            logger.debug(' '.join(cmd))
+            res = subprocess.run(cmd).returncode
 
-        if res:
-            raise SubprocessError(f"Error during post-processing: {res}")
-        logger.info("Post-processing completed.")
-    else:
-        logger.warning(f"No post-processing defined for style {style_file_path}")
+            if res:
+                raise SubprocessError(f"Error during post-processing: {res}")
+            logger.info("Post-processing completed.")
+        else:
+            logger.warning(f"No post-processing defined for style {style_file_path}")
+    except SubprocessError as e:
+        logger.error(e)
+        raise
 
 def import_osm_to_db(input_file: str, force: bool, pgpass: bool, style_file_path: str = str(DEFAULT_STYLE_FILE_PATH), schema: str = "public"):
     """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in *config.ini* file.
 
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
-    if not os.path.exists(input_file) or not is_valid_extension(input_file):
-        raise FileNotFoundError("No valid file to import was found.")
-
-    if not os.path.exists(style_file_path):
-        raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
-
     try:
+        if not os.path.exists(input_file) or not is_valid_extension(input_file):
+            raise FileNotFoundError("No valid file to import was found.")
+
+        if not os.path.exists(style_file_path):
+            raise FileNotFoundError(f"Style file {style_file_path} does not exist.")
+
         # importing to database
         run_osm2pgsql_cmd(input_file, style_file_path, schema, force, pgpass)
 
         # postprocessing
         postprocess_osm_import(style_file_path, schema)
-    except SubprocessError as e:
-        logger.error(f"Error during processing: {e}")
+    except (SubprocessError, FileNotFoundError) as e:
+        logger.error(e)
+        raise
 
 
 
@@ -183,16 +202,20 @@ b  : Extract greatest bounding box from given relation ID of
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
 
-    if not os.path.exists(args.input_file):
-        raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
-    elif not is_valid_extension(args.input_file):
-        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2.")
-    elif args.style_file:
-        if not os.path.exists(args.style_file):
-            raise FileNotFoundError(f"File '{args.style_file}' does not exist.")
-        elif not str(args.style_file).endswith(".lua"):
-            raise InvalidInputError("File must have the '.lua' extension.")
-    
+    try:
+        if not os.path.exists(args.input_file):
+            raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
+        elif not is_valid_extension(args.input_file):
+            raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2.")
+        elif args.style_file:
+            if not os.path.exists(args.style_file):
+                raise FileNotFoundError(f"File '{args.style_file}' does not exist.")
+            elif not str(args.style_file).endswith(".lua"):
+                raise InvalidInputError("File must have the '.lua' extension.")
+    except (FileNotFoundError, InvalidInputError) as e:
+        logger.error(e)
+        raise
+        
     match args.flag:
         case 'd' | 'i' | 'ie':
             # Display content or (extended) information of OSM file
@@ -200,23 +223,34 @@ def main(arg_list: list[str] | None = None):
 
         case 's' | 'r' | 'sr':
             # Sort, renumber OSM file or do both
-            if not args.output_file:
-                raise MissingInputError("An output file must be specified with '-o' flag.")
-            run_osmium_cmd(args.flag, args.input_file, args.output_file)
-    
+            try:
+                if not args.output_file:
+                    raise MissingInputError("An output file must be specified with '-o' flag.")
+                run_osmium_cmd(args.flag, args.input_file, args.output_file)
+            except (MissingInputError, InvalidInputError) as e:
+                logger.error(e)
+                raise
+            
         case "u":
             # Preprocess and upload OSM file to PostgreSQL database and then postprocess the data
             import_osm_to_db(args.input_file, args.force, args.pgpass, args.style_file, args.schema)
 
         case "b":
             # Extract bounding box based on relation ID and import to PostgreSQL
-            if not args.relation_id:
-                raise MissingInputError("Existing relation ID must be specified.")
+            try:
+                if not args.relation_id:
+                    raise MissingInputError("Existing relation ID must be specified.")
+                
+                min_lon, min_lat, max_lon, max_lat = extract_bbox(args.relation_id)
+                coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
 
-            min_lon, min_lat, max_lon, max_lat = extract_bbox(args.relation_id)
-            coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
-
+            except (MissingInputError, InvalidInputError) as e:
+                logger.error(e)
+                raise
+            
             run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, args.pgpass, coords)
-    
+
+            
+
 if __name__ == '__main__':
     main()
