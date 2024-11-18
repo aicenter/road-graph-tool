@@ -1,19 +1,19 @@
-import xml.etree.ElementTree as ET
 import sys
+import xml.etree.ElementTree as ET
 
 
 def find_min_max(xml) -> tuple[float, float, float, float]:
     """Return tuple of floats representing bounding box borders."""
     root = ET.fromstring(xml)
 
-    min_lon = float('inf')
-    min_lat = float('inf')
-    max_lon = float('-inf')
-    max_lat = float('-inf')
+    min_lon = float("inf")
+    min_lat = float("inf")
+    max_lon = float("-inf")
+    max_lat = float("-inf")
 
-    for node in root.findall('.//node'):
-        lat = float(node.get('lat'))
-        lon = float(node.get('lon'))
+    for node in root.findall(".//node"):
+        lat = float(node.get("lat"))
+        lon = float(node.get("lon"))
         min_lon = min(min_lon, lon)
         min_lat = min(min_lat, lat)
         max_lon = max(max_lon, lon)

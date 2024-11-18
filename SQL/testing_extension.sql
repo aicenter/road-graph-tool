@@ -262,25 +262,25 @@ BEGIN
     -- drop every sequence in test_scheme_name
     FOR tmp IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = test_scheme_name)
         LOOP
-            EXECUTE format('DROP SEQUENCE %I.%I', test_scheme_name, tmp);
+            EXECUTE format('DROP SEQUENCE %I.%I CASCADE', test_scheme_name, tmp);
         END LOOP;
 
     -- drop every view in test_scheme_name
     FOR table_name_i IN (SELECT table_name FROM information_schema.views WHERE table_schema = test_scheme_name)
         LOOP
-            EXECUTE format('DROP VIEW %I.%I', test_scheme_name, table_name_i);
+            EXECUTE format('DROP VIEW %I.%I CASCADE', test_scheme_name, table_name_i);
         END LOOP;
 
     -- drop every table in test_scheme_name
     FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = test_scheme_name)
         LOOP
-            EXECUTE format('DROP TABLE %I.%I', test_scheme_name, table_name_i);
+            EXECUTE format('DROP TABLE %I.%I CASCADE', test_scheme_name, table_name_i);
         END LOOP;
 
     -- drop routines in test_scheme_name
     FOR table_name_i IN (SELECT routine_name FROM information_schema.routines WHERE routine_schema = test_scheme_name)
         LOOP
-            EXECUTE format('DROP FUNCTION %I.%I', test_scheme_name, table_name_i);
+            EXECUTE format('DROP FUNCTION %I.%I CASCADE', test_scheme_name, table_name_i);
         END LOOP;
 
     -- update search path

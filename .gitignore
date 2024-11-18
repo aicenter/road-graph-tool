@@ -10,3 +10,7 @@ resources/monaco.osm.pbf
 resources/performance_report.json
 python/performance/performance_report.json
 pgpass.conf
+
+# poetry environment exclusions
+poetry.lock
+pyproject.toml

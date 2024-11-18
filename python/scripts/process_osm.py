@@ -18,7 +18,8 @@ DEFAULT_STYLE_FILE_PATH = STYLES_DIR / DEFAULT_STYLE_FILE
 
 POSTPROCESS_DICT = {"pipeline.lua": "after_import.sql"}
 
-logger = setup_logger('process_osm')
+logger = setup_logger("process_osm")
+
 
 def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
     """Return tuple of floats based on bounding box coordinations."""
@@ -27,10 +28,13 @@ def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
     logger.debug(f"Bounding box found: {min_lon},{min_lat},{max_lon},{max_lat}.")
     return min_lon, min_lat, max_lon, max_lat
 
+
 def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
     """Run osmium command based on flag."""
     if output_file and not is_valid_extension(output_file):
-        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
+        raise InvalidInputError(
+            "File must have one of the following extensions: osm, osm.pbf, osm.bz2"
+        )
     match flag:
         case "d":
             subprocess.run(["osmium", "show", input_file])
@@ -38,27 +42,29 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
             subprocess.run(["osmium", "fileinfo", input_file])
         case "ie":
             subprocess.run(["osmium", "fileinfo", "-e", input_file])
-        case 'r':
+        case "r":
             res = subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
             if not res.returncode:
                 logger.info("Renumbering of OSM data completed.")
-        case 's':
+        case "s":
             res = subprocess.run(["osmium", "sort", input_file, "-o", output_file])
             if not res.returncode:
                 logger.info("Sorting of OSM data completed.")
-        case 'sr':
-            tmp_file = 'tmp.osm'
+        case "sr":
+            tmp_file = "tmp.osm"
             res = subprocess.run(["osmium", "sort", input_file, "-o", tmp_file])
             if not res.returncode:
                 logger.info("Sorting of OSM data completed.")
-                res = subprocess.run(["osmium", "renumber", tmp_file, "-o", output_file])
+                res = subprocess.run(
+                    ["osmium", "renumber", tmp_file, "-o", output_file]
+                )
                 if not res.returncode:
                     logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
 
 def setup_ssh_tunnel(config: CredentialsConfig) -> int:
     """Set up SSH tunnel if needed and returns port number."""
-    if hasattr(config, "server"):  # remote connection
+    if hasattr(config, "server") and config.server is not None:  # remote connection
         db.start_or_restart_ssh_connection_if_needed()
         config.db_server_port = db.ssh_tunnel_local_port
         return db.ssh_tunnel_local_port
@@ -84,19 +90,19 @@ def run_osm2pgsql_cmd(config: CredentialsConfig, input_file: str, style_file_pat
 
     if logger.level == logging.DEBUG:
         cmd.extend(['--log-level=debug'])
-    
+
     if not pgpass:
         cmd.extend(["-W"])
-    
+
     logger.info(f"Begin importing...")
     logger.debug(' '.join(cmd))
 
     if pgpass:
         logger.info("Setting up pgpass file...")
         config.setup_pgpass()
-    
+
     res = subprocess.run(cmd).returncode
-    
+
     if pgpass:
         logger.info("Deleting pgpass file...")
         config.remove_pgpass()
@@ -109,10 +115,10 @@ def postprocess_osm_import(config: CredentialsConfig, style_file_path: str, sche
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
     style_file_path = os.path.basename(style_file_path)
-    
+
     if style_file_path in POSTPROCESS_DICT:
         sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
-        cmd = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p", 
+        cmd = ["psql", "-d", config.db_name, "-U", config.username, "-h", config.db_host, "-p",
                 str(config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
         logger.info("Post-processing OSM data after import...")
@@ -144,6 +150,7 @@ def import_osm_to_db(input_file: str, force: bool, pgpass: bool, style_file_path
         postprocess_osm_import(CREDENTIALS, style_file_path, schema)
     except SubprocessError as e:
         logger.error(f"Error during processing: {e}")
+
 
 
 
@@ -180,30 +187,35 @@ b  : Extract greatest bounding box from given relation ID of
 
     return args
 
+
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
 
     if not os.path.exists(args.input_file):
         raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
     elif not is_valid_extension(args.input_file):
-        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2.")
+        raise InvalidInputError(
+            "File must have one of the following extensions: osm, osm.pbf, osm.bz2."
+        )
     elif args.style_file:
         if not os.path.exists(args.style_file):
             raise FileNotFoundError(f"File '{args.style_file}' does not exist.")
         elif not str(args.style_file).endswith(".lua"):
             raise InvalidInputError("File must have the '.lua' extension.")
-    
+
     match args.flag:
-        case 'd' | 'i' | 'ie':
+        case "d" | "i" | "ie":
             # Display content or (extended) information of OSM file
             run_osmium_cmd(args.flag, args.input_file)
 
-        case 's' | 'r' | 'sr':
+        case "s" | "r" | "sr":
             # Sort, renumber OSM file or do both
             if not args.output_file:
-                raise MissingInputError("An output file must be specified with '-o' flag.")
+                raise MissingInputError(
+                    "An output file must be specified with '-o' flag."
+                )
             run_osmium_cmd(args.flag, args.input_file, args.output_file)
-    
+
         case "u":
             # Preprocess and upload OSM file to PostgreSQL database and then postprocess the data
             import_osm_to_db(args.input_file, args.force, args.pgpass, args.style_file, args.schema)
