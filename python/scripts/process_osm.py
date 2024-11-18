@@ -104,9 +104,9 @@ def run_osm2pgsql_cmd(input_file: str, style_file_path: str, schema: str, force:
         if pgpass:
             logger.info("Setting up pgpass file...")
             CREDENTIALS.setup_pgpass()
-        
+    
         res = subprocess.run(cmd).returncode
-        
+    
         if pgpass:
             logger.info("Deleting pgpass file...")
             CREDENTIALS.remove_pgpass()
@@ -250,7 +250,6 @@ def main(arg_list: list[str] | None = None):
             
             run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, args.pgpass, coords)
 
-            
 
 if __name__ == '__main__':
     main()
