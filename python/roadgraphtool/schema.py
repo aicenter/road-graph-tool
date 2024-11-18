@@ -11,8 +11,6 @@ TABLES = ["nodes", "ways"]
 
 logger = LOGGER.get_logger('schema')
 
-logger = LOGGER.get_logger('schema')
-
 def get_connection() -> Optional['connection']:
     """Establishes a connection to the database and returns the connection object."""
     try:
