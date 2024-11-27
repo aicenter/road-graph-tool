@@ -11,3 +11,4 @@ resources/performance_report.json
 python/performance/performance_report.json
 pgpass.conf
 roadgraphtool.log
+python/elevation/testing-manual.md
