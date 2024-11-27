@@ -8,7 +8,6 @@ import time
 import numpy as np
 import csv
 
-from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.schema import get_connection
 from roadgraphtool.log import LOGGER
 
@@ -42,8 +41,8 @@ def load_coords(table_name: str, schema: str) -> np.ndarray:
                         break
                     coords_list.extend(chunk)
         logger.info("Coordinates loaded.")
-        logger.debug("Coordinate shape: %s", np.array(coords_list, dtype=object).shape)
         coords = np.array(coords_list, dtype=object)
+        logger.debug("Coordinate shape: %s", coords.shape)
         return coords
     except (psycopg2.DatabaseError, Exception) as error:
         raise Exception(f"Error: {str(error)}")
@@ -129,7 +128,7 @@ def setup_database(table_name_orig: str, table_name_dest: str, schema: str):
         elevation REAL
     );
     """
-    column_query = f"""ALTER TABLE {schema}.{table_name_orig} ADD COLUMN IF NOT EXISTS elevation REAL;"""
+    column_query = f"""ALTER TABLE IF EXISTS {schema}.{table_name_orig} ADD COLUMN IF NOT EXISTS elevation REAL;"""
     try:
         logger.info("Setting up database...")
         with get_connection() as conn:
@@ -141,7 +140,7 @@ def setup_database(table_name_orig: str, table_name_dest: str, schema: str):
         raise Exception(f"Error: {str(error)}")
     logger.info("Database is set up.")
     
-def copy_csv_to_postgresql(schema: str, table_name: str, file_path: str):
+def copy_csv_to_postgres(schema: str, table_name: str, file_path: str):
     """Copy the CSV file with elevations to the PostgreSQL database.
     
     Args:
@@ -212,7 +211,7 @@ def add_elevations(table_name_orig: str, table_name_dest: str, schema: str, file
     setup_database(table_name_orig, table_name_dest, schema)
     coords = load_coords(table_name_orig, schema)
     process_chunks(file_path, coords)
-    copy_csv_to_postgresql(schema, table_name_dest, file_path)
+    copy_csv_to_postgres(schema, table_name_dest, file_path)
     # update_and_drop_table(table_name_orig, table_name_dest, schema, coords)
 
 def time_function(func):
@@ -242,7 +241,6 @@ def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
 
     return args
 
-
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
 
@@ -264,6 +262,6 @@ def main(arg_list: list[str] | None = None):
         logger.warning(f"Elevation file not found: {elevation_file}")
 
 if __name__ == '__main__':
-    main()
-    # main(['nodes', '-sch', 'monaco'])
+    # main()
+    main(['nodes', '-sch', 'monaco'])
     # main(['nodes', '-sch', 'monaco', '-t'])
