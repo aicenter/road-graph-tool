@@ -150,6 +150,9 @@ def import_osm_to_db(args):
         # importing to database
         run_osm2pgsql_cmd(CREDENTIALS, args.input_file, args.style_file, args.schema, args.force, args.password)
 
+        port = setup_ssh_tunnel(config)
+        logger.debug(f"Port is: {port}")
+
         postprocess_osm_import(args)
         # postprocess_osm_import(CREDENTIALS, style_file_path, schema)
     except SubprocessError as e:
@@ -159,7 +162,7 @@ def import_osm_to_db(args):
 def check_and_print_warning(overlaps: dict[str, list[tuple]]):
     for (element_type, overlap) in overlaps.items():
         if overlap:
-            logger.warning(f"{len(overlap)} {element_type} with the same ID are already in the database and not added.")
+            logger.warning(f"{overlap} {element_type} with the same ID are already in the database and not added.")
     pass
 
 
@@ -170,20 +173,19 @@ def postprocess_osm_import(args):
             schema = args.schema
             target_schema = args.target_schema
 
-
-            area_id= create_area(connection, target_schema, args.input_file, args.area_name)
+            area_id = create_area(connection, target_schema, args.input_file, args.area_name)
 
             overlaps = {}
-            overlaps['nodes'] = get_overlapping_elements(connection, schema, 'nodes')
-            overlaps['ways'] = get_overlapping_elements(connection, schema, 'ways')
-            overlaps['relations'] = get_overlapping_elements(connection, schema, 'relations')
+            overlaps['nodes'] = get_overlapping_elements(connection, schema, target_schema, 'nodes')
+            overlaps['ways'] = get_overlapping_elements(connection, schema, target_schema, 'ways')
+            overlaps['relations'] = get_overlapping_elements(connection, schema, target_schema, 'relations')
 
             check_and_print_warning(overlaps)
 
             copy_nodes(connection, schema, target_schema, area_id)
             copy_ways(connection, schema, target_schema, area_id)
             copy_relations(connection, schema, target_schema, area_id)
-            # copy_nodes_ways(connection, schema, target_schema, area_id)
+            copy_nodes_ways(connection, schema, target_schema, area_id)
 
             return area_id
     except (psycopg2.DatabaseError, Exception) as error:
@@ -199,8 +201,7 @@ def generate_area_id(connection, target_schema):
         return cursor.fetchone()[0]
 
 
-
-def create_area(connection, target_schema:str, input_file: str, area_name: str):
+def create_area(connection, target_schema: str, input_file: str, area_name: str):
     # TODO: add geom
     area_id = generate_area_id(connection, target_schema)
     with connection.cursor() as cursor:
@@ -208,6 +209,8 @@ def create_area(connection, target_schema:str, input_file: str, area_name: str):
                 INSERT INTO "{target_schema}".areas (id, "name", description)
                 VALUES ({area_id},'{area_name}','{input_file}') '''
         cursor.execute(query)
+        connection.commit()
+
     return area_id
 
 
@@ -222,7 +225,11 @@ def copy_nodes(connection, import_schema: str, target_schema: str, area_id: int)
                     (SELECT id
                         FROM "{target_schema}".nodes e
                         WHERE i.id = e.id)'''
+
+        logger.debug(f'Executing following SQL: {query}')
         cursor.execute(query)
+        logger.debug(f'Inserted rows: {cursor.rowcount}')
+        connection.commit()
 
 
 def copy_nodes_ways(connection, import_schema: str, target_schema: str, area_id: int):
@@ -236,7 +243,14 @@ def copy_nodes_ways(connection, import_schema: str, target_schema: str, area_id:
                     (SELECT id
                         FROM "{target_schema}".ways e
                         WHERE i.way_id = e.id AND e.area = {area_id})'''
+        # query = f'''
+        #         INSERT INTO "{target_schema}".nodes_ways (way_id,node_id,"position",area)
+        #         SELECT way_id,node_id,"position", {area_id}
+        #         FROM "{import_schema}".nodes_ways i'''
+        logger.debug(f'Executing following SQL: {query}')
         cursor.execute(query)
+        logger.debug(f'Inserted rows: {cursor.rowcount}')
+        connection.commit()
 
 
 def copy_ways(connection, import_schema: str, target_schema: str, area_id: int):
@@ -250,7 +264,10 @@ def copy_ways(connection, import_schema: str, target_schema: str, area_id: int):
                     (SELECT id
                         FROM "{target_schema}".ways e
                         WHERE i.id = e.id)'''
+        logger.debug(f'Executing following SQL: {query}')
         cursor.execute(query)
+        logger.debug(f'Inserted rows: {cursor.rowcount}')
+        connection.commit()
 
 
 def copy_relations(connection, import_schema: str, target_schema: str, area_id: int):
@@ -264,20 +281,24 @@ def copy_relations(connection, import_schema: str, target_schema: str, area_id: 
                     (SELECT id
                         FROM "{target_schema}".relations e
                         WHERE i.id = e.id)'''
+        logger.debug(f'Executing following SQL: {query}')
         cursor.execute(query)
+        logger.debug(f'Inserted rows: {cursor.rowcount}')
+        connection.commit()
 
 
-def get_overlapping_elements(connection, schema: str, table_name: str):
+def get_overlapping_elements(connection, schema: str, target_schema: str, table_name: str):
     with connection.cursor() as cursor:
         query = f'''
+        SELECT count(*) FROM (
                 SELECT id 
                 FROM "{schema}"."{table_name}" i
                 WHERE EXISTS
                     (SELECT id
-                    FROM "{table_name}" e
-                    WHERE i.id = e.id);'''
+                    FROM "{target_schema}"."{table_name}" e
+                    WHERE i.id = e.id));'''
         cursor.execute(query)
-        return cursor.fetchall()
+        return cursor.fetchone()[0]
 
 
 def parse_args(arg_list: list[str] | None) -> argparse.Namespace:

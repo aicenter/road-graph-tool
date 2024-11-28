@@ -18,6 +18,7 @@ def get_connection() -> Optional['connection']:
             host=config.db_host,
             port=config.db_server_port
         )
+        connection.autocommit = True
         return connection
     except psycopg2.DatabaseError as error:
         raise Exception(f"Error connecting to the database: {str(error)}")

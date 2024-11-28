@@ -210,6 +210,7 @@ def main(arg_list: list[str] | None = None):
     if args.importing:
         # import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
         import_osm_to_db(args)
+        return
         # import_osm_to_db(args.input_file, args.force, args.password, schema=args.schema)
 
     area_id = args.area_id

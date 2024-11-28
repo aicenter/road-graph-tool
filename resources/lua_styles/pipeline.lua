@@ -16,6 +16,8 @@ local srid = 4326
 
 tables.nodes = osm2pgsql.define_table({
     name = "nodes",
+    indexes = {},
+    cluster = "no",
     ids = { type = "node", id_column = "id" },
     columns = {
         { column = "tags", type = "hstore" },
@@ -25,6 +27,8 @@ tables.nodes = osm2pgsql.define_table({
 
 tables.ways = osm2pgsql.define_table({
     name = "ways",
+    indexes = {},
+    cluster = "no",
     ids = { type = "way", id_column = "id" },
     columns = {
         { column = "tags",   type = "hstore" },
@@ -37,6 +41,8 @@ tables.ways = osm2pgsql.define_table({
 
 tables.relations = osm2pgsql.define_table({
     name = "relations",
+    indexes = {},
+    cluster = "no",
     ids = { type = "relation", id_column = "id" },
     columns = {
         { column = "tags",    type = "hstore" },
@@ -46,6 +52,8 @@ tables.relations = osm2pgsql.define_table({
 
 tables.nodes_ways = osm2pgsql.define_table({
     name = "nodes_ways",
+    indexes = {},
+    cluster = "no",
     ids = { type = "way", id_column = "way_id" },
     columns = {
         { column = "node_id",  type = "bigint" },
