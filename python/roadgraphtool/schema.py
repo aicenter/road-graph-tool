@@ -3,6 +3,7 @@ import psycopg2
 
 from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.log import LOGGER
+from roadgraphtool.db import db
 
 if TYPE_CHECKING:
     from psycopg2 import connection
@@ -25,6 +26,34 @@ def get_connection() -> Optional['connection']:
     except psycopg2.DatabaseError as e:
         logger.error(f"Error connecting to the database: {str(e)}")
         raise
+
+def setup_ssh_tunnel() -> int:
+    """Set up SSH tunnel if needed and returns port number."""
+    if hasattr(CREDENTIALS, "server") and CREDENTIALS.server is not None:  # remote connection
+        db.start_or_restart_ssh_connection_if_needed()
+        CREDENTIALS.db_server_port = db.ssh_tunnel_local_port
+        return db.ssh_tunnel_local_port
+    # local connection
+    return CREDENTIALS.db_server_port
+
+def connect_to_db_ssh() -> Optional['connection']:
+    """Establishes an SSH tunnel and a connection to the database and returns the connection object."""
+    setup_ssh_tunnel()
+    return get_connection()
+
+def setup_ssh_tunnel() -> int:
+    """Set up SSH tunnel if needed and returns port number."""
+    if hasattr(CREDENTIALS, "server") and CREDENTIALS.server is not None:  # remote connection
+        db.start_or_restart_ssh_connection_if_needed()
+        CREDENTIALS.db_server_port = db.ssh_tunnel_local_port
+        return db.ssh_tunnel_local_port
+    # local connection
+    return CREDENTIALS.db_server_port
+
+def connect_to_db_ssh() -> Optional['connection']:
+    """Establishes an SSH tunnel and a connection to the database and returns the connection object."""
+    setup_ssh_tunnel()
+    return get_connection()
 
 def create_schema(schema: str):
     """Creates a new schema in the database."""
