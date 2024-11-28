@@ -10,6 +10,7 @@ import csv
 
 from roadgraphtool.schema import get_connection
 from roadgraphtool.log import LOGGER
+from scripts.process_osm import setup_ssh_tunnel
 
 URL = 'http://localhost:8080/elevation/api'
 CHUNK_SIZE = 5000
@@ -30,6 +31,7 @@ def load_coords(table_name: str, schema: str) -> np.ndarray:
     query = f" SELECT node_id, ST_Y(geom), ST_X(geom) FROM {schema}.{table_name};"
 
     try:
+        setup_ssh_tunnel()
         with get_connection() as conn:
             logger.info("Connected to the database.")
             logger.info("Loading coordinates...")
@@ -131,6 +133,7 @@ def setup_database(table_name_orig: str, table_name_dest: str, schema: str):
     column_query = f"""ALTER TABLE IF EXISTS {schema}.{table_name_orig} ADD COLUMN IF NOT EXISTS elevation REAL;"""
     try:
         logger.info("Setting up database...")
+        setup_ssh_tunnel()
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(table_query)
@@ -154,6 +157,7 @@ def copy_csv_to_postgres(schema: str, table_name: str, file_path: str):
     DELIMITER AS ','"""
     try:
         logger.info("Copying CSV with elevations to PostgreSQL database...")
+        setup_ssh_tunnel()
         with get_connection() as conn:
             with conn.cursor() as cur:
                 with open(file_path, 'r') as f:
@@ -180,6 +184,7 @@ def update_and_drop_table(table_name_orig: str, table_name_dest: str, schema: st
     node_ids = np.array_split(node_ids, len(node_ids) // CHUNK_SIZE + 1)
     try:
         logger.info("Updating and dropping tables...")
+        setup_ssh_tunnel()
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(index_query_orig)
@@ -263,5 +268,5 @@ def main(arg_list: list[str] | None = None):
 
 if __name__ == '__main__':
     # main()
-    main(['nodes', '-sch', 'monaco'])
-    # main(['nodes', '-sch', 'monaco', '-t'])
+    # main(['nodes', '-sch', 'monaco'])
+    main(['nodes', '-sch', 'germany', '-t'])
