@@ -1,6 +1,5 @@
 import pytest
 
-from roadgraphtool.schema import get_connection
 
 @pytest.fixture
 def test_tables():

@@ -1,3 +1,7 @@
+from contextlib import AbstractContextManager
+from importlib.abc import Traversable
+from typing import Union
+
 import yaml
 import types
 from pathlib import Path
@@ -42,7 +46,8 @@ def merge_dicts(dict_a, dict_b):
 
     return merged
 
-def parse_config_file(config_file: Path):
+
+def parse_config_file(config_file: Union[Path, Traversable]):
     with open(config_file, 'r',encoding="UTF-8") as file:
         config_dict = yaml.safe_load(file)
 
