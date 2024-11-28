@@ -6,8 +6,7 @@ import logging
 
 from roadgraphtool.credentials_config import CREDENTIALS
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
-from roadgraphtool.db import db
-from roadgraphtool.schema import *
+from roadgraphtool.schema import setup_ssh_tunnel, create_schema, add_postgis_extension, check_empty_or_nonexistent_tables
 from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger, RESOURCES_DIR
 from scripts.find_bbox import find_min_max
 
@@ -55,15 +54,6 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
                 if not res.returncode:
                     logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
-
-def setup_ssh_tunnel() -> int:
-    """Set up SSH tunnel if needed and returns port number."""
-    if hasattr(CREDENTIALS, "server") and CREDENTIALS.server is not None:  # remote connection
-        db.start_or_restart_ssh_connection_if_needed()
-        CREDENTIALS.db_server_port = db.ssh_tunnel_local_port
-        return db.ssh_tunnel_local_port
-    # local connection
-    return CREDENTIALS.db_server_port
 
 def run_osm2pgsql_cmd(input_file: str, style_file_path: str, schema: str, force: bool, pgpass: bool, coords: str| list[int] = None):
     """Import data from input_file to database specified in *config.ini* using osm2pgsql tool."""
