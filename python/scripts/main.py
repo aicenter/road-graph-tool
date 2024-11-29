@@ -3,15 +3,12 @@ import json
 import logging
 import sys
 
-import psycopg2.errors
 from pathlib import Path
 
 from roadgraphtool.config import parse_config_file
 import roadgraphtool.db
 from roadgraphtool.db import db
 from roadgraphtool.process_osm import import_osm_to_db
-from roadgraphtool.export import get_map_nodes_from_db
-from setuptools.command.setopt import config_file
 
 
 def get_area_for_demand(

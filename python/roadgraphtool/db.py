@@ -1,5 +1,7 @@
 import atexit
 import logging
+from typing import Optional
+
 import psycopg2
 import sshtunnel
 import sqlalchemy
@@ -137,6 +139,14 @@ class __Database:
             if hasattr(self, 'ssh_server'):
                 logging.info("Tunnel status: %s", str(self.ssh_server.tunnel_is_up))
             raise
+
+    @connect_db_if_required
+    def get_new_cursor(self):
+        return self._psycopg2_connection.cursor()
+
+    @connect_db_if_required
+    def commit(self):
+        self._psycopg2_connection.commit()
 
     @connect_db_if_required
     def execute_sql(self, query, *args, schema='public', use_transactions=True) -> None:
@@ -285,7 +295,7 @@ class __Database:
 
 
 # db singleton
-db = None
+db: Optional[__Database] = None
 
 def init_db(config):
     global db

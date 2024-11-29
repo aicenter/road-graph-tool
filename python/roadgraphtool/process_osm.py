@@ -29,7 +29,8 @@ def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
     logger.debug(f"Bounding box found: {min_lon},{min_lat},{max_lon},{max_lat}.")
     return min_lon, min_lat, max_lon, max_lat
 
-def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
+
+def run_osmium_cmd(flag: str, input_file: str, output_file: Path = None):
     """Run osmium command based on flag."""
     if output_file and not is_valid_extension(output_file):
         raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
@@ -41,22 +42,23 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
         case "ie":
             subprocess.run(["osmium", "fileinfo", "-e", input_file])
         case 'r':
-            res = subprocess.run(["osmium", "renumber", input_file, "-o", output_file])
+            res = subprocess.run(["osmium", "renumber", input_file, "-o", str(output_file)])
             if not res.returncode:
                 logger.info("Renumbering of OSM data completed.")
         case 's':
-            res = subprocess.run(["osmium", "sort", input_file, "-o", output_file])
+            res = subprocess.run(["osmium", "sort", input_file, "-o", str(output_file)])
             if not res.returncode:
                 logger.info("Sorting of OSM data completed.")
         case 'sr':
             tmp_file = 'tmp.osm'
-            res = subprocess.run(["osmium", "sort", input_file, "-o", tmp_file])
-            if not res.returncode:
-                logger.info("Sorting of OSM data completed.")
-                res = subprocess.run(["osmium", "renumber", tmp_file, "-o", output_file])
-                if not res.returncode:
-                    logger.info("Renumbering of OSM data completed.")
+            roadgraphtool.exec.call_executable(["osmium", "sort", input_file, "-o", tmp_file])
+            # res = subprocess.run(["osmium", "sort", input_file, "-o", str(output_file)])
+            logger.info("Sorting of OSM data completed.")
+            roadgraphtool.exec.call_executable(["osmium", "renumber", tmp_file, "-o", str(output_file)])
+            # res = subprocess.run(["osmium", "renumber", tmp_file, "-o", str(output_file)])
+            logger.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
+
 
 def setup_ssh_tunnel(config) -> int:
     """Set up SSH tunnel if needed and returns port number."""
@@ -123,7 +125,7 @@ def run_osm2pgsql_cmd(
     add_postgis_extension(schema)
 
     connection_uri = f"postgresql://{db_config.username}@{db_config.db_host}:{port}/{db_config.db_name}"
-    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", importer_config.style_file, str(importer_config.input_file), "-x", f"--schema={schema}"]
+    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", str(importer_config.style_file), str(importer_config.input_file), "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
 
@@ -232,49 +234,3 @@ b  : Extract greatest bounding box from given relation ID of
             handler.setLevel(logging.DEBUG)
 
     return args
-
-def main(arg_list: list[str] | None = None):
-    if arg_list is None:
-        logging.error("You have to provide a path to the config file as an argument.")
-        return -1
-
-    config = parse_config_file(arg_list[0])
-    importer_config = config.importer
-
-    if not os.path.exists(config.input_file):
-        raise FileNotFoundError(f"File '{importer_config.input_file}' does not exist.")
-    elif not is_valid_extension(importer_config.input_file):
-        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2.")
-    elif importer_config.style_file:
-        if not os.path.exists(importer_config.style_file):
-            raise FileNotFoundError(f"File '{importer_config.style_file}' does not exist.")
-        elif not str(importer_config.style_file).endswith(".lua"):
-            raise InvalidInputError("File must have the '.lua' extension.")
-    
-    match importer_config.flag:
-        case 'd' | 'i' | 'ie':
-            # Display content or (extended) information of OSM file
-            run_osmium_cmd(importer_config.flag, importer_config.input_file)
-
-        case 's' | 'r' | 'sr':
-            # Sort, renumber OSM file or do both
-            if not importer_config.output_file:
-                raise MissingInputError("An output file must be specified with '-o' flag.")
-            run_osmium_cmd(importer_config.flag, importer_config.input_file, importer_config.output_file)
-    
-        case "u":
-            # Preprocess and upload OSM file to PostgreSQL database and then postprocess the data
-            import_osm_to_db(importer_config.input_file, importer_config.force, importer_config.pgpass, importer_config.style_file, importer_config.schema)
-
-        case "b":
-            # Extract bounding box based on relation ID and import to PostgreSQL
-            if not importer_config.relation_id:
-                raise MissingInputError("Existing relation ID must be specified.")
-
-            min_lon, min_lat, max_lon, max_lat = extract_bbox(importer_config.relation_id)
-            coords = f"{min_lon},{min_lat},{max_lon},{max_lat}"
-
-            run_osm2pgsql_cmd(config.db, importer_config.input_file, importer_config.style_file, config.schema, importer_config.force, importer_config.pgpass, coords)
-    
-if __name__ == '__main__':
-    main()
