@@ -1,0 +1,22 @@
+importing: true
+
+#area_name: estonia
+#input_file: estonia-20241031-highways-relations.osm.pbf
+area_name: czechia
+input_file: czech-republic-241128-highways-relations.osm.pbf
+schema: czechia
+#area_name: germany
+#input_file: germany-241128-highways-relations.osm.pbf
+#schema: germany
+
+#area_name: andorra
+#input_file: andorra-241113.osm.pbf
+
+password: true
+force: true
+
+target_schema: public
+#style_file: resources/lua_styles/public-transport.lua
+#style_file: G:\My Drive\code\road-graph-tool\resources\lua_styles\pipeline.lua
+style_file: resources\lua_styles\pipeline.lua
+

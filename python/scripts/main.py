@@ -4,7 +4,6 @@ import logging
 import sys
 
 from pathlib import Path
-
 from roadgraphtool.config import parse_config_file
 import roadgraphtool.db
 from roadgraphtool.db import db
@@ -12,15 +11,15 @@ from roadgraphtool.process_osm import import_osm_to_db
 
 
 def get_area_for_demand(
-    srid_plain: int,
-    dataset_ids: list,
-    zone_types: list,
-    buffer_meters: int,
-    min_requests_in_zone: int,
-    datetime_min: str,
-    datetime_max: str,
-    center_point: tuple,
-    max_distance_from_center_point_meters: int,
+        srid_plain: int,
+        dataset_ids: list,
+        zone_types: list,
+        buffer_meters: int,
+        min_requests_in_zone: int,
+        datetime_min: str,
+        datetime_max: str,
+        center_point: tuple,
+        max_distance_from_center_point_meters: int,
 ) -> list:
     sql_query = """
             select * from get_area_for_demand(
@@ -57,7 +56,7 @@ def insert_area(name: str, coordinates: list):
 
 
 def contract_graph_in_area(
-    target_area_id: int, target_area_srid: int, fill_speed: bool = True
+        target_area_id: int, target_area_srid: int, fill_speed: bool = True
 ):
     sql_query = f'call public.contract_graph_in_area({target_area_id}::smallint, {target_area_srid}::int{", FALSE" if not fill_speed else ""})'
     db.execute_sql(sql_query)
@@ -71,7 +70,7 @@ def select_network_nodes_in_area(target_area_id: int) -> list:
 
 
 def assign_average_speed_to_all_segments_in_area(
-    target_area_id: int, target_area_srid: int
+        target_area_id: int, target_area_srid: int
 ):
     sql_query = (
         f"call public.assign_average_speed_to_all_segments_in_area({target_area_id}::smallint, "
@@ -86,7 +85,7 @@ def compute_strong_components(target_area_id: int):
 
 
 def compute_speeds_for_segments(
-    target_area_id: int, speed_records_dataset: int, hour: int, day_of_week: int
+        target_area_id: int, speed_records_dataset: int, hour: int, day_of_week: int
 ):
     sql_query = (
         f"call public.compute_speeds_for_segments({target_area_id}::smallint, "
@@ -96,7 +95,7 @@ def compute_speeds_for_segments(
 
 
 def compute_speeds_from_neighborhood_segments(
-    target_area_id: int, target_area_srid: int
+        target_area_id: int, target_area_srid: int
 ):
     sql_query = (
         f"call public.compute_speeds_from_neighborhood_segments({target_area_id}::smallint, "
@@ -132,14 +131,14 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '-i',
         '--import',
-        dest='importing', 
-        action="store_true", 
+        dest='importing',
+        action="store_true",
         help='Import OSM data to database specified in config.ini'
     )
     parser.add_argument(
         '-if',
         '--input-file',
-        dest='input_file', 
+        dest='input_file',
         required=True,
         help='Input OSM file path for -i/--import.'
     )
@@ -163,17 +162,20 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         required=False
     )
     parser.add_argument(
-        "-W", 
-        dest="password", 
-        action="store_true", 
+        "-W",
+        dest="password",
+        action="store_true",
         help="Force password prompt instead of using pgpass file.")
-
 
     return parser
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
+
+
+
+
 
     args = sys.argv
 

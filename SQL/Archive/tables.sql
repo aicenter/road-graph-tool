@@ -276,6 +276,7 @@ create table if not exists public.nodes
     area       integer               not null
         constraint fk_nodes_areas_1
             references public.areas,
+    tags    hstore,
     contracted boolean default false not null
 );
 

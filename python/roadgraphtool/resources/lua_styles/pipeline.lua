@@ -19,93 +19,109 @@ local tables = {}
 local srid = 4326
 
 tables.nodes = osm2pgsql.define_table({
-	name = "nodes",
-	ids = { type = "node", id_column = "id" },
-	columns = {
-		{ column = "geom", type = "point", not_null = true, projection = srid },
-		{ column = "contracted", type = "boolean", not_null = true },
-		{ column = "area", type = "integer", create_only = true },
-	},
+    name = "nodes",
+    indexes = {},
+    cluster = "no",
+    ids = { type = "node", id_column = "id" },
+    columns = {
+        { column = "tags", type = "hstore" },
+        { column = "geom", type = "point", not_null = true, projection = srid },
+    },
 })
 
 tables.ways = osm2pgsql.define_table({
-	name = "ways",
-	ids = { type = "way", id_column = "id" },
-	columns = {
-		{ column = "tags", type = "hstore" },
-		{ column = "geom", type = "geometry", not_null = true, projection = srid },
-		{ column = "area", type = "smallint", create_only = true },
-		{ column = "from", type = "integer", not_null = true },
-		{ column = "to", type = "integer", not_null = true },
-		{ column = "oneway", type = "boolean" },
-	},
+    name = "ways",
+    indexes = {},
+    cluster = "no",
+    ids = { type = "way", id_column = "id" },
+    columns = {
+        { column = "tags",   type = "hstore" },
+        { column = "geom",   type = "geometry", not_null = true, projection = srid },
+        { column = "from",   type = "bigint",   not_null = true },
+        { column = "to",     type = "bigint",   not_null = true },
+        { column = "oneway", type = "boolean" },
+    },
 })
 
 tables.relations = osm2pgsql.define_table({
-	name = "relations",
-	ids = { type = "relation", id_column = "id" },
-	columns = {
-		{ column = "tags", type = "hstore" },
-		{ column = "members", type = "jsonb" },
-	},
+    name = "relations",
+    indexes = {},
+    cluster = "no",
+    ids = { type = "relation", id_column = "id" },
+    columns = {
+        { column = "tags",    type = "hstore" },
+        { column = "members", type = "jsonb" },
+    },
 })
 
 tables.nodes_ways = osm2pgsql.define_table({
-	name = "nodes_ways",
-	ids = { type = "way", id_column = "way_id" },
-	columns = {
-		{ column = "id", sql_type = "serial", create_only = true },
-		{ column = "node_id", type = "integer" },
-		{ column = "position", type = "smallint" },
-		{ column = "area", type = "smallint", create_only = true },
-	},
+    name = "nodes_ways",
+    indexes = {},
+    cluster = "no",
+    ids = { type = "way", id_column = "way_id" },
+    columns = {
+        { column = "node_id",  type = "bigint" },
+        { column = "position", type = "smallint" },
+    },
 })
 
 -- Functions to process objects:
 local function do_nodes(object)
-	tables.nodes:insert({
-		geom = object:as_point(),
-		contracted = false,
-	})
+    tables.nodes:insert({
+        tags = object.tags,
+        geom = object:as_point(),
+    })
 end
 
+local function array_reverse(x)
+    local n, m = #x, #x / 2
+    for i = 1, m do
+        x[i], x[n - i + 1] = x[n - i + 1], x[i]
+    end
+    return x
+end
+
+
 local function do_ways(object)
-	helper.clean_tags(object.tags)
+    helper.clean_tags(object.tags)
 
-	local nodes = object.nodes
+    local nodes = object.nodes
+    local oneway = false
 
-	local oneway = object.tags.oneway == "yes"
+    if object.tags.oneway == "-1" then
+        --         handle reversed oneway street
+        nodes = array_reverse(nodes)
+        oneway = true
+    else
+        oneway = object.tags.oneway == "yes"
+    end
 
-	-- clean additional tags
-	object.tags.oneway = nil
+    -- add to ways
+    tables.ways:insert({
+        geom = object:as_linestring(),
+        tags = object.tags,
+        oneway = oneway,
+        from = nodes[1],
+        to = nodes[#nodes],
+    })
 
-	-- add to ways
-	tables.ways:insert({
-		geom = object:as_linestring(),
-		tags = object.tags,
-		oneway = oneway,
-		from = nodes[1],
-		to = nodes[#nodes],
-	})
-
-	-- add to nodes_ways
-	for index, value in ipairs(nodes) do
-		tables.nodes_ways:insert({
-			node_id = value,
-			position = index,
-		})
-	end
+    -- add to nodes_ways
+    for index, value in ipairs(nodes) do
+        tables.nodes_ways:insert({
+            node_id = value,
+            position = index,
+        })
+    end
 end
 
 local function do_relations(object)
-	if helper.clean_tags(object.tags) then
-		return
-	end
-
-	tables.relations:insert({
-		tags = object.tags,
-		members = object.members,
-	})
+    if helper.clean_tags(object.tags) then
+        return
+    end
+    tables.relations:insert({
+        tags = object.tags,
+        members = object.members,
+    })
 end
 
 -- Process tagged objects:
