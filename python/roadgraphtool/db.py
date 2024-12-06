@@ -30,7 +30,7 @@ def connect_db_if_required(db_function):
     return wrapper
 
 
-class __Database:
+class Database(object):
     """
     To be used as singleton instance db.
 
@@ -40,7 +40,19 @@ class __Database:
     from db import db
     """
 
-    def __init__(self, config):
+    def __init__(self):
+        self._sqlalchemy_engine: Optional[sqlalchemy.engine.Engine] = None
+        self._psycopg2_connection = None
+        self._sql_alchemy_engine_str = None
+        self.host = None
+        self.ssh_server = None
+        self.server = None
+        self.ssh_tunnel_local_port = None
+        self.db_name = None
+        self.db_server_port = None
+        self.config = None
+
+    def set_config(self, config):
         self.config = config
         # If private key specified, assume ssh connection and try to set it up
         self.db_server_port = self.config.db_server_port
@@ -52,10 +64,6 @@ class __Database:
             self.host = self.config.host
         else:
             self.host = self.config.db_host
-
-        self._sqlalchemy_engine = None
-        self._psycopg2_connection = None
-        self._sql_alchemy_engine_str = None
 
     def is_connected(self):
         return (self._psycopg2_connection is not None) and (self._sqlalchemy_engine is not None)
@@ -99,7 +107,7 @@ class __Database:
         """
         Set up or reset ssh tunnel.
         """
-        if self.config.private_key_path is not None:
+        if hasattr(self.config, 'ssh'):
             if self.ssh_server is None:
                 # INITIALIZATION
                 logging.info("Connecting to ssh server")
@@ -149,7 +157,7 @@ class __Database:
         self._psycopg2_connection.commit()
 
     @connect_db_if_required
-    def execute_sql(self, query, *args, schema='public', use_transactions=True) -> None:
+    def execute_sql(self, query, *args, schema='public', use_transactions=True) -> sqlalchemy.engine.Result:
         """
         Execute SQL that doesn't return any value.
         """
@@ -158,8 +166,9 @@ class __Database:
                 connection.execution_options(isolation_level="AUTOCOMMIT")
             with connection.begin():
                 connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
-                connection.execute(sqlalchemy.text(query), *args)
+                result = connection.execute(sqlalchemy.text(query), *args)
                 connection.execute(sqlalchemy.text(f"SET search_path TO public;"))
+                return result
 
     @connect_db_if_required
     def execute_sql_and_fetch_all_rows(self, query, *args) -> list[Row]:
@@ -295,8 +304,8 @@ class __Database:
 
 
 # db singleton
-db: Optional[__Database] = None
+db = Database()
 
 def init_db(config):
     global db
-    db = __Database(config.db)
+    db.set_config(config.db)

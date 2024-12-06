@@ -8,6 +8,7 @@ import stat
 from sqlalchemy.sql.coercions import schema
 
 import roadgraphtool.exec
+import roadgraphtool.insert_area
 
 from roadgraphtool.config import parse_config_file, get_path_from_config
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
@@ -192,53 +193,51 @@ def import_osm_to_db(config):
     if not os.path.exists(input_file_path) or not is_valid_extension(input_file_path):
         raise FileNotFoundError("No valid file to import was found.")
 
-    if not os.path.exists(args.style_file):
-        raise FileNotFoundError(f"Style file {args.style_file_path} does not exist.")
+    if not os.path.exists(config.importer.style_file):
+        raise FileNotFoundError(f"Style file {config.importer.style_file} does not exist.")
 
     try:
         # importing to database
-        run_osm2pgsql_cmd(config)
+        # run_osm2pgsql_cmd(config)
 
-        port = setup_ssh_tunnel(config)
         postprocess_osm_import(config)
 
-        postprocess_osm_import(args)
+        postprocess_osm_import(config)
         # postprocess_osm_import(CREDENTIALS, style_file_path, schema)
     except SubprocessError as e:
         logger.error(f"Error during processing: {e}")
 
 
-def check_and_print_warning(overlaps: dict[str, list[tuple]]):
+def check_and_print_warning(overlaps: dict[str, int]):
     for (element_type, overlap) in overlaps.items():
         if overlap:
             logger.warning(f"{overlap} {element_type} with the same ID are already in the database and not added.")
     pass
 
 
-def postprocess_osm_import(args):
-    try:
-        with get_connection() as connection:
+def postprocess_osm_import(config):
+    schema = config.importer.schema
+    target_schema = config.schema
 
-            schema = args.schema
-            target_schema = args.target_schema
+    # set schema to target schema
+    db.execute_sql(f"SET search_path TO {target_schema},public;")
 
-            area_id = create_area(connection, target_schema, args.input_file, args.area_name)
+    description = f"Imported from {config.importer.input_file}"
+    area_id = roadgraphtool.insert_area.insert_area(name=config.importer.area_name, description=description)
 
-            overlaps = {}
-            overlaps['nodes'] = get_overlapping_elements(connection, schema, target_schema, 'nodes')
-            overlaps['ways'] = get_overlapping_elements(connection, schema, target_schema, 'ways')
-            overlaps['relations'] = get_overlapping_elements(connection, schema, target_schema, 'relations')
+    overlaps = {}
+    overlaps['nodes'] = get_overlapping_elements_count(schema, target_schema, 'nodes')
+    overlaps['ways'] = get_overlapping_elements_count(schema, target_schema, 'ways')
+    overlaps['relations'] = get_overlapping_elements_count(schema, target_schema, 'relations')
 
-            check_and_print_warning(overlaps)
+    check_and_print_warning(overlaps)
 
-            copy_nodes(connection, schema, target_schema, area_id)
-            copy_ways(connection, schema, target_schema, area_id)
-            copy_relations(connection, schema, target_schema, area_id)
-            copy_nodes_ways(connection, schema, target_schema, area_id)
+    copy_nodes(schema, target_schema, area_id)
+    copy_ways(schema, target_schema, area_id)
+    copy_relations(schema, target_schema, area_id)
+    copy_nodes_ways(schema, target_schema, area_id)
 
-            return area_id
-    except (psycopg2.DatabaseError, Exception) as error:
-        raise Exception(f"Error: {str(error)}")
+    return area_id
 
 
 def generate_area_id(connection, target_schema):
@@ -263,82 +262,69 @@ def create_area(connection, target_schema: str, input_file: str, area_name: str)
     return area_id
 
 
-def copy_nodes(connection, import_schema: str, target_schema: str, area_id: int):
+def copy_nodes(import_schema: str, target_schema: str, area_id: int):
     logger.debug("Copying nodes")
-    with connection.cursor() as cursor:
-        query = f'''
-                INSERT INTO "{target_schema}".nodes (id,tags,geom, area)
-                SELECT id, tags, geom, {area_id}
-                FROM "{import_schema}".nodes i
-                WHERE NOT EXISTS
-                    (SELECT id
-                        FROM "{target_schema}".nodes e
-                        WHERE i.id = e.id)'''
+    query = f'''
+        INSERT INTO "{target_schema}".nodes (id,tags,geom, area)
+        SELECT id, tags, geom, {area_id}
+        FROM "{import_schema}".nodes i
+        WHERE NOT EXISTS
+            (SELECT id
+                FROM "{target_schema}".nodes e
+                WHERE i.id = e.id)'''
 
-        logger.debug(f'Executing following SQL: {query}')
-        cursor.execute(query)
-        logger.debug(f'Inserted rows: {cursor.rowcount}')
-        connection.commit()
+    logger.debug(f'Executing following SQL: {query}')
+    result = db.execute_sql(query)
+    logger.debug(f'Inserted rows: {result.rowcount}')
 
 
-def copy_nodes_ways(connection, import_schema: str, target_schema: str, area_id: int):
+def copy_nodes_ways(import_schema: str, target_schema: str, area_id: int):
     logger.debug("Copying nodes ways")
-    with connection.cursor() as cursor:
-        query = f'''
-                INSERT INTO "{target_schema}".nodes_ways (way_id,node_id,"position",area)
-                SELECT way_id,node_id,"position", {area_id}
-                FROM "{import_schema}".nodes_ways i
-                WHERE EXISTS
-                    (SELECT id
-                        FROM "{target_schema}".ways e
-                        WHERE i.way_id = e.id AND e.area = {area_id})'''
-        # query = f'''
-        #         INSERT INTO "{target_schema}".nodes_ways (way_id,node_id,"position",area)
-        #         SELECT way_id,node_id,"position", {area_id}
-        #         FROM "{import_schema}".nodes_ways i'''
-        logger.debug(f'Executing following SQL: {query}')
-        cursor.execute(query)
-        logger.debug(f'Inserted rows: {cursor.rowcount}')
-        connection.commit()
+    query = f'''
+            INSERT INTO "{target_schema}".nodes_ways (way_id,node_id,"position",area)
+            SELECT way_id,node_id,"position", {area_id}
+            FROM "{import_schema}".nodes_ways i
+            WHERE EXISTS
+                (SELECT id
+                    FROM "{target_schema}".ways e
+                    WHERE i.way_id = e.id AND e.area = {area_id})'''
+    logger.debug(f'Executing following SQL: {query}')
+    result = db.execute_sql(query)
+    logger.debug(f'Inserted rows: {result.rowcount}')
 
 
-def copy_ways(connection, import_schema: str, target_schema: str, area_id: int):
+def copy_ways(import_schema: str, target_schema: str, area_id: int):
     logger.debug("Copying ways")
-    with connection.cursor() as cursor:
-        query = f'''
-                INSERT INTO "{target_schema}".ways (id, tags, geom,"from","to", oneway, area)
-                SELECT id, tags, geom,"from","to", oneway, {area_id}
-                FROM "{import_schema}".ways i
-                WHERE NOT EXISTS
-                    (SELECT id
-                        FROM "{target_schema}".ways e
-                        WHERE i.id = e.id)'''
-        logger.debug(f'Executing following SQL: {query}')
-        cursor.execute(query)
-        logger.debug(f'Inserted rows: {cursor.rowcount}')
-        connection.commit()
+    query = f'''
+            INSERT INTO "{target_schema}".ways (id, tags, geom,"from","to", oneway, area)
+            SELECT id, tags, geom,"from","to", oneway, {area_id}
+            FROM "{import_schema}".ways i
+            WHERE NOT EXISTS
+                (SELECT id
+                    FROM "{target_schema}".ways e
+                    WHERE i.id = e.id)'''
+    logger.debug(f'Executing following SQL: {query}')
+    result = db.execute_sql(query)
+    logger.debug(f'Inserted rows: {result.rowcount}')
 
 
-def copy_relations(connection, import_schema: str, target_schema: str, area_id: int):
+def copy_relations(import_schema: str, target_schema: str, area_id: int):
     logger.debug("Copying relations")
-    with connection.cursor() as cursor:
-        query = f'''
-                INSERT INTO "{target_schema}".relations (id,tags,members, area)
-                SELECT id, tags, members, {area_id}
-                FROM "{import_schema}".relations i
-                WHERE NOT EXISTS
-                    (SELECT id
-                        FROM "{target_schema}".relations e
-                        WHERE i.id = e.id)'''
-        logger.debug(f'Executing following SQL: {query}')
-        cursor.execute(query)
-        logger.debug(f'Inserted rows: {cursor.rowcount}')
-        connection.commit()
+    query = f'''
+            INSERT INTO "{target_schema}".relations (id,tags,members, area)
+            SELECT id, tags, members, {area_id}
+            FROM "{import_schema}".relations i
+            WHERE NOT EXISTS
+                (SELECT id
+                    FROM "{target_schema}".relations e
+                    WHERE i.id = e.id)'''
+    logger.debug(f'Executing following SQL: {query}')
+    result = db.execute_sql(query)
+    logger.debug(f'Inserted rows: {result.rowcount}')
 
 
-def get_overlapping_elements(connection, schema: str, target_schema: str, table_name: str):
-    with connection.cursor() as cursor:
-        query = f'''
+def get_overlapping_elements_count(schema: str, target_schema: str, table_name: str):
+    query = f'''
         SELECT count(*) FROM (
                 SELECT id 
                 FROM "{schema}"."{table_name}" i
@@ -346,44 +332,6 @@ def get_overlapping_elements(connection, schema: str, target_schema: str, table_
                     (SELECT id
                     FROM "{target_schema}"."{table_name}" e
                     WHERE i.id = e.id));'''
-        cursor.execute(query)
-        return cursor.fetchone()[0]
-
-
-def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Process OSM files and interact with PostgreSQL database.",
-                                     formatter_class=argparse.RawTextHelpFormatter)
-
-    parser.add_argument("flag", choices=["d", "i", "ie", "s", "r", "sr", "b", "u"], metavar="flag",
-                        help="""
-d  : Display OSM file
-i  : Display information about OSM file
-ie : Display extended information about OSM file
-s  : Sort OSM file based on IDs
-r  : Renumber object IDs in OSM file
-sr : Sort and renumber objects in OSM file
-u  : Preprocess and upload OSM file to PostgreSQL database using osm2pgsql
-b  : Extract greatest bounding box from given relation ID of 
-     input_file and upload to PostgreSQL database using osm2pgsql"""
-                        )
-    parser.add_argument('input_file', help="Path to input OSM file")
-    parser.add_argument("-id", dest="relation_id", help="Relation ID (required for 'b' flag)")
-    parser.add_argument("-l", dest="style_file", nargs='?', help=f"Path to style file (optional for 'b', 'u' flag) - default is 'pipeline.lua'")
-                        help=f"Path to style file (optional for 'b', 'u' flag) - default is '{DEFAULT_STYLE_FILE}'")
-    parser.add_argument("-o", dest="output_file", help="Path to output file (required for 's', 'r', 'sr' flag)")
-    parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Enable verbose output (DEBUG level logging)")
-    parser.add_argument("-sch", "--schema", dest="schema", default="public",
-                        help="Specify dabatabse schema (for 'b', 'u' flag) - default is 'public'")
-    parser.add_argument("--force", dest="force", action="store_true", help="Force overwrite of data in existing tables in schema (for 'b', 'u' flag)")
-    parser.add_argument("-P", dest="pgpass", action="store_true", help="Force using pgpass file instead of password prompt (for 'b', 'u' flag)")
-
-    args = parser.parse_args(arg_list)
-
-    if args.verbose:
-        logger.setLevel(logging.DEBUG)
-        for handler in logger.handlers:
-            handler.setLevel(logging.DEBUG)
-
-    return args
+    return db.execute_count_query(query)
 
 

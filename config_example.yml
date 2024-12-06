@@ -1,5 +1,7 @@
 password_config_file: ./secrets.yml
 
+schema: public
+
 db: {
     username: postgres,
     db_host: localhost,

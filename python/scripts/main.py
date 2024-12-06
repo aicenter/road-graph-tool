@@ -171,12 +171,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
-
-
-
-
-
+    logging.basicConfig(level=logging.DEBUG)
     args = sys.argv
 
     if len(args) < 2:
@@ -185,8 +180,6 @@ def main():
 
     config = parse_config_file(Path(args[1]))
     roadgraphtool.db.init_db(config)
-    # print(args.jde.to.na)
-
 
     if config.importer.activated:
         import_osm_to_db(config)

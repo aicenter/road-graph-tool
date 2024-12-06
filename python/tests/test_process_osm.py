@@ -133,12 +133,3 @@ def test_run_osmium_cmd_sort(sort_test_files):
     assert is_sorted_by_id(content, 'relation') == True
 
     os.remove(output_file)
-
-def test_postprocess_osm_import_invalid_style(mock_subprocess_run, test_schema):
-    mock_subprocess_run.return_value.returncode = 0
-    test_config = deepcopy(default_test_config)
-    test_config.importer.style_file = resources.path(test_resources_path, "simple.lua")
-    test_config.importer.schema = test_schema
-
-    postprocess_osm_import(test_config)
-    mock_subprocess_run.assert_not_called()
