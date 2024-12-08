@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from roadgraphtool.config import parse_config_file
 import roadgraphtool.db
+import roadgraphtool.log
 from roadgraphtool.db import db
 from roadgraphtool.process_osm import import_osm_to_db
 
@@ -171,7 +172,6 @@ def configure_arg_parser() -> argparse.ArgumentParser:
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
     args = sys.argv
 
     if len(args) < 2:

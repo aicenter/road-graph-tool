@@ -17,9 +17,6 @@ def execute_sql_file(sql_file: Path, multistatement: bool = False):
             sql = f.read()
             db.execute_sql(sql)
 
-
-logging.basicConfig(level=logging.INFO)
-
 # Check availability status of extensions in db
 logging.info("Checking availability of extensions in the database")
 extension_list = ["postgis", "pgrouting", "hstore", "pgtap"]

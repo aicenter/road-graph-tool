@@ -1,5 +1,4 @@
 import atexit
-import logging
 from typing import Optional
 
 import psycopg2
@@ -8,10 +7,12 @@ import sqlalchemy
 import pandas as pd
 import psycopg2.errors
 import geopandas as gpd
+import logging
+
 from pathlib import Path
 from sqlalchemy.engine import Row
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
+import roadgraphtool.log
 
 
 def connect_db_if_required(db_function):
@@ -172,7 +173,7 @@ class Database(object):
 
     @connect_db_if_required
     def execute_sql_and_fetch_all_rows(self, query, *args) -> list[Row]:
-        with self._sqlalchemy_engine.connect() as conn:
+        with self._sqlalchemy_engine.begin() as conn:
             result = conn.execute(sqlalchemy.text(query), *args).all()
             return result
 

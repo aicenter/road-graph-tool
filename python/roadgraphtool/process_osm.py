@@ -198,7 +198,7 @@ def import_osm_to_db(config):
 
     try:
         # importing to database
-        # run_osm2pgsql_cmd(config)
+        run_osm2pgsql_cmd(config)
 
         postprocess_osm_import(config)
 
@@ -263,6 +263,8 @@ def create_area(connection, target_schema: str, input_file: str, area_name: str)
 
 
 def copy_nodes(import_schema: str, target_schema: str, area_id: int):
+    assert isinstance(area_id, int)
+
     logger.debug("Copying nodes")
     query = f'''
         INSERT INTO "{target_schema}".nodes (id,tags,geom, area)
