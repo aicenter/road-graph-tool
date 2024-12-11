@@ -14,11 +14,11 @@ RESOURCES_DIR = Path(__file__).parent.parent.parent / "resources"
 
 def setup_logger(logger_name: str) -> logging.Logger:
     log = logging.getLogger(logger_name)
-    log.setLevel(logging.INFO)
+    log.setLevel(logging.DEBUG)
     # setup formatting
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
+    handler.setLevel(logging.DEBUG)
     handler.setFormatter(formatter)
     log.addHandler(handler)
     # stop logger from emitting messages
@@ -27,13 +27,13 @@ def setup_logger(logger_name: str) -> logging.Logger:
 
 logger = setup_logger('filter_osm')
 
-def is_valid_extension(file: str) -> bool:
+def is_valid_extension(file: Path) -> bool:
     """Return True if the file has a valid extension.
     
     Valid extensions: osm, osm.pbf, osm.bz2
     """
-    valid_extensions = ["osm", "osm.pbf", "osm.bz2"]
-    return any(file.endswith(f".{ext}") for ext in valid_extensions)
+    valid_extensions = {".osm", ".osm.pbf", ".osm.bz2"}
+    return file.suffix in valid_extensions
 
 def check_strategy(strategy: str | None):
     """Raise InvalidInputError if strategy type is not valid."""

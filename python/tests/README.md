@@ -8,7 +8,7 @@ To test the functionality of the scripts, ensure you have the following installe
 ## Tested scripts:
 The following scripts are included in the tests:
 - [filter_osm.py](../scripts/filter_osm.py)
-- [process_osm.py](../scripts/process_osm.py)
+- [process_osm.py](../roadgraphtool/process_osm.py)
 - [schema.py](../roadgraphtool/schema.py)
 - [map.py](../roadgraphtool/map.py)
 - [distance_matrix_generator.py](../roadgraphtool/distance_matrix_generator.py)

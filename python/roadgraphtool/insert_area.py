@@ -1,11 +1,18 @@
 import argparse
 import json
 import sys
+import logging
+from typing import Optional
 
 from .db import db
 
 
-def insert_area(id: int | None, name: str, description: str | None, geom: dict):
+def insert_area(
+    name: str,
+    id: Optional[int] = None,
+    description: Optional[str] = None,
+    geom: Optional[dict] = None
+) -> int:
     """
     Insert a new area into the areas table.
 
@@ -18,17 +25,27 @@ def insert_area(id: int | None, name: str, description: str | None, geom: dict):
     Returns:
     None
     """
+
+    # set defaults
+    if id is None:
+        id = "NULL"
+
     if description is None:
         description = ""
-    # result ignored as the pgsql function returns void
-    if id is None:
-        db.execute_sql(
-            f"SELECT insert_area('{name}', '{json.dumps(geom)}', NULL, '{description}')"
-        )
+
+    if geom is None:
+        geom = "NULL"
     else:
-        db.execute_sql(
-            f"SELECT insert_area('{name}', '{json.dumps(geom)}', {id}, '{description}')"
-        )
+        geom = f"'{json.dumps(geom)}'"
+
+    logging.info("Inserting area '%s' into the database.", name)
+
+    sql = f"SELECT insert_area('{name}', {geom}, {id}, '{description}')"
+
+    logging.info("Executing SQL query: %s", sql)
+
+    ret = db.execute_sql_and_fetch_all_rows(sql)
+    return ret[0][0]
 
 
 def read_json_file(file_path: str) -> dict:
@@ -68,12 +85,7 @@ def parse_arguments() -> argparse.Namespace:
         "-i", "--id", type=int, required=False, default=None, help="The id of the area"
     )
     parser.add_argument(
-        "-d",
-        "--description",
-        required=False,
-        default=None,
-        help="The description of the area",
-    )
+        "-d", "--description", required=False, default=None, help="The description of the area", )
     return parser.parse_args()
 
 
@@ -85,12 +97,7 @@ if __name__ == "__main__":
 
     # inserting area to db
     try:
-        insert_area(
-            id=args.id,
-            name=args.name,
-            description=args.description,
-            geom=geojson,
-        )
+        insert_area(name=args.name, id=args.id, description=args.description, geom=geojson)
         print(f"Area '{args.name}' inserted successfully.")
     except Exception as e:
         print(f"Error inserting area: {e}")

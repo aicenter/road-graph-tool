@@ -1,27 +1,26 @@
 import argparse
 import json
 import logging
-import psycopg2.errors
-import yaml
-import types
+import sys
 
-
-from roadgraphtool.credentials_config import CREDENTIALS
+from pathlib import Path
+from roadgraphtool.config import parse_config_file
+import roadgraphtool.db
+import roadgraphtool.log
 from roadgraphtool.db import db
-from scripts.process_osm import import_osm_to_db, DEFAULT_STYLE_FILE
-from roadgraphtool.export import get_map_nodes_from_db
+from roadgraphtool.process_osm import import_osm_to_db
 
 
 def get_area_for_demand(
-    srid_plain: int,
-    dataset_ids: list,
-    zone_types: list,
-    buffer_meters: int,
-    min_requests_in_zone: int,
-    datetime_min: str,
-    datetime_max: str,
-    center_point: tuple,
-    max_distance_from_center_point_meters: int,
+        srid_plain: int,
+        dataset_ids: list,
+        zone_types: list,
+        buffer_meters: int,
+        min_requests_in_zone: int,
+        datetime_min: str,
+        datetime_max: str,
+        center_point: tuple,
+        max_distance_from_center_point_meters: int,
 ) -> list:
     sql_query = """
             select * from get_area_for_demand(
@@ -58,7 +57,7 @@ def insert_area(name: str, coordinates: list):
 
 
 def contract_graph_in_area(
-    target_area_id: int, target_area_srid: int, fill_speed: bool = True
+        target_area_id: int, target_area_srid: int, fill_speed: bool = True
 ):
     sql_query = f'call public.contract_graph_in_area({target_area_id}::smallint, {target_area_srid}::int{", FALSE" if not fill_speed else ""})'
     db.execute_sql(sql_query)
@@ -72,7 +71,7 @@ def select_network_nodes_in_area(target_area_id: int) -> list:
 
 
 def assign_average_speed_to_all_segments_in_area(
-    target_area_id: int, target_area_srid: int
+        target_area_id: int, target_area_srid: int
 ):
     sql_query = (
         f"call public.assign_average_speed_to_all_segments_in_area({target_area_id}::smallint, "
@@ -87,7 +86,7 @@ def compute_strong_components(target_area_id: int):
 
 
 def compute_speeds_for_segments(
-    target_area_id: int, speed_records_dataset: int, hour: int, day_of_week: int
+        target_area_id: int, speed_records_dataset: int, hour: int, day_of_week: int
 ):
     sql_query = (
         f"call public.compute_speeds_for_segments({target_area_id}::smallint, "
@@ -97,7 +96,7 @@ def compute_speeds_for_segments(
 
 
 def compute_speeds_from_neighborhood_segments(
-    target_area_id: int, target_area_srid: int
+        target_area_id: int, target_area_srid: int
 ):
     sql_query = (
         f"call public.compute_speeds_from_neighborhood_segments({target_area_id}::smallint, "
@@ -133,21 +132,21 @@ def configure_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '-i',
         '--import',
-        dest='importing', 
-        action="store_true", 
+        dest='importing',
+        action="store_true",
         help='Import OSM data to database specified in config.ini'
     )
     parser.add_argument(
         '-if',
         '--input-file',
-        dest='input_file', 
+        dest='input_file',
         required=True,
         help='Input OSM file path for -i/--import.'
     )
     parser.add_argument(
         '-sf', '--style-file',
         dest='style_file',
-        help=f"Optional style file path for -i/--import. Default is '{DEFAULT_STYLE_FILE}' otherwise.",
+        help=f"Optional style file path for -i/--import. Default is 'pipeline.lua' otherwise.",
         required=False
     )
     parser.add_argument(
@@ -164,93 +163,72 @@ def configure_arg_parser() -> argparse.ArgumentParser:
         required=False
     )
     parser.add_argument(
-        "-W", 
-        dest="password", 
-        action="store_true", 
+        "-W",
+        dest="password",
+        action="store_true",
         help="Force password prompt instead of using pgpass file.")
-
 
     return parser
 
 
-def parse_config_file(config_file: str):
-    with open(config_file, 'r',encoding="UTF-8") as file:
-        config_dict = yaml.safe_load(file)
-    return dict2obj(config_dict)
+def main():
+    args = sys.argv
 
+    if len(args) < 2:
+        logging.error("You have to provide a path to the config file as an argument.")
+        return -1
 
-def dict2obj(data):
-    """Convert dictionary to object. Taken from https://stackoverflow.com/questions/66208077"""
-    if type(data) is list:
-        return list(map(dict2obj, data))
-    elif type(data) is dict:
-        sns = types.SimpleNamespace()
-        for key, value in data.items():
-            setattr(sns, key, dict2obj(value))
-        return sns
-    else:
-        return data
+    config = parse_config_file(Path(args[1]))
+    roadgraphtool.db.init_db(config)
 
-
-
-
-def main(arg_list: list[str] | None = None):
-    config_file = "config_example.yml"
-    args = parse_config_file(config_file)
-    print(args.jde.to.na)
-
-
-    parser = configure_arg_parser()
-    args = parser.parse_args(arg_list)
-
-    if args.importing:
-        import_osm_to_db(args.input_file, args.force, args.password, args.style_file, args.schema)
+    if config.importer.activated:
+        import_osm_to_db(config)
     
-    area_id = args.area_id
-    area_srid = args.area_srid
-    fill_speed = args.fill_speed
+    # area_id = args.area_id
+    # area_srid = args.area_srid
+    # fill_speed = args.fill_speed
 
-    logging.info("selecting nodes")
-    nodes = select_network_nodes_in_area(area_id)
-    logging.info("selected network nodes in area_id = {}".format(area_id))
-    print(nodes)
-
-    logging.info("contracting graph")
-    contract_graph_in_area(area_id, area_srid, fill_speed)
-
-    logging.info("computing strong components for area_id = {}".format(area_id))
-    compute_strong_components(area_id)
-    logging.info("storing the results in the component_data table")
-
-    insert_area("test1", [])
-
-    area = get_area_for_demand(
-        4326,
-        [1, 2, 3],
-        [1, 2, 3],
-        1000,
-        5,
-        "2023-01-01 00:00:00",
-        "2023-12-31 23:59:59",
-        (50.0, 10.0),
-        5000,
-    )
-    print(area)
-
-    logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
-    try:
-        assign_average_speed_to_all_segments_in_area(area_id, area_srid)
-    except psycopg2.errors.InvalidParameterValue as e:
-        logging.info("Expected Error: ", e)
-
-    nodes = get_map_nodes_from_db(area_id)
-    print(nodes)
-
-    logging.info("Execution of compute_speeds_for_segments")
-    compute_speeds_for_segments(area_id, 1, 12, 1)
-
-    logging.info("Execution of compute_speeds_from_neighborhood_segments")
-    compute_speeds_from_neighborhood_segments(area_id, area_srid)
+    # logging.info("selecting nodes")
+    # nodes = select_network_nodes_in_area(area_id)
+    # logging.info("selected network nodes in area_id = {}".format(area_id))
+    # print(nodes)
+    #
+    # logging.info("contracting graph")
+    # contract_graph_in_area(area_id, area_srid, fill_speed)
+    #
+    # logging.info("computing strong components for area_id = {}".format(area_id))
+    # compute_strong_components(area_id)
+    # logging.info("storing the results in the component_data table")
+    #
+    # insert_area("test1", [])
+    #
+    # area = get_area_for_demand(
+    #     4326,
+    #     [1, 2, 3],
+    #     [1, 2, 3],
+    #     1000,
+    #     5,
+    #     "2023-01-01 00:00:00",
+    #     "2023-12-31 23:59:59",
+    #     (50.0, 10.0),
+    #     5000,
+    # )
+    # print(area)
+    #
+    # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
+    # try:
+    #     assign_average_speed_to_all_segments_in_area(area_id, area_srid)
+    # except psycopg2.errors.InvalidParameterValue as e:
+    #     logging.info("Expected Error: ", e)
+    #
+    # nodes = get_map_nodes_from_db(area_id)
+    # print(nodes)
+    #
+    # logging.info("Execution of compute_speeds_for_segments")
+    # compute_speeds_for_segments(area_id, 1, 12, 1)
+    #
+    # logging.info("Execution of compute_speeds_from_neighborhood_segments")
+    # compute_speeds_from_neighborhood_segments(area_id, area_srid)
 
 
 if __name__ == '__main__':

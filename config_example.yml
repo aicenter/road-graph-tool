@@ -1,7 +1,27 @@
-ahoj:
-  jak:
-    to:
-      je: "Ahoj, jak se máš?"
-jde:
-  to:
-    na: 1
+password_config_file: ./secrets.yml
+
+schema: public
+
+db: {
+    username: postgres,
+    db_host: localhost,
+    db_name: rgt,
+    db_server_port: 5432,
+    # ssh: {
+    # 	server_username: <server_username>,
+    # 	private_key_path: <private_key_path>,
+    # 	private_key_passphrase: <private_key_passphrase>,
+    # }
+}
+
+importer: {
+    activated: true,
+    input_file: ./andorra-latest.osm,
+    force: true,
+    schema: importer,
+    # style_file: C:\Workspaces\AIC\road-graph-tool\resources/lua_styles/pipeline.lua,
+    style_file: D:\Workspaces\AIC\road-graph-tool\resources/lua_styles/pipeline.lua,
+    pgpass: true,
+    pgpass_file: "~/pgpass.conf"
+}
+    

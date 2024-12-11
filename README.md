@@ -50,11 +50,22 @@ echo 'Executing main.py...'
 py main.py -a 1 -s 4326 -f False
 ```
 
+# Configuration
+For configuring the Road Graph Tool, we use the [YAML](https://yaml.org/) format. The path to the configuration file should be specified as a first argument when running the main script. All the relative paths specified in the configuration file are relative to the configuration file itself, unless specified otherwise. The main configuration affecting the whole tool is in the root of the configuration file. Other parameters are in following sections:
+
+- `db`: database configuration
+- `import`: configuration for the import component
+- `export`: configuration for the export component
+
+In the root of the project, there is an example configuration file named `config-example.yml`.
+
+
 # Testing
 For testing the PostgreSQL procedures that are the core of the Road Graph Tool, we use the [pgTAP testing framework](https://github.com/theory/pgtap). To learn how to use pgTAP, see the [pgTAP manual](./doc/pgtap.md).
 
 
 To run the tests, follow these steps:
+
 1. Install the `pgTAP` extension for your PostgreSQL database cluster according to the [pgTAP manual](./doc/pgtap.md).
 1. If you haven't already, create and initialize the database
     1. create new database using `CREATE DATABASE <database_name>;`
@@ -74,6 +85,8 @@ The road graph tool consists of a set of components that are responsible for ind
 - **Graph Contraction**: simplifies the road graph by contracting nodes and creating edges between the contracted nodes.
 
 ## OSM file processing and importing
+This component processes the data in an [Open Street Map (OSM) XML file format](https://wiki.openstreetmap.org/wiki/OSM_XML) and imports it into a PostgreSQL database. 
+
 ### Prerequisities
 Before processing and loading data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to install several libraries: 
 * [psql](https://www.postgresql.org/) for PostgreSQL
@@ -108,9 +121,9 @@ The primary function of  `process_osm.py` script is to import OSM data to the da
 
 The `u` flag triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
 
-#### Function [import_osm_to_db()](python/scripts/process_osm.py):
-- **Imports** the data into the database (default schema is `public, but a different schema can be specified) with provided Lua *style file* - if omitted, the default style file [pipeline.lua](resources/lua_styles/pipeline.lua) is used. To customize the style file, set a new path for the [DEFAULT_STYLE_FILE](python/scripts/process_osm.py).
-- **Postprocesses** the data in database if specified in [POSTPROCESS_DICT](python/scripts/process_osm.py), which can be configured based on the *style file* used during importing
+#### Function [import_osm_to_db()](python/roadgraphtool/process_osm.py):
+- **Imports** the data into the database (default schema is `public, but a different schema can be specified) with provided Lua *style file* - if omitted, the default style file [pipeline.lua](python/roadgraphtool/resources/lua_styles/pipeline.lua) is used. To customize the style file, set a new path for the [DEFAULT_STYLE_FILE](python/roadgraphtool/process_osm.py).
+- **Postprocesses** the data in database if specified in [POSTPROCESS_DICT](python/roadgraphtool/process_osm.py), which can be configured based on the *style file* used during importing
 
 ```bash
 python3 process_osm.py u [input_file] [-l style_file]
@@ -265,6 +278,29 @@ The SQL procedure `contract_graph_in_area` processes the graph in the following 
 
 ![procedure_contract_graph_in_area](https://github.com/user-attachments/assets/6a4b7c8d-6a95-4c75-836c-2e1a4622575a)
 
+## Exporter
+The exporter component is responsible for exporting the processed data from the database. Currently, the following formats are supported:
+
+- **CSV**: exports the data to two CSV files: one for nodes and one for edges. The columns are separated by a tabulator.
+- **Shapefile**: exports the data to two [shapefiles](https://en.wikipedia.org/wiki/Shapefile): one for nodes and one for edges.
+
+The output files contain the following fields:
+
+The **nodes** file contains
+
+- `id`: the unique identifier of the node. The id goes from 0 to the number of exported nodes - 1, so it can be used as an index.
+- `db_id`: the unique identifier of the node in the database.
+- `x`: the x-coordinate of the node.
+- `y`: the y-coordinate of the node.
+
+The **edges** file contains:
+
+- `u`: the `id` of the starting node of the edge.
+- `v`: the `id` of the ending node of the edge.
+- `db_id_from`: the unique identifier of the starting node in the database.
+- `db_id_to`: the unique identifier of the ending node in the database.
+- `length`: the length of the edge in meters.
+- `speed`: the speed on the edge in km/h.
 
 
 
