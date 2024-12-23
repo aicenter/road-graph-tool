@@ -172,7 +172,8 @@ def configure_arg_parser() -> argparse.ArgumentParser:
 
 
 def main():
-    args = sys.argv
+    # args = sys.argv
+    args = ['1', 'config.yml']
 
     if len(args) < 2:
         logging.error("You have to provide a path to the config file as an argument.")
@@ -182,39 +183,19 @@ def main():
     roadgraphtool.db.init_db(config)
 
     if config.importer.activated:
-        import_osm_to_db(config)
+        areaid = import_osm_to_db(config)
     
-    # area_id = args.area_id
-    # area_srid = args.area_srid
-    # fill_speed = args.fill_speed
-
-    # logging.info("selecting nodes")
-    # nodes = select_network_nodes_in_area(area_id)
-    # logging.info("selected network nodes in area_id = {}".format(area_id))
-    # print(nodes)
-    #
-    # logging.info("contracting graph")
-    # contract_graph_in_area(area_id, area_srid, fill_speed)
-    #
-    # logging.info("computing strong components for area_id = {}".format(area_id))
-    # compute_strong_components(area_id)
-    # logging.info("storing the results in the component_data table")
-    #
-    # insert_area("test1", [])
-    #
-    # area = get_area_for_demand(
-    #     4326,
-    #     [1, 2, 3],
-    #     [1, 2, 3],
-    #     1000,
-    #     5,
-    #     "2023-01-01 00:00:00",
-    #     "2023-12-31 23:59:59",
-    #     (50.0, 10.0),
-    #     5000,
-    # )
-    # print(area)
-    #
+    area_id = areaid
+    area_srid = 4326
+    fill_speed = False
+    
+    logging.info("contracting graph")
+    contract_graph_in_area(area_id, area_srid, fill_speed)
+    
+    logging.info("computing strong components for area_id = {}".format(area_id))
+    compute_strong_components(area_id)
+    logging.info("storing the results in the component_data table")
+    
     # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
     # try:
     #     assign_average_speed_to_all_segments_in_area(area_id, area_srid)

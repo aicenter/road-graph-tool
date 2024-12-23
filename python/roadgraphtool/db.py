@@ -59,10 +59,10 @@ class Database(object):
         self.db_server_port = self.config.db_server_port
         self.db_name = self.config.db_name
         self.ssh_tunnel_local_port = 1113
-        if hasattr(self.config, 'server'):
-            self.server = self.config.server
+        if hasattr(self.config, 'ssh'):
+            self.server = self.config.ssh.server
             self.ssh_server = None
-            self.host = self.config.host
+            self.host = self.config.db_host
         else:
             self.host = self.config.db_host
 
@@ -81,9 +81,9 @@ class Database(object):
 
     def set_ssh_to_db_server_and_set_port(self):
         ssh_kwargs = dict(
-            ssh_pkey=self.config.private_key_path,
-            ssh_username=self.config.server_username,
-            ssh_private_key_password=self.config.private_key_phrase,
+            ssh_pkey=self.config.ssh.private_key_path,
+            ssh_username=self.config.ssh.server_username,
+            ssh_private_key_password=self.config.ssh.private_key_passphrase,
             remote_bind_address=('localhost', self.db_server_port),
             local_bind_address=('localhost', self.ssh_tunnel_local_port)
         )
@@ -178,9 +178,9 @@ class Database(object):
             return result
 
     @connect_db_if_required
-    def execute_script(self, script_path: Path):
+    def execute_script(self, script_path: Path, schema: str = 'public'):
         with open(script_path) as f:
-            script = f.read()
+            script = f.read().replace('{schema}', schema)
             cursor = self._psycopg2_connection.cursor()
             try:
                 cursor.execute(script)

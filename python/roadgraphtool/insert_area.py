@@ -1,10 +1,12 @@
 import argparse
 import json
+from pathlib import Path
 import sys
 import logging
 from typing import Optional
 
-from .db import db
+from roadgraphtool import db
+from roadgraphtool.config import parse_config_file
 
 
 def insert_area(
@@ -42,9 +44,15 @@ def insert_area(
 
     sql = f"SELECT insert_area('{name}', {geom}, {id}, '{description}')"
 
-    logging.info("Executing SQL query: %s", sql)
+    if geom is not None:
+        # would not log the geom if it is too long
+        logging.info(f"Executing SQL query: SELECT insert_area('{name}', geom was provided, {id}, '{description}')")
+        # TODO: if logging.DEBUG:
+        # logging.debug(f"Executing SQL query: SELECT insert_area('{name}', {geom}, {id}, '{description}')")
+    else:
+        logging.info(f"Executing SQL query: SELECT insert_area('{name}', {geom}, {id}, '{description}')")
 
-    ret = db.execute_sql_and_fetch_all_rows(sql)
+    ret = db.db.execute_sql_and_fetch_all_rows(sql)
     return ret[0][0]
 
 
@@ -86,6 +94,8 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "-d", "--description", required=False, default=None, help="The description of the area", )
+    parser.add_argument(
+        "-c", "--config", required=False, default=None, help="Config", )
     return parser.parse_args()
 
 
@@ -94,7 +104,9 @@ if __name__ == "__main__":
 
     # Read the GeoJSON file
     geojson = read_json_file(args.file)
-
+    
+    config = parse_config_file(Path(args.config))
+    db.init_db(config)
     # inserting area to db
     try:
         insert_area(name=args.name, id=args.id, description=args.description, geom=geojson)
