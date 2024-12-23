@@ -126,7 +126,7 @@ The `u` flag triggers [import_osm_to_db()](#function-import_osm_to_db) function,
 - **Postprocesses** the data in database if specified in [POSTPROCESS_DICT](python/roadgraphtool/process_osm.py), which can be configured based on the *style file* used during importing
 
 ```bash
-python3 process_osm.py u [input_file] [-l style_file]
+python3 process_osm.py u [input_file] [-sf style_file]
 ```
 > **_WARNING:_** Running this command **will overwrite** existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
 
@@ -135,7 +135,7 @@ E.g. this command (described bellow) processes OSM file of Lithuania using Flex 
 # runs with pipeline.lua
 python3 process_osm.py u lithuania-latest.osm.pbf
 # runs with simple.lua script
-python3 process_osm.py u lithuania-latest.osm.pbf -l resources/lua_styles/simple.lua
+python3 process_osm.py u lithuania-latest.osm.pbf -sf resources/lua_styles/simple.lua
 ```
 
 **Nodes in Lithuania:**

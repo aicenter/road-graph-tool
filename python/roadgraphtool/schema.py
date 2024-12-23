@@ -23,6 +23,7 @@ TABLES = ["nodes", "ways"]
 #     except psycopg2.DatabaseError as error:
 #         raise Exception(f"Error connecting to the database: {str(error)}")
 
+
 def create_schema(schema: str):
     """Creates a new schema in the database."""
 

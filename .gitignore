@@ -18,3 +18,4 @@ python/tests/data/config.yaml
 python/tests/data/secrets.yaml
 secrets.yml
 config.yml
+roadgraphtool.log
