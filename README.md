@@ -17,38 +17,18 @@ To run the tool, you need access to a local or remote PostgreSQL database with t
 - [PgRouting](https://pgrouting.org/), and
 - hstore (available by default).
 
-Refer to the [Prerequisities](#prerequisities) section for details on installing the required dependencies for importing data into the database.
+Also, you need the [osm2pgsql](https://osm2pgsql.org/) tool installed for importing OSM data into the database.
+
 
 # Quick Start Guide
-After setting up the configuration file, your next step is to edit the `main.py` file to execute only the steps you need. Currently, the content of `main.py` includes Python wrappers for the provided SQL functions in the `SQL/` directory, an example of an argument parser, and a main execution pipeline, which may be of interest to you.
-
 To execute the configured pipeline, follow these steps:
 
 1. Install the Road Graph Tool Python package: `pip install -e <clone dir>/Python`.
-1. Configure the database in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration). The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
-1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
+1. Create a YAML configuration file for the project. For details about this file, refer to the [Configuration](#configuration) section.
+    1. Configure the database. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
+1. In the `python/` directory, run the `scripts/install_sql.py`. This script will initialize the needed tables, procedures, functions, etc., in your database.
+1. Run the `main.py` script with with the path to the configuration file as the first argument. The script will execute the pipeline according to the configuration file.
 
-2. Import data into database and then postprocess the data in the database. There are two methods to achieve this:
-    1. Execute `process_osm.py u COUNTRY.osm.pbf`. This triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
-        > **_DATABASE and SSH CONFIGURATION:_** Tool _osm2pgsql_ connects to database using credentials specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
-        Some databases require a password, so either you are prompted to enter a password or use `-P` flag to have `pgpass.conf` file set-up in root folder of the project - use `CREDENTIALS.setup_pgpass()` and `CREDENTIALS.remove_pgpass()` when connecting to database.
-
-        > **_SSH TUNNEL:_** To ensure the SSH tunnel is correctly set up for a remote database, provide `ssh` details in `config.ini`. SSH tunnel setup is handled with [set_ssh_to_db_server_and_set_port()](python/roadgraphtool/db.py).
-
-    2. Run the `main.py` script with with `-i` or `--import`flag which also calls the [import_osm_to_db()](#function-import_osm_to_db) function along with other SQL queries.
-
-1. Your database is now ready. You can execute [main.py](./python/scripts/main.py) in the `python/` directory.
-
-So in the end execution order may look like this:
-```sh
-alias py=python3
-echo 'Pre-processing database...'
-py python/scripts/install_sql.py
-echo "Importing OSM data to database"
-py scripts/process_osm.py u COUNTRY.osm.pbf
-echo 'Executing main.py...'
-py main.py -a 1 -s 4326 -f False
-```
 
 # Configuration
 For configuring the Road Graph Tool, we use the [YAML](https://yaml.org/) format. The path to the configuration file should be specified as a first argument when running the main script. All the relative paths specified in the configuration file are relative to the configuration file itself, unless specified otherwise. The main configuration affecting the whole tool is in the root of the configuration file. Other parameters are in following sections:
