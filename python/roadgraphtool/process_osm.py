@@ -1,18 +1,17 @@
-import argparse
-import os
-from pathlib import Path
-import subprocess
 import logging
+import os
 import stat
+import subprocess
+from pathlib import Path
+from importlib.resources import files
 
 from sqlalchemy.sql.coercions import schema
 
 import roadgraphtool.exec
 import roadgraphtool.insert_area
-
-from roadgraphtool.config import parse_config_file, get_path_from_config
-from roadgraphtool.exceptions import InvalidInputError, MissingInputError, TableNotEmptyError, SubprocessError
+from roadgraphtool.config import get_path_from_config
 from roadgraphtool.db import db
+from roadgraphtool.exceptions import InvalidInputError, TableNotEmptyError, SubprocessError
 from roadgraphtool.schema import *
 from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger
 from scripts.find_bbox import find_min_max
@@ -21,7 +20,7 @@ AREA_ID_SEQUENCE = "dataset_id_seq"
 
 SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
 
-POSTPROCESS_DICT = {"pipeline.lua": "after_import.sql"}
+postprocess_dict = {"pipeline": "after_import.sql"}
 
 logger = setup_logger('process_osm')
 
@@ -101,6 +100,7 @@ def remove_pgpass(config):
 
 def run_osm2pgsql_cmd(
     config,
+    style_file_path: Path,
     coords: str | list[int] = None
 ):
     """
@@ -129,7 +129,7 @@ def run_osm2pgsql_cmd(
     add_postgis_extension(schema)
 
     connection_uri = f"postgresql://{db_config.username}@{db_config.db_host}:{port}/{db_config.db_name}"
-    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", str(importer_config.style_file), str(importer_config.input_file), "-x", f"--schema={schema}"]
+    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", str(style_file_path), str(importer_config.input_file), "-x", f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
 
@@ -159,11 +159,10 @@ def run_osm2pgsql_cmd(
 def postprocess_osm_import_old(config):
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
-    style_file_path = os.path.basename(config.importer.style_file)
     db_config = config.db
 
-    if style_file_path in POSTPROCESS_DICT:
-        sql_file_path = str(SQL_DIR / POSTPROCESS_DICT[style_file_path])
+    if config.importer.style_file in postprocess_dict:
+        sql_file_path = str(SQL_DIR / postprocess_dict[config.importer.style_file])
         cmd = ["psql", "-d", db_config.db_name, "-U", db_config.username, "-h", db_config.db_host, "-p",
                 str(db_config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
@@ -176,34 +175,36 @@ def postprocess_osm_import_old(config):
             raise SubprocessError(f"Error during post-processing: {res}")
         logger.info("Post-processing completed.")
     else:
-        logger.warning(f"No post-processing defined for style {style_file_path}")
+        logger.warning(f"No post-processing defined for style {config.importer.style_file}")
 
 
 def import_osm_to_db(config):
-#def import_osm_to_db(args):
     """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
-
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
 
     importer_config = config.importer
     input_file_path = get_path_from_config(config, importer_config.input_file)
-    style_file_path = get_path_from_config(config, importer_config.style_file)
 
-    if not os.path.exists(input_file_path) or not is_valid_extension(input_file_path):
+    if not input_file_path.exists() or not is_valid_extension(input_file_path):
         raise FileNotFoundError("No valid file to import was found.")
 
-    if not os.path.exists(config.importer.style_file):
-        raise FileNotFoundError(f"Style file {config.importer.style_file} does not exist.")
+    # custom style file
+    if config.importer.style_file.endswith('.lua'):
+        style_file_path = get_path_from_config(config, importer_config.style_file)
 
+        if not style_file_path.exists():
+            raise FileNotFoundError(f"Style file {config.importer.style_file} does not exist.")
+    # predefined style file
+    else:
+        resources_path = "roadgraphtool.resources"
+        style_file_path = files(resources_path).joinpath(f"lua_styles/{config.importer.style_file}.lua")
     try:
         # importing to database
-        run_osm2pgsql_cmd(config)
+        run_osm2pgsql_cmd(config, style_file_path)
 
+        # postprocessing
         postprocess_osm_import(config)
-
-        postprocess_osm_import(config)
-        # postprocess_osm_import(CREDENTIALS, style_file_path, schema)
     except SubprocessError as e:
         logger.error(f"Error during processing: {e}")
 

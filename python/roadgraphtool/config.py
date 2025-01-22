@@ -64,7 +64,7 @@ def parse_config_file(config_file: Union[Path, Traversable]):
         expand_relative_paths(config_object, config_file.parent)
         return config_object
 
-def get_path_from_config(config, path_string):
+def get_path_from_config(config, path_string) -> Path:
     path = Path(path_string)
     if not path.is_absolute():
         path = config.config_dir / path

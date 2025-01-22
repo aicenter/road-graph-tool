@@ -73,16 +73,15 @@ def test_find_min_max(bounding_box):
 
 @pytest.mark.usefixtures("teardown_db")
 def test_run_osm2pgsql_cmd(test_schema, test_tables):
-    style_file_path = str(resources.files(test_resources_path).joinpath("test_default.lua"))
+    style_file_path = resources.files(test_resources_path).joinpath("test_default.lua")
     input_file = str(resources.files(test_resources_path).joinpath("bbox_test.osm"))
 
     test_config = deepcopy(default_test_config)
     test_config.importer.input_file = input_file
-    test_config.importer.style_file = style_file_path
+    test_config.importer.style_file = str(style_file_path)
     test_config.importer.schema = test_schema
 
-
-    run_osm2pgsql_cmd(test_config)
+    run_osm2pgsql_cmd(test_config, style_file_path)
 
     expected_count = {test_tables[0]: 6, test_tables[1]: 0, test_tables[2]: 1}
 
