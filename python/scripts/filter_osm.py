@@ -8,6 +8,8 @@ from typing import Any
 import requests
 import logging
 
+import roadgraphtool.exec
+
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError
 
 RESOURCES_DIR = Path(__file__).parent.parent.parent / "resources"
@@ -50,7 +52,7 @@ def load_multipolygon_by_id(relation_id: str) -> bytes | Any:
     logger.debug("Multipolygon content loaded.")
     return response.content
 
-def extract_id(input_file: str, relation_id: str, strategy: str = None):
+def extract_id(input_file: Path, output_file: Path, relation_id: str, strategy: str = None):
     """Filter out data based on relation ID."""
     logger.debug("Extracting multipolygon with relation ID %s...")
     content = load_multipolygon_by_id(relation_id)
@@ -58,11 +60,11 @@ def extract_id(input_file: str, relation_id: str, strategy: str = None):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".osm") as tmp_file:
         tmp_file.write(content)
         tmp_file_path = tmp_file.name
-        cmd = ["osmium", "extract", "-p", tmp_file_path, input_file, "-o", RESOURCES_DIR / "id_extract.osm"]
+        cmd = ["osmium", "extract", "-p", tmp_file_path, str(input_file), "-o", str(output_file)]
         if strategy:
             cmd.extend(["-s", strategy])
-        res = subprocess.run(cmd)
-        if not res.returncode:
+        res = roadgraphtool.exec.call_executable(cmd)
+        if res:
             logger.debug("ID extraction completed.")
     
 def extract_bbox(input_file: str, coords: str, strategy: str = None):
@@ -142,9 +144,11 @@ h  : Filter objects based on highway tag
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
 
-    if not os.path.exists(args.input_file):
+    input_file_path = Path(args.input_file)
+
+    if not input_file_path.exists():
         raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
-    elif not is_valid_extension(args.input_file):
+    elif not is_valid_extension(input_file_path):
         raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
     
     match args.flag:
@@ -154,8 +158,10 @@ def main(arg_list: list[str] | None = None):
                 raise MissingInputError("Existing relation ID must be specified.")
             
             check_strategy(args.strategy)
+
+            output_file_path = input_file_path.parent / "id_extract.osm"
             
-            extract_id(args.input_file, args.relation_id, args.strategy)
+            extract_id(input_file_path, output_file_path, args.relation_id, args.strategy)
 
         case "b":
             # Filter geographic objects based on bounding box (with osmium)

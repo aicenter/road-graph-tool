@@ -40,18 +40,18 @@ def decode_exit_status_code(code: int) -> Optional[Tuple[int, str, str, str]]:
 
 def call_executable(command: List[str], timeout: Optional[int] = None, output_type: ReturnContent = ReturnContent.BOOL) -> \
 Union[str, bool, int]:
-    try:
-        logging.info("Calling external command: %s", " ".join(command))
-        args = {
-            'args': command,
-            'stdout': sys.stdout,
-            'stderr': subprocess.STDOUT,
-            'universal_newlines': True
-        }
-        if timeout:
-            args['timeout'] = timeout
+    logging.info("Calling external command: %s", " ".join(command))
 
-        result = subprocess.run(**args, check=True)
+    args = {
+        'args': command,
+        # 'stdout': sys.stdout,
+        # 'stderr': subprocess.STDOUT,
+    }
+
+    if timeout:
+        args['timeout'] = timeout
+    try:
+        result = subprocess.run(**args, check=True, capture_output=True, universal_newlines=True)
 
         if output_type == ReturnContent.STDOUT:
             return result.stdout
@@ -70,14 +70,24 @@ Union[str, bool, int]:
     except subprocess.CalledProcessError as command_error:
         logging.error("Executable run failed for command: %s", command_error.cmd)
 
+        # stderr output
+        if command_error.stderr:
+            logging.error("Executable stderr output START\n%s", command_error.stderr)
+            logging.error("Executable stderr output END.")
+
+        # exit code
         decoded = decode_exit_status_code(command_error.returncode)
         if decoded:
             logging.info('Exit status code: %d: %s (%s)', decoded[0], decoded[1], decoded[3])
         else:
             logging.info("Exist status code: %d", command_error.returncode)
+
+        # stdout output
         if command_error.output:
             logging.error("Executable output START\n%s", command_error.output)
             logging.error("Executable output END.")
+
+        # exception handling
         if output_type == ReturnContent.BOOL:
             return False
         raise
