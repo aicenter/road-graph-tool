@@ -4,15 +4,17 @@ import tempfile
 import pytest
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from importlib.resources import files
 
+from tests.conftest import test_resources_path
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError
-from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main, RESOURCES_DIR
+from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main
     
 TESTS_DIR = pathlib.Path(__file__).parent.parent.parent / "python/tests/data"
 
 @pytest.fixture
 def expected_multipolygon_id():
-    file_path = TESTS_DIR / "expected_multipolygon_id.osm"
+    file_path = files(test_resources_path).joinpath("expected_multipolygon_id.osm")
     with open(file_path, 'rb') as f:
         return f.read()
 
@@ -73,8 +75,8 @@ def test_load_multipolygon_by_id_contains_id(mocker, expected_multipolygon_id):
     
 def test_extract_id_contains_id():
     relation_id = 5986438
-    input_file = TESTS_DIR / "id_test.osm"
-    output_file = TESTS_DIR / "id_extract.osm"
+    input_file = files(test_resources_path).joinpath("id_test.osm")
+    output_file = Path(str(input_file)).parent / "id_extract.osm"
 
     extract_id(input_file, output_file, relation_id)
 

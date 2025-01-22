@@ -1,38 +1,35 @@
+import importlib.resources as resources
 import os
 import xml.etree.ElementTree as ET
+from copy import deepcopy
+from pathlib import Path
 
 import pytest
-import importlib.resources as resources
 
-from copy import deepcopy
-
-import roadgraphtool.db
-from roadgraphtool.exceptions import MissingInputError, InvalidInputError
-from roadgraphtool.process_osm import run_osmium_cmd, import_osm_to_db, run_osm2pgsql_cmd, setup_ssh_tunnel, \
-    postprocess_osm_import
 from roadgraphtool.db import db
+from roadgraphtool.process_osm import run_osmium_cmd, run_osm2pgsql_cmd
 from scripts.find_bbox import find_min_max
-from tests.conftest import TESTS_DIR, config as default_test_config, test_resources_path
+from tests.conftest import config as default_test_config, test_resources_path
 
 
 @pytest.fixture
 def bounding_box():
-    file_path = TESTS_DIR / "bbox_test.osm"
+    file_path = resources.files(test_resources_path).joinpath("bbox_test.osm")
     with open(file_path, 'rb') as f:
         return f.read()
 
 
 @pytest.fixture
 def renumber_test_files():
-    input_file = str(TESTS_DIR / "renumber_test.osm")
-    output_file = TESTS_DIR / "renumber_test_output.osm"
+    input_file = str(resources.files(test_resources_path).joinpath("renumber_test.osm"))
+    output_file = Path(str(resources.files(test_resources_path).joinpath("renumber_test_output.osm")))
     return input_file, output_file
 
 
 @pytest.fixture
 def sort_test_files():
-    input_file = str(TESTS_DIR / "sort_test.osm")
-    output_file = TESTS_DIR / "sort_test_output.osm"
+    input_file = str(resources.files(test_resources_path).joinpath("sort_test.osm"))
+    output_file = Path(str(resources.files(test_resources_path).joinpath("sort_test_output.osm")))
     return input_file, output_file
 
 
@@ -76,8 +73,8 @@ def test_find_min_max(bounding_box):
 
 @pytest.mark.usefixtures("teardown_db")
 def test_run_osm2pgsql_cmd(test_schema, test_tables):
-    style_file_path = str(TESTS_DIR / "test_default.lua")
-    input_file = str(TESTS_DIR / "bbox_test.osm")
+    style_file_path = str(resources.files(test_resources_path).joinpath("test_default.lua"))
+    input_file = str(resources.files(test_resources_path).joinpath("bbox_test.osm"))
 
     test_config = deepcopy(default_test_config)
     test_config.importer.input_file = input_file

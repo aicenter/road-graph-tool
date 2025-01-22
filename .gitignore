@@ -10,5 +10,5 @@ python/roadgraphtool/resources/monaco.osm.pbf
 python/roadgraphtool/resources/performance_report.json
 python/performance/performance_report.json
 pgpass.conf
-python/tests/data/config.yaml
-python/tests/data/secrets.yaml
+python/tests/resources/config.yaml
+python/tests/resources/secrets.yaml
