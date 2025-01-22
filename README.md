@@ -37,7 +37,7 @@ To execute the configured pipeline, follow these steps:
 
     2. Run the `main.py` script with with `-i` or `--import`flag which also calls the [import_osm_to_db()](#function-import_osm_to_db) function along with other SQL queries.
 
-3. Your database is now ready. You can execute [main.py](./python/scripts/main.py) in the `python/` directory.
+1. Your database is now ready. You can execute [main.py](./python/scripts/main.py) in the `python/` directory.
 
 So in the end execution order may look like this:
 ```sh
@@ -59,6 +59,8 @@ For configuring the Road Graph Tool, we use the [YAML](https://yaml.org/) format
 
 In the root of the project, there is an example configuration file named `config-example.yml`.
 
+Additionaly, it is necessary to store some sensitive information like passwords. These are stored in the `secrets.yml` file, that should be stored in the same directory as the configuration file. The structure of the file is the same as the structure of the main configuration file. The example file is stored in the root of the project and is named `secrets-example.yml`.
+
 
 # Testing
 For testing the PostgreSQL procedures that are the core of the Road Graph Tool, we use the [pgTAP testing framework](https://github.com/theory/pgtap). To learn how to use pgTAP, see the [pgTAP manual](./doc/pgtap.md).
@@ -78,6 +80,20 @@ To run the tests, follow these steps:
     SELECT * FROM run_all_tests();
     ```
     - This query will return a result set containing the execution status of each test.
+
+
+# Filtration of the input data
+Because the map processing with Road Graph Tool can be time-consuming, it is recommended to filter the input data before processing. Most importantly, the data should be filtered to include
+
+- only the area of interest, and
+- only the objects of interest.
+
+The following tools are available for filtering the input data:
+
+- [Osmium](https://osmcode.org/osmium-tool/manual.html)
+- [Osmfilter](https://wiki.openstreetmap.org/wiki/Osmfilter)
+
+
 
 # Components
 The road graph tool consists of a set of components that are responsible for individual processing steps, importing data, or exporting data. Each component is implemented as an PostgreSQL procedure or Python script, possibly calling other procedures or functions. Additionally, each component has its own Python wrapper script that connects to the database and calls the procedure. Currently, the following components are implemented:
