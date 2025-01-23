@@ -2,6 +2,7 @@ import pytest
 
 from roadgraphtool.schema import create_schema, add_postgis_extension, check_empty_or_nonexistent_tables
 from roadgraphtool.db import db
+from tests.db_setup import teardown_db, test_schema, test_tables
 
 @pytest.mark.usefixtures("teardown_db")
 def test_schema_creation():

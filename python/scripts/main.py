@@ -4,7 +4,7 @@ import logging
 import sys
 
 from pathlib import Path
-from roadgraphtool.config import parse_config_file
+from roadgraphtool.config import parse_config_file, set_logging
 import roadgraphtool.db
 import roadgraphtool.log
 from roadgraphtool.db import db
@@ -181,6 +181,7 @@ def main():
         return -1
 
     config = parse_config_file(Path(args[1]))
+    set_logging(config)
 
     roadgraphtool.db.init_db(config)
     roadgraphtool.db.db.start_or_restart_ssh_connection_if_needed()

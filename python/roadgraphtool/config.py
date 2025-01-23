@@ -1,6 +1,7 @@
 from contextlib import AbstractContextManager
 from importlib.abc import Traversable
 from typing import Union
+import logging
 
 import yaml
 import types
@@ -72,3 +73,9 @@ def get_path_from_config(config, path_string) -> Path:
         else:
             path = Path.cwd() / path
     return path
+
+def set_logging(config):
+    level=logging.INFO # default
+    if hasattr(config,'log_level'):
+        level = getattr(logging, config.log_level)
+    logging.basicConfig(level=level, format="%(asctime)s [%(levelname)s] %(message)s", datefmt='%H:%M:%S')
