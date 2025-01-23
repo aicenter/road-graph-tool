@@ -19,7 +19,7 @@ importer: {
     input_file: ./andorra-latest.osm,
     force: true,
     schema: importer,
-    style_file: D:\Workspaces\AIC\road-graph-tool\resources/lua_styles/pipeline.lua,
+    style_file: pipeline,
 
     # if true, a `pgpass.conf` file will be automatically created in root folder of the project. Otherwise, the user
     # will be prompted to enter the password each time the importer is run.
