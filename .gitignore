@@ -16,6 +16,7 @@ python/performance/performance_report.json
 pgpass.conf
 python/tests/resources/config.yaml
 python/tests/resources/secrets.yaml
+/secrets.yml
 secrets.yml
 config.yml
 roadgraphtool.log

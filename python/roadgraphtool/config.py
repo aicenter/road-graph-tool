@@ -67,5 +67,8 @@ def parse_config_file(config_file: Union[Path, Traversable]):
 def get_path_from_config(config, path_string) -> Path:
     path = Path(path_string)
     if not path.is_absolute():
-        path = config.config_dir / path
+        if hasattr(config,'config_dir'):
+            path = config.config_dir / path
+        else:
+            path = Path.cwd() / path
     return path

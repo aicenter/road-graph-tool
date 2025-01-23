@@ -72,7 +72,8 @@ def setup_ssh_tunnel(config) -> int:
         config.db_server_port = db.ssh_tunnel_local_port
         return db.ssh_tunnel_local_port
     # local connection
-    return config.db_server_port
+    return config.db.db_server_port
+
 
 def setup_pgpass(config):
     """Create pgpass file or rewrite its content.
@@ -83,13 +84,21 @@ def setup_pgpass(config):
     db_config = config.db
     pgpass_config_path = Path(config.importer.pgpass_file).expanduser().resolve()
 
+
+
+    if hasattr(db_config, "ssh"):
+        port = db_config.ssh.tunnel_port
+    else:
+        port = db_config.db_server_port
+
     # hostname:port:database:username:password
-    content = f"{db_config.db_host}:{db_config.db_server_port}:{db_config.db_name}:{db_config.username}:{db_config.db_password}"
+    content = f"{db_config.db_host}:{port}:{db_config.db_name}:{db_config.username}:{db_config.db_password}"
     with open(pgpass_config_path, 'w') as pgfile:
         pgfile.write(content)
     os.chmod(pgpass_config_path, stat.S_IRUSR | stat.S_IWUSR)
     os.environ['PGPASSFILE'] = str(pgpass_config_path)
     logging.info(f"Created pgpass file: {pgpass_config_path}")
+
 
 def remove_pgpass(config):
     """Remove pgpass file if exists."""
@@ -101,9 +110,9 @@ def remove_pgpass(config):
 
 
 def run_osm2pgsql_cmd(
-    config,
-    style_file_path: Path,
-    coords: str | list[int] = None
+        config,
+        style_file_path: Path,
+        coords: str | list[int] = None
 ):
     """
     Import data from input_file to database specified in config using osm2pgsql tool.
@@ -118,20 +127,15 @@ def run_osm2pgsql_cmd(
 
     db_config = config.db
 
-    if hasattr(db_config, "ssh"):
-        port = setup_ssh_tunnel(config)
-    else:
-        port =  db_config.db_server_port
+    port = db.db_server_port
     logger.debug(f"Port is: {port}")
 
     if not importer_config.force and not check_empty_or_nonexistent_tables(schema):
         raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use 'force: true' in config.importer to proceed.")
 
-    create_schema(schema)
-    add_postgis_extension(schema)
-
     connection_uri = f"postgresql://{db_config.username}@{db_config.db_host}:{port}/{db_config.db_name}"
-    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", str(style_file_path), str(importer_config.input_file), "-x", f"--schema={schema}"]
+    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", f'{style_file_path}', f'{importer_config.input_file}', "-x",
+           f"--schema={schema}"]
     if coords:
         cmd.extend(["-b", coords])
 
@@ -157,7 +161,8 @@ def run_osm2pgsql_cmd(
         raise SubprocessError(f"Error during import: {res}")
 
     logger.info("Importing completed.")
-    
+
+
 def postprocess_osm_import_old(config):
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
@@ -166,7 +171,7 @@ def postprocess_osm_import_old(config):
     if config.importer.style_file in postprocess_dict:
         sql_file_path = str(SQL_DIR / postprocess_dict[config.importer.style_file])
         cmd = ["psql", "-d", db_config.db_name, "-U", db_config.username, "-h", db_config.db_host, "-p",
-                str(db_config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+               str(db_config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
         logger.info("Post-processing OSM data after import...")
         logger.debug(' '.join(cmd))
@@ -202,6 +207,10 @@ def import_osm_to_db(config) -> int:
         resources_path = "roadgraphtool.resources"
         style_file_path = files(resources_path).joinpath(f"lua_styles/{config.importer.style_file}.lua")
     try:
+
+        create_schema(config.importer.schema)
+        add_postgis_extension(config.importer.schema)
+
         # importing to database
         run_osm2pgsql_cmd(config, style_file_path)
 
@@ -250,6 +259,7 @@ def postprocess_osm_import(config):
     copy_nodes_ways(schema, target_schema, area_id)
 
     return area_id
+
 
 def generate_area_id(connection, target_schema):
     with connection.cursor() as cursor:
@@ -346,5 +356,3 @@ def get_overlapping_elements_count(schema: str, target_schema: str, table_name: 
                     FROM "{target_schema}"."{table_name}" e
                     WHERE i.id = e.id)) as sub;'''
     return db.execute_count_query(query)
-
-
