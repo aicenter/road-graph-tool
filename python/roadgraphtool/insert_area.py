@@ -1,9 +1,9 @@
 import argparse
-import json
+import geojson
 from pathlib import Path
 import sys
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 from roadgraphtool import db
 from roadgraphtool.config import parse_config_file
@@ -13,7 +13,7 @@ def insert_area(
     name: str,
     id: Optional[int] = None,
     description: Optional[str] = None,
-    geom: Optional[dict] = None
+    geom: Optional[Union[geojson.Feature, geojson.FeatureCollection]] = None
 ) -> int:
     """
     Insert a new area into the areas table.
@@ -37,8 +37,10 @@ def insert_area(
 
     if geom is None:
         geom = "NULL"
+    elif isinstance(geom, geojson.Feature):
+        geom = f"'{geojson.dumps(geom.geometry)}'"
     else:
-        geom = f"'{json.dumps(geom)}'"
+        geom = f"'{geojson.dumps(geom[0].geometry)}'"
 
     logging.info("Inserting area '%s' into the database.", name)
 
@@ -56,7 +58,7 @@ def insert_area(
     return ret[0][0]
 
 
-def read_json_file(file_path: str) -> dict:
+def read_geojson_file(file_path: str) -> Union[geojson.Feature, geojson.FeatureCollection]:
     """
     Read a JSON file and return its contents as a dictionary.
 
@@ -68,10 +70,7 @@ def read_json_file(file_path: str) -> dict:
     """
     try:
         with open(file_path, "r") as file:
-            return json.load(file)
-    except json.JSONDecodeError:
-        print(f"Error: The file {file_path} is not a valid JSON file.")
-        sys.exit(1)
+            return geojson.load(file)
     except FileNotFoundError:
         print(f"Error: The file {file_path} was not found.")
         sys.exit(1)
@@ -103,13 +102,10 @@ if __name__ == "__main__":
     args = parse_arguments()
 
     # Read the GeoJSON file
-    geojson = read_json_file(args.file)
+    area_geojson = read_geojson_file(args.file)
     
     config = parse_config_file(Path(args.config))
     db.init_db(config)
     # inserting area to db
-    try:
-        insert_area(name=args.name, id=args.id, description=args.description, geom=geojson)
-        print(f"Area '{args.name}' inserted successfully.")
-    except Exception as e:
-        print(f"Error inserting area: {e}")
+    insert_area(name=args.name, id=args.id, description=args.description, geom=area_geojson)
+    print(f"Area '{args.name}' inserted successfully.")

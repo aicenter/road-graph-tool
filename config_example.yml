@@ -1,6 +1,7 @@
 password_config_file: ./secrets.yml
-
 schema: public
+srid: 32631
+area_id: 2
 
 db: {
     username: postgres,

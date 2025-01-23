@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from importlib.resources import files
 
-from roadgraphtool.insert_area import insert_area, read_json_file
+from roadgraphtool.insert_area import insert_area, read_geojson_file
 from sqlalchemy.sql.coercions import schema
 
 import roadgraphtool.exec
@@ -233,7 +233,7 @@ def postprocess_osm_import(config):
     # area creation
     args = {}
     if hasattr(config.importer, 'geom'):
-        geom_path = read_json_file(config.importer.geom)
+        geom_path = read_geojson_file(config.importer.geom)
         args['geom'] = geom_path
     area_id = insert_area(**args, name=config.importer.area_name, description=description)
 

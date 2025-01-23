@@ -59,8 +59,10 @@ def insert_area(name: str, coordinates: list):
 def contract_graph_in_area(
         target_area_id: int, target_area_srid: int, fill_speed: bool = True
 ):
+    logging.info("contracting graph")
     sql_query = f'call public.contract_graph_in_area({target_area_id}::smallint, {target_area_srid}::int{", FALSE" if not fill_speed else ""})'
-    db.execute_sql(sql_query)
+    result = db.execute_sql(sql_query)
+    logging.info(result)
 
 
 def select_network_nodes_in_area(target_area_id: int) -> list:
@@ -181,19 +183,16 @@ def main():
     config = parse_config_file(Path(args[1]))
     roadgraphtool.db.init_db(config)
 
+    area_id = config.area_id
     if config.importer.activated:
-        areaid = import_osm_to_db(config)
+        area_id = import_osm_to_db(config)
+
+    if config.contraction.activated:
+        contract_graph_in_area(area_id, config.srid, False)
     
-    area_id = areaid
-    area_srid = 4326
-    fill_speed = False
-    
-    logging.info("contracting graph")
-    contract_graph_in_area(area_id, area_srid, fill_speed)
-    
-    logging.info("computing strong components for area_id = {}".format(area_id))
-    compute_strong_components(area_id)
-    logging.info("storing the results in the component_data table")
+    # logging.info("computing strong components for area_id = {}".format(area_id))
+    # compute_strong_components(area_id)
+    # logging.info("storing the results in the component_data table")
     
     # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
     # try:
