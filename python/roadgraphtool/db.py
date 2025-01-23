@@ -58,9 +58,11 @@ class Database(object):
         # If private key specified, assume ssh connection and try to set it up
         self.db_server_port = self.config.db_server_port
         self.db_name = self.config.db_name
-        self.ssh_tunnel_local_port = 1113
+        # self.ssh_tunnel_local_port = 1113
         if hasattr(self.config, 'ssh'):
+            self.ssh_tunnel_local_port = self.config.ssh.tunnel_port
             self.server = self.config.ssh.server
+            self.db_server_port = self.ssh_tunnel_local_port
             self.ssh_server = None
             self.host = self.config.db_host
         else:
@@ -83,10 +85,14 @@ class Database(object):
         ssh_kwargs = dict(
             ssh_pkey=self.config.ssh.private_key_path,
             ssh_username=self.config.ssh.server_username,
-            ssh_private_key_password=self.config.ssh.private_key_passphrase,
-            remote_bind_address=('localhost', self.db_server_port),
-            local_bind_address=('localhost', self.ssh_tunnel_local_port)
+
+            remote_bind_address=('localhost', self.config.db_server_port),
+            local_bind_address=('localhost', self.config.ssh.tunnel_port),
         )
+
+        if hasattr(self.config.ssh, 'private_key_passphrase'):
+            ssh_kwargs['private_key_passphrase'] = self.config.ssh.private_key_passphrase
+
         try:
             self.ssh_server = sshtunnel.open_tunnel(self.server, **ssh_kwargs)
         except sshtunnel.paramiko.SSHException as e:

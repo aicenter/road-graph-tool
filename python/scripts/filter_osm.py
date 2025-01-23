@@ -34,8 +34,8 @@ def is_valid_extension(file: Path) -> bool:
     
     Valid extensions: osm, osm.pbf, osm.bz2
     """
-    valid_extensions = {".osm", ".pbf", ".bz2"}
-    return file.suffix in valid_extensions
+    valid_extensions = {".osm", ".osm.pbf", ".bz2"}
+    return "".join(file.suffixes) in valid_extensions
 
 def check_strategy(strategy: str | None):
     """Raise InvalidInputError if strategy type is not valid."""

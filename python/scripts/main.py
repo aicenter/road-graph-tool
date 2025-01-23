@@ -181,7 +181,9 @@ def main():
         return -1
 
     config = parse_config_file(Path(args[1]))
+
     roadgraphtool.db.init_db(config)
+    roadgraphtool.db.db.start_or_restart_ssh_connection_if_needed()
 
     area_id = config.area_id
     if config.importer.activated:
