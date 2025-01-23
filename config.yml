@@ -1,22 +1,42 @@
-importing: true
+password_config_file: ./secrets.yml
 
-#area_name: estonia
-#input_file: estonia-20241031-highways-relations.osm.pbf
-area_name: czechia
-input_file: czech-republic-241128-highways-relations.osm.pbf
-schema: czechia
-#area_name: germany
-#input_file: germany-241128-highways-relations.osm.pbf
-#schema: germany
+schema: public
 
-#area_name: andorra
-#input_file: andorra-241113.osm.pbf
+db: {
+    # local
+    # username: dominika,
+    # db_host: localhost,
+    # db_name: testing,
+    # db_server_port: 5432,
+    # remote
+    username: sidlova,
+    db_host: localhost,
+    db_name: test_sidlova,
+    db_server_port: 5432,
+    ssh: {
+      server: its.fel.cvut.cz,
+      server_username: sidlova,
+      private_key_path: /home/dominika/.ssh/id_rsa,
+      private_key_passphrase: /home/dominika/.ssh/id_rsa,
+    }
+}
 
-password: true
-force: true
-
-target_schema: public
-#style_file: resources/lua_styles/public-transport.lua
-#style_file: G:\My Drive\code\road-graph-tool\resources\lua_styles\pipeline.lua
-style_file: resources\lua_styles\pipeline.lua
-
+importer: {
+    activated: true,
+    # input_file: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/jes.osm,
+    input_file: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/porto.osm,
+    # input_file: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/sydney.osm,
+    force: true,
+    # schema: jesenice,
+    schema: porto,
+    # schema: sydney,
+    style_file: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/lua_styles/pipeline.lua,
+    pgpass: true,
+    pgpass_file: "~/pgpass.conf",
+    # area_name: jesenice,
+    area_name: porto,
+    # area_name: sydney,
+    # geom: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/jesenice_area.geojson
+    geom: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/porto_area.geojson
+    # geom: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/sydney_area.geojson
+}

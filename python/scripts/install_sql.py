@@ -1,20 +1,26 @@
 import logging
 from pathlib import Path
+import sys
 
+from roadgraphtool.config import parse_config_file
 import roadgraphtool.log
 from roadgraphtool.db import db
 
 db_name = db.db_name
 sql_dir = Path(__file__).parent.parent.parent / "SQL"
+args = sys.argv
+config = parse_config_file(Path(args[1]))
+roadgraphtool.db.init_db(config)
+import_schema = config.importer.schema
+SCHEMA = config.schema
 
-
-def execute_sql_file(sql_file: Path, multistatement: bool = False):
+def execute_sql_file(sql_file: Path, schema: str, multistatement: bool = False):
     logging.info(f"Executing {sql_file}")
     if multistatement:
-        db.execute_script(sql_file)
+        db.execute_script(sql_file, schema)
     else:
         with sql_file.open() as f:
-            sql = f.read()
+            sql = f.read().replace('{schema}', schema)
             db.execute_sql(sql)
 
 # Check availability status of extensions in db
@@ -49,19 +55,19 @@ if not extensions["postgis"] or not extensions["pgrouting"] or not extensions["h
 # initialize database if it's empty
 sql = f"""SELECT EXISTS (
             SELECT FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = 'areas'
+            WHERE table_schema = '{import_schema}' AND table_name = 'areas'
         );
         """
 if not db.execute_sql_and_fetch_all_rows(sql)[0][0]:
     main_sql_path = sql_dir / "main.sql"
     logging.info("Initializing the database")
-    execute_sql_file(main_sql_path, multistatement=True)
+    execute_sql_file(main_sql_path, SCHEMA, multistatement=True)
 
 # enable pgtap if it's not enabled
 sql = """SELECT * FROM pg_extension WHERE extname = 'pgtap'"""
 if extensions["pgtap"] and not db.execute_sql_and_fetch_all_rows(sql):
     logging.info("Enabling pgtap")
-    execute_sql_file(sql_dir / "testing_extension.sql", multistatement=True)
+    execute_sql_file(sql_dir / "testing_extension.sql", SCHEMA, multistatement=True)
 else:
     if not extensions["pgtap"]:
         logging.warning("pgtap extension is not available")
@@ -77,14 +83,14 @@ if not db.execute_sql_and_fetch_all_rows(sql)[0][0]:
 functions_dir = sql_dir / "functions"
 logging.info("Importing functions from %s", functions_dir)
 for sql_function_file in functions_dir.rglob("*.sql"):
-    execute_sql_file(sql_function_file)
+    execute_sql_file(sql_function_file, SCHEMA)
 
 procedures_dir = sql_dir / "procedures"
 logging.info("Importing procedures from %s", procedures_dir)
 for sql_procedure_file in procedures_dir.rglob("*.sql"):
-    execute_sql_file(sql_procedure_file)
+    execute_sql_file(sql_procedure_file, SCHEMA)
 
 test_dir = sql_dir / "tests"
 logging.info("Importing test functions from %s", test_dir)
 for sql_test_file in test_dir.rglob("*.sql"):
-    execute_sql_file(sql_test_file, multistatement=True)
+    execute_sql_file(sql_test_file, SCHEMA, multistatement=True)

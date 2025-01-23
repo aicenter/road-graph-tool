@@ -12,7 +12,7 @@ import roadgraphtool.exec
 
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError
 
-RESOURCES_DIR = Path(__file__).parent.parent.parent / "resources"
+RESOURCES_DIR = Path(__file__).parent.parent / "roadgraphtool/resources"
 
 def setup_logger(logger_name: str) -> logging.Logger:
     log = logging.getLogger(logger_name)
@@ -34,7 +34,7 @@ def is_valid_extension(file: Path) -> bool:
     
     Valid extensions: osm, osm.pbf, osm.bz2
     """
-    valid_extensions = {".osm", ".osm.pbf", ".osm.bz2"}
+    valid_extensions = {".osm", ".pbf", ".bz2"}
     return file.suffix in valid_extensions
 
 def check_strategy(strategy: str | None):

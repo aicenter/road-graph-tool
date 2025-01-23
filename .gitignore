@@ -7,8 +7,15 @@ config.ini
 python/roadgraphtool/resources/czechia.osm.pbf
 python/roadgraphtool/resources/germany.osm.pbf
 python/roadgraphtool/resources/monaco.osm.pbf
+python/roadgraphtool/resources/porto.*
+python/roadgraphtool/resources/porto_area.*
+python/roadgraphtool/resources/sydney.*
+python/roadgraphtool/resources/sydney_area.*
 python/roadgraphtool/resources/performance_report.json
 python/performance/performance_report.json
 pgpass.conf
 python/tests/resources/config.yaml
 python/tests/resources/secrets.yaml
+secrets.yml
+config.yml
+roadgraphtool.log

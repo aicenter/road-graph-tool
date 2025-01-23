@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import stat
@@ -5,10 +6,11 @@ import subprocess
 from pathlib import Path
 from importlib.resources import files
 
+from roadgraphtool.insert_area import insert_area, read_json_file
 from sqlalchemy.sql.coercions import schema
 
 import roadgraphtool.exec
-import roadgraphtool.insert_area
+from roadgraphtool.insert_area import insert_area
 from roadgraphtool.config import get_path_from_config
 from roadgraphtool.db import db
 from roadgraphtool.exceptions import InvalidInputError, TableNotEmptyError, SubprocessError
@@ -178,7 +180,7 @@ def postprocess_osm_import_old(config):
         logger.warning(f"No post-processing defined for style {config.importer.style_file}")
 
 
-def import_osm_to_db(config):
+def import_osm_to_db(config) -> int:
     """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
     The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
     """
@@ -204,9 +206,12 @@ def import_osm_to_db(config):
         run_osm2pgsql_cmd(config, style_file_path)
 
         # postprocessing
-        postprocess_osm_import(config)
+        area_id = postprocess_osm_import(config)
+        return area_id
+        # postprocess_osm_import(config)
     except SubprocessError as e:
-        logger.error(f"Error during processing: {e}")
+        logger.error(f"Error during processing.")
+        # logger.error(f"Error during processing: {e}")
 
 
 def check_and_print_warning(overlaps: dict[str, int]):
@@ -224,7 +229,8 @@ def postprocess_osm_import(config):
     db.execute_sql(f"SET search_path TO {target_schema},public;")
 
     description = f"Imported from {config.importer.input_file}"
-    area_id = roadgraphtool.insert_area.insert_area(name=config.importer.area_name, description=description)
+    geom_path = read_json_file(config.importer.geom)
+    area_id = insert_area(name=config.importer.area_name, description=description, geom=geom_path)
 
     overlaps = {}
     overlaps['nodes'] = get_overlapping_elements_count(schema, target_schema, 'nodes')
@@ -239,7 +245,6 @@ def postprocess_osm_import(config):
     copy_nodes_ways(schema, target_schema, area_id)
 
     return area_id
-
 
 def generate_area_id(connection, target_schema):
     with connection.cursor() as cursor:
@@ -334,7 +339,7 @@ def get_overlapping_elements_count(schema: str, target_schema: str, table_name: 
                 WHERE EXISTS
                     (SELECT id
                     FROM "{target_schema}"."{table_name}" e
-                    WHERE i.id = e.id));'''
+                    WHERE i.id = e.id)) as sub;'''
     return db.execute_count_query(query)
 
 
