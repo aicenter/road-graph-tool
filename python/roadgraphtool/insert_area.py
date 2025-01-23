@@ -37,12 +37,12 @@ def insert_area(
 
     if geom is None:
         geom = "NULL"
-    else:
+    elif not isinstance(geom, str):
         geom = f"'{json.dumps(geom)}'"
 
     logging.info("Inserting area '%s' into the database.", name)
 
-    sql = f"SELECT insert_area('{name}', {geom}, {id}, '{description}')"
+    sql = f"SELECT insert_area('{name}', '{geom}', {id}, '{description}')"
 
     if geom is not None:
         # would not log the geom if it is too long
@@ -50,7 +50,7 @@ def insert_area(
         # TODO: if logging.DEBUG:
         # logging.debug(f"Executing SQL query: SELECT insert_area('{name}', {geom}, {id}, '{description}')")
     else:
-        logging.info(f"Executing SQL query: SELECT insert_area('{name}', {geom}, {id}, '{description}')")
+        logging.info(f"Executing SQL query: SELECT insert_area('{name}', '{geom}', {id}, '{description}')")
 
     ret = db.db.execute_sql_and_fetch_all_rows(sql)
     return ret[0][0]

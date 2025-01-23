@@ -20,7 +20,12 @@ importer: {
     force: true,
     schema: importer,
     style_file: pipeline,
-
+    area_name: estonia,
+        boundary_source:
+            #    geojson_file:
+            #    overpass:
+            convex_hull:
+                buffer_in_m: 1000,
     # if true, a `pgpass.conf` file will be automatically created in root folder of the project. Otherwise, the user
     # will be prompted to enter the password each time the importer is run.
     pgpass: true,

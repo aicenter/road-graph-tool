@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from importlib.resources import files
 
+from shapely.ops import linemerge, unary_union, polygonize
+
 from roadgraphtool.insert_area import insert_area, read_json_file
 from sqlalchemy.sql.coercions import schema
 
@@ -17,6 +19,10 @@ from roadgraphtool.exceptions import InvalidInputError, TableNotEmptyError, Subp
 from roadgraphtool.schema import *
 from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger
 from scripts.find_bbox import find_min_max
+
+import overpy
+import shapely
+import shapely.geometry as geometry
 
 AREA_ID_SEQUENCE = "dataset_id_seq"
 
@@ -83,8 +89,6 @@ def setup_pgpass(config):
     """
     db_config = config.db
     pgpass_config_path = Path(config.importer.pgpass_file).expanduser().resolve()
-
-
 
     if hasattr(db_config, "ssh"):
         port = db_config.ssh.tunnel_port
@@ -230,6 +234,33 @@ def check_and_print_warning(overlaps: dict[str, int]):
     pass
 
 
+def get_boundary_from_overpass(area_name: str) -> geometry.MultiPolygon:
+    api = overpy.Overpass()
+
+    query = f"""[out:json][timeout:25];
+    (rel["name"~"^{area_name}$",i];rel["name:en"~"^{area_name}$",i];);
+    out body;
+    >;
+    out skel qt; """
+
+    result = api.query(query)
+
+    lss = []  # convert ways to linstrings
+
+    for ii_w, way in enumerate(result.ways):
+        ls_coords = []
+
+        for node in way.nodes:
+            ls_coords.append((node.lon, node.lat))  # create a list of node coordinates
+
+        lss.append(geometry.LineString(ls_coords))  # create a LineString from coords
+
+    merged = linemerge([*lss])  # merge LineStrings
+    borders = unary_union(merged)  # linestrings to a MultiLineString
+    polygons = list(polygonize(borders))
+    return geometry.MultiPolygon(polygons)
+
+
 def postprocess_osm_import(config):
     schema = config.importer.schema
     target_schema = config.schema
@@ -240,11 +271,12 @@ def postprocess_osm_import(config):
     description = f"Imported from {config.importer.input_file}"
 
     # area creation
-    args = {}
-    if hasattr(config.importer, 'geom'):
-        geom_path = read_json_file(config.importer.geom)
-        args['geom'] = geom_path
-    area_id = insert_area(**args, name=config.importer.area_name, description=description)
+    boundary_geom = None
+
+    if hasattr(config.importer, "boundary_source"):
+        boundary_geom = get_boundary_geojson(config)
+
+    area_id = insert_area(name=config.importer.area_name, description=description, geom=boundary_geom)
 
     overlaps = {}
     overlaps['nodes'] = get_overlapping_elements_count(schema, target_schema, 'nodes')
@@ -261,6 +293,23 @@ def postprocess_osm_import(config):
     return area_id
 
 
+def get_boundary_geojson(config):
+    boundary_source = config.importer.boundary_source
+    if hasattr(boundary_source, "geojson_file"):
+        return read_json_file(config.importer.geom)
+    if hasattr(boundary_source, "overpass"):
+        return shapely.to_geojson(get_boundary_from_overpass(config.importer.area_name))
+    if hasattr(boundary_source, "convex_hull"):
+        query = (f"""
+            SELECT ST_asgeojson(st_multi(st_transform(st_buffer(st_convexhull(st_collect(st_transform(geom, {config.srid}))), 
+{boundary_source.convex_hull.buffer_in_m}), 
+            4326))) 
+            FROM {config.importer.schema}.nodes;""")
+        result = db.execute_sql_and_fetch_all_rows(query)
+
+        return result[0][0]
+
+
 def generate_area_id(connection, target_schema):
     with connection.cursor() as cursor:
         query = f'''
@@ -270,13 +319,20 @@ def generate_area_id(connection, target_schema):
         return cursor.fetchone()[0]
 
 
-def create_area(connection, target_schema: str, input_file: str, area_name: str):
+def create_area(connection, target_schema: str, input_file: str, area_name: str, geom: shapely.Geometry):
     # TODO: add geom
     area_id = generate_area_id(connection, target_schema)
     with connection.cursor() as cursor:
-        query = f'''
+        if geom:
+            query = f'''
+                INSERT INTO "{target_schema}".areas (id, "name", description, geom)
+                VALUES ({area_id},'{area_name}','{input_file}','ST_GeomFromWKB
+(decode({shapely.to_wkb(geom, hex=True)},'hex')') '''
+        else:
+            query = f'''
                 INSERT INTO "{target_schema}".areas (id, "name", description)
                 VALUES ({area_id},'{area_name}','{input_file}') '''
+
         cursor.execute(query)
         connection.commit()
 
