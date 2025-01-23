@@ -390,15 +390,6 @@ COMMENT ON COLUMN public.relations.area IS 'Area with which was the node importe
 
 
 --
--- Name: schema_info; Type: TABLE; Schema: public
---
-
-CREATE TABLE IF NOT EXISTS public.schema_info (
-    version integer NOT NULL
-);
-
-
---
 -- Name: speed_datasets; Type: TABLE; Schema: public
 --
 
@@ -753,14 +744,6 @@ ALTER TABLE ONLY public.relation_members
 
 ALTER TABLE ONLY public.relations
     ADD CONSTRAINT pk_relations PRIMARY KEY (id);
-
-
---
--- Name: schema_info pk_schema_info; Type: CONSTRAINT; Schema: public
---
-
-ALTER TABLE ONLY public.schema_info
-    ADD CONSTRAINT pk_schema_info PRIMARY KEY (version);
 
 
 --

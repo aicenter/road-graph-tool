@@ -229,8 +229,13 @@ def postprocess_osm_import(config):
     db.execute_sql(f"SET search_path TO {target_schema},public;")
 
     description = f"Imported from {config.importer.input_file}"
-    geom_path = read_json_file(config.importer.geom)
-    area_id = insert_area(name=config.importer.area_name, description=description, geom=geom_path)
+
+    # area creation
+    args = {}
+    if hasattr(config.importer, 'geom'):
+        geom_path = read_json_file(config.importer.geom)
+        args['geom'] = geom_path
+    area_id = insert_area(**args, name=config.importer.area_name, description=description)
 
     overlaps = {}
     overlaps['nodes'] = get_overlapping_elements_count(schema, target_schema, 'nodes')

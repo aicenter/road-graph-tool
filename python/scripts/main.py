@@ -172,8 +172,7 @@ def configure_arg_parser() -> argparse.ArgumentParser:
 
 
 def main():
-    # args = sys.argv
-    args = ['1', 'config.yml']
+    args = sys.argv
 
     if len(args) < 2:
         logging.error("You have to provide a path to the config file as an argument.")

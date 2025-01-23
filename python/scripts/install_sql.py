@@ -6,10 +6,17 @@ from roadgraphtool.config import parse_config_file
 import roadgraphtool.log
 from roadgraphtool.db import db
 
+args = sys.argv
+if len(args) < 2:
+    logging.error("You have to provide a path to the config file as an argument.")
+    exit(-1)
+
+config = parse_config_file(Path(args[1]))
+roadgraphtool.db.init_db(config)
+
 db_name = db.db_name
 sql_dir = Path(__file__).parent.parent.parent / "SQL"
-args = sys.argv
-config = parse_config_file(Path(args[1]))
+
 roadgraphtool.db.init_db(config)
 import_schema = config.importer.schema
 SCHEMA = config.schema
