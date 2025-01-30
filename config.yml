@@ -2,41 +2,39 @@ password_config_file: ./secrets.yml
 
 schema: public
 
-db: {
-    # local
-    # username: dominika,
-    # db_host: localhost,
-    # db_name: testing,
-    # db_server_port: 5432,
-    # remote
-    username: sidlova,
-    db_host: localhost,
-    db_name: test_sidlova,
-    db_server_port: 5432,
-    ssh: {
-      server: its.fel.cvut.cz,
-      server_username: sidlova,
-      private_key_path: /home/dominika/.ssh/id_rsa,
-      private_key_passphrase: /home/dominika/.ssh/id_rsa,
-    }
-}
+srid: 3301
 
-importer: {
-    activated: true,
-    # input_file: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/jes.osm,
-    input_file: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/porto.osm,
-    # input_file: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/sydney.osm,
-    force: true,
-    # schema: jesenice,
-    schema: porto,
-    # schema: sydney,
-    style_file: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/lua_styles/pipeline.lua,
-    pgpass: true,
-    pgpass_file: "~/pgpass.conf",
-    # area_name: jesenice,
-    area_name: porto,
-    # area_name: sydney,
-    # geom: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/jesenice_area.geojson
-    geom: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/porto_area.geojson
-    # geom: /home/dominika/Desktop/smart-mobility/road-graph-tool/python/roadgraphtool/resources/sydney_area.geojson
-}
+db:
+  username: cuchy
+  db_host: localhost
+  db_name: rgt_testing
+  db_server_port: 5432
+  ssh:
+    host: localhost
+    server: its.fel.cvut.cz
+    server_username: cuchy
+    tunnel_port: 1113
+    private_key_path: C:\Users\cuchymar\.ssh\its_id
+
+
+importer:
+  activated: true
+  input_file: ./estonia-20241031-highways-relations.osm.pbf
+  force: true
+  schema: estonia
+  style_file: lua_styles/pipeline.lua
+  area_name: estonia
+  boundary_source:
+#    geojson_file:
+#    overpass:
+    convex_hull:
+      buffer_in_m: 1000
+
+
+
+  # if true, a `pgpass.conf` file will be automatically created in root folder of the project. Otherwise, the user
+  # will be prompted to enter the password each time the importer is run.
+  pgpass: true
+  pgpass_file: "~/pgpass.conf"
+
+

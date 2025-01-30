@@ -6,9 +6,9 @@ import subprocess
 from pathlib import Path
 from importlib.resources import files
 
+from roadgraphtool.insert_area import insert_area, read_geojson_file
 from shapely.ops import linemerge, unary_union, polygonize
 
-from roadgraphtool.insert_area import insert_area, read_json_file
 from sqlalchemy.sql.coercions import schema
 
 import roadgraphtool.exec
@@ -237,6 +237,7 @@ def check_and_print_warning(overlaps: dict[str, int]):
 def get_boundary_from_overpass(area_name: str) -> geometry.MultiPolygon:
     api = overpy.Overpass()
 
+    # try to find the area by name and english name case-insensitive
     query = f"""[out:json][timeout:25];
     (rel["name"~"^{area_name}$",i];rel["name:en"~"^{area_name}$",i];);
     out body;
@@ -245,7 +246,7 @@ def get_boundary_from_overpass(area_name: str) -> geometry.MultiPolygon:
 
     result = api.query(query)
 
-    lss = []  # convert ways to linstrings
+    lss = []  # convert ways to linestrings
 
     for ii_w, way in enumerate(result.ways):
         ls_coords = []
@@ -296,7 +297,7 @@ def postprocess_osm_import(config):
 def get_boundary_geojson(config):
     boundary_source = config.importer.boundary_source
     if hasattr(boundary_source, "geojson_file"):
-        return read_json_file(config.importer.geom)
+        return read_geojson_file(config.importer.geom)
     if hasattr(boundary_source, "overpass"):
         return shapely.to_geojson(get_boundary_from_overpass(config.importer.area_name))
     if hasattr(boundary_source, "convex_hull"):
