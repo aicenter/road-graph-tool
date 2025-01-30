@@ -4,6 +4,8 @@ schema: public
 
 srid: 3301
 
+log_level: DEBUG
+
 db:
   username: cuchy
   db_host: localhost
@@ -26,9 +28,9 @@ importer:
   area_name: estonia
   boundary_source:
 #    geojson_file:
-#    overpass:
-    convex_hull:
-      buffer_in_m: 1000
+    overpass:
+#    convex_hull:
+#      buffer_in_m: 1000
 
 
 

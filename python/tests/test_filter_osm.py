@@ -9,8 +9,7 @@ from importlib.resources import files
 from tests.conftest import test_resources_path
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError
 from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main
-    
-TESTS_DIR = pathlib.Path(__file__).parent.parent.parent / "python/tests/data"
+
 
 @pytest.fixture
 def expected_multipolygon_id():

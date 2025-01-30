@@ -1,10 +1,8 @@
-import json
 import logging
 import os
 import stat
 import subprocess
 from pathlib import Path
-from importlib.resources import files
 
 from roadgraphtool.insert_area import insert_area, read_geojson_file
 from shapely.ops import linemerge, unary_union, polygonize
@@ -12,12 +10,13 @@ from shapely.ops import linemerge, unary_union, polygonize
 from sqlalchemy.sql.coercions import schema
 
 import roadgraphtool.exec
-from roadgraphtool.insert_area import insert_area
 from roadgraphtool.config import get_path_from_config
 from roadgraphtool.db import db
 from roadgraphtool.exceptions import InvalidInputError, TableNotEmptyError, SubprocessError
+from roadgraphtool.insert_area import insert_area
+from roadgraphtool.insert_area import read_geojson_file
 from roadgraphtool.schema import *
-from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension, setup_logger
+from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension
 from scripts.find_bbox import find_min_max
 
 import overpy
@@ -30,14 +29,12 @@ SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
 
 postprocess_dict = {"pipeline": "after_import.sql"}
 
-logger = setup_logger('process_osm')
-
 
 def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
     """Return tuple of floats based on bounding box coordinations."""
     content = load_multipolygon_by_id(relation_id)
     min_lon, min_lat, max_lon, max_lat = find_min_max(content)
-    logger.debug(f"Bounding box found: {min_lon},{min_lat},{max_lon},{max_lat}.")
+    logging.debug(f"Bounding box found: {min_lon},{min_lat},{max_lon},{max_lat}.")
     return min_lon, min_lat, max_lon, max_lat
 
 
@@ -55,19 +52,19 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: Path = None):
         case 'r':
             res = subprocess.run(["osmium", "renumber", input_file, "-o", str(output_file)])
             if not res.returncode:
-                logger.info("Renumbering of OSM data completed.")
+                logging.info("Renumbering of OSM data completed.")
         case 's':
             res = subprocess.run(["osmium", "sort", input_file, "-o", str(output_file)])
             if not res.returncode:
-                logger.info("Sorting of OSM data completed.")
+                logging.info("Sorting of OSM data completed.")
         case 'sr':
             tmp_file = 'tmp.osm'
             roadgraphtool.exec.call_executable(["osmium", "sort", input_file, "-o", tmp_file])
             # res = subprocess.run(["osmium", "sort", input_file, "-o", str(output_file)])
-            logger.info("Sorting of OSM data completed.")
+            logging.info("Sorting of OSM data completed.")
             roadgraphtool.exec.call_executable(["osmium", "renumber", tmp_file, "-o", str(output_file)])
             # res = subprocess.run(["osmium", "renumber", tmp_file, "-o", str(output_file)])
-            logger.info("Renumbering of OSM data completed.")
+            logging.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
 
 
@@ -132,7 +129,7 @@ def run_osm2pgsql_cmd(
     db_config = config.db
 
     port = db.db_server_port
-    logger.debug(f"Port is: {port}")
+    logging.debug(f"Port is: {port}")
 
     if not importer_config.force and not check_empty_or_nonexistent_tables(schema):
         raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use 'force: true' in config.importer to proceed.")
@@ -143,28 +140,28 @@ def run_osm2pgsql_cmd(
     if coords:
         cmd.extend(["-b", coords])
 
-    if logger.level == logging.DEBUG:
+    if logging.root.level == logging.DEBUG:
         cmd.extend(['--log-level=debug'])
 
     if not pgpass:
         cmd.extend(["-W"])
 
-    logger.info(f"Begin importing...")
-    logger.debug(' '.join(cmd))
+    logging.info(f"Begin importing...")
+    logging.debug(' '.join(cmd))
 
     if pgpass:
-        logger.info("Setting up pgpass file...")
+        logging.info("Setting up pgpass file...")
         setup_pgpass(config)
     try:
         res = roadgraphtool.exec.call_executable(cmd, output_type=roadgraphtool.exec.ReturnContent.EXIT_CODE)
     finally:
         if pgpass:
-            logger.info("Deleting pgpass file...")
+            logging.info("Deleting pgpass file...")
             remove_pgpass(config)
     if res:
         raise SubprocessError(f"Error during import: {res}")
 
-    logger.info("Importing completed.")
+    logging.info("Importing completed.")
 
 
 def postprocess_osm_import_old(config):
@@ -177,16 +174,16 @@ def postprocess_osm_import_old(config):
         cmd = ["psql", "-d", db_config.db_name, "-U", db_config.username, "-h", db_config.db_host, "-p",
                str(db_config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
 
-        logger.info("Post-processing OSM data after import...")
-        logger.debug(' '.join(cmd))
+        logging.info("Post-processing OSM data after import...")
+        logging.debug(' '.join(cmd))
 
         res = roadgraphtool.exec.call_executable(cmd)
 
         if res:
             raise SubprocessError(f"Error during post-processing: {res}")
-        logger.info("Post-processing completed.")
+        logging.info("Post-processing completed.")
     else:
-        logger.warning(f"No post-processing defined for style {config.importer.style_file}")
+        logging.warning(f"No post-processing defined for style {config.importer.style_file}")
 
 
 def import_osm_to_db(config) -> int:
@@ -209,7 +206,7 @@ def import_osm_to_db(config) -> int:
     # predefined style file
     else:
         resources_path = "roadgraphtool.resources"
-        style_file_path = files(resources_path).joinpath(f"lua_styles/{config.importer.style_file}.lua")
+        style_file_path = Path(__file__).resolve().parent.parent.parent / f"lua_styles/{config.importer.style_file}.lua"
     try:
 
         create_schema(config.importer.schema)
@@ -223,14 +220,14 @@ def import_osm_to_db(config) -> int:
         return area_id
         # postprocess_osm_import(config)
     except SubprocessError as e:
-        logger.error(f"Error during processing.")
-        # logger.error(f"Error during processing: {e}")
+        logging.error(f"Error during processing.")
+        # logging.error(f"Error during processing: {e}")
 
 
 def check_and_print_warning(overlaps: dict[str, int]):
     for (element_type, overlap) in overlaps.items():
         if overlap:
-            logger.warning(f"{overlap} {element_type} with the same ID are already in the database and not added.")
+            logging.warning(f"{overlap} {element_type} with the same ID are already in the database and not added.")
     pass
 
 
@@ -343,7 +340,7 @@ def create_area(connection, target_schema: str, input_file: str, area_name: str,
 def copy_nodes(import_schema: str, target_schema: str, area_id: int):
     assert isinstance(area_id, int)
 
-    logger.debug("Copying nodes")
+    logging.debug("Copying nodes")
     query = f'''
         INSERT INTO "{target_schema}".nodes (id,tags,geom, area)
         SELECT id, tags, geom, {area_id}
@@ -353,13 +350,13 @@ def copy_nodes(import_schema: str, target_schema: str, area_id: int):
                 FROM "{target_schema}".nodes e
                 WHERE i.id = e.id)'''
 
-    logger.debug(f'Executing following SQL: {query}')
+    logging.debug(f'Executing following SQL: {query}')
     result = db.execute_sql(query)
-    logger.debug(f'Inserted rows: {result.rowcount}')
+    logging.debug(f'Inserted rows: {result.rowcount}')
 
 
 def copy_nodes_ways(import_schema: str, target_schema: str, area_id: int):
-    logger.debug("Copying nodes ways")
+    logging.debug("Copying nodes ways")
     query = f'''
             INSERT INTO "{target_schema}".nodes_ways (way_id,node_id,"position",area)
             SELECT way_id,node_id,"position", {area_id}
@@ -368,13 +365,13 @@ def copy_nodes_ways(import_schema: str, target_schema: str, area_id: int):
                 (SELECT id
                     FROM "{target_schema}".ways e
                     WHERE i.way_id = e.id AND e.area = {area_id})'''
-    logger.debug(f'Executing following SQL: {query}')
+    logging.debug(f'Executing following SQL: {query}')
     result = db.execute_sql(query)
-    logger.debug(f'Inserted rows: {result.rowcount}')
+    logging.debug(f'Inserted rows: {result.rowcount}')
 
 
 def copy_ways(import_schema: str, target_schema: str, area_id: int):
-    logger.debug("Copying ways")
+    logging.debug("Copying ways")
     query = f'''
             INSERT INTO "{target_schema}".ways (id, tags, geom,"from","to", oneway, area)
             SELECT id, tags, geom,"from","to", oneway, {area_id}
@@ -383,13 +380,13 @@ def copy_ways(import_schema: str, target_schema: str, area_id: int):
                 (SELECT id
                     FROM "{target_schema}".ways e
                     WHERE i.id = e.id)'''
-    logger.debug(f'Executing following SQL: {query}')
+    logging.debug(f'Executing following SQL: {query}')
     result = db.execute_sql(query)
-    logger.debug(f'Inserted rows: {result.rowcount}')
+    logging.debug(f'Inserted rows: {result.rowcount}')
 
 
 def copy_relations(import_schema: str, target_schema: str, area_id: int):
-    logger.debug("Copying relations")
+    logging.debug("Copying relations")
     query = f'''
             INSERT INTO "{target_schema}".relations (id,tags,members, area)
             SELECT id, tags, members, {area_id}
@@ -398,9 +395,9 @@ def copy_relations(import_schema: str, target_schema: str, area_id: int):
                 (SELECT id
                     FROM "{target_schema}".relations e
                     WHERE i.id = e.id)'''
-    logger.debug(f'Executing following SQL: {query}')
+    logging.debug(f'Executing following SQL: {query}')
     result = db.execute_sql(query)
-    logger.debug(f'Inserted rows: {result.rowcount}')
+    logging.debug(f'Inserted rows: {result.rowcount}')
 
 
 def get_overlapping_elements_count(schema: str, target_schema: str, table_name: str):

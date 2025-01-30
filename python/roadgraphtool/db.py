@@ -12,9 +12,6 @@ import logging
 from pathlib import Path
 from sqlalchemy.engine import Row
 
-import roadgraphtool.log
-
-
 def connect_db_if_required(db_function):
     """
     Check and reset ssh connection decorator for methods working with the db

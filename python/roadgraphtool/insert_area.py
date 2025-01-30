@@ -39,7 +39,7 @@ def insert_area(
         geom = "NULL"
     elif isinstance(geom, geojson.Feature):
         geom = f"'{geojson.dumps(geom.geometry)}'"
-    else:
+    elif not isinstance(geom, str):
         geom = f"'{geojson.dumps(geom[0].geometry)}'"
 
     logging.info("Inserting area '%s' into the database.", name)

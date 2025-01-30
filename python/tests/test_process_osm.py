@@ -9,7 +9,12 @@ import pytest
 from roadgraphtool.db import db
 from roadgraphtool.process_osm import run_osmium_cmd, run_osm2pgsql_cmd
 from scripts.find_bbox import find_min_max
-from tests.conftest import config as default_test_config, test_resources_path
+from tests.conftest import test_resources_path
+from tests.db_setup import config as default_test_config, teardown_db, test_tables, test_schema
+
+# default style file
+style_file = Path(__file__).resolve().parent.parent.parent / f"lua_styles/pipeline.lua"
+default_test_config.importer.style_file = style_file
 
 
 @pytest.fixture

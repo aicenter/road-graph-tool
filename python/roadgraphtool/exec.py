@@ -2,6 +2,7 @@ import sys
 import logging
 import platform
 import subprocess
+import threading
 from typing import List, Optional, Tuple, Union
 from enum import Enum
 
@@ -38,61 +39,82 @@ def decode_exit_status_code(code: int) -> Optional[Tuple[int, str, str, str]]:
     return None
 
 
+def stream_output(stream, output_list, output_stream):
+    """Read a stream line by line and store the output."""
+    for line in iter(stream.readline, ''):
+        output_list.append(line)  # Store the line in the output list
+        if logging.root.isEnabledFor(logging.DEBUG):
+            output_stream.write(line)  # Print to console in real-time
+
 def call_executable(command: List[str], timeout: Optional[int] = None, output_type: ReturnContent = ReturnContent.BOOL) -> \
 Union[str, bool, int]:
-    logging.info("Calling external command: %s", " ".join(command))
+    command_string = " ".join(command)
+    logging.info("Calling external command: %s", command_string)
 
-    args = {
-        'args': command,
-        # 'stdout': sys.stdout,
-        # 'stderr': subprocess.STDOUT,
-    }
-
-    if timeout:
-        args['timeout'] = timeout
     try:
-        result = subprocess.run(**args, check=True, capture_output=True, universal_newlines=True)
+        # result = subprocess.run(**args, check=True, capture_output=True, universal_newlines=True)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-        if output_type == ReturnContent.STDOUT:
-            return result.stdout
-        elif output_type == ReturnContent.BOOL:
-            return True
+        # Lists to capture output
+        stdout_lines = []
+        stderr_lines = []
+        # Threads for reading stdout and stderr
+        stdout_thread = threading.Thread(target=stream_output, args=(process.stdout, stdout_lines, sys.stdout))
+        stderr_thread = threading.Thread(target=stream_output, args=(process.stderr, stderr_lines, sys.stderr))
+        stdout_thread.start()
+        stderr_thread.start()
+
+        # Wait for the process to complete
+        process.wait()
+
+        # Wait for threads to complete
+        stdout_thread.join()
+        stderr_thread.join()
+
+        # success
+        return_code = process.returncode
+        if return_code == 0:
+            if output_type == ReturnContent.STDOUT:
+                stdout_output = ''.join(stdout_lines)
+                return stdout_output
+            elif output_type == ReturnContent.BOOL:
+                return True
+            else:
+                return return_code
         else:
-            return result.returncode
+            main_error = f"Executable run failed for command: {command_string}"
+            logging.error(main_error)
 
-    except FileNotFoundError:
+            # stderr output
+            if stderr_lines:
+                logging.error("Executable stderr output START\n%s", ''.join(stderr_lines))
+                logging.error("Executable stderr output END.")
+
+            # exit code
+            decoded = decode_exit_status_code(return_code)
+            if decoded:
+                logging.info('Exit status code: %d: %s (%s)', decoded[0], decoded[1], decoded[3])
+            else:
+                logging.info("Exist status code: %d", return_code)
+
+            # stdout output
+            if stdout_lines:
+                logging.error("Executable output START\n%s", ''.join(stdout_lines))
+                logging.error("Executable output END.")
+
+            # exception handling
+            if output_type == ReturnContent.BOOL:
+                return False
+            raise RuntimeError(main_error)
+    except OSError:
         logging.error("Executable %s not found. Check if the full path to the executable is in "
                       "the system PATH environment variable.", command[0])
         if output_type == ReturnContent.BOOL:
             return False
         raise
 
-    except subprocess.CalledProcessError as command_error:
-        logging.error("Executable run failed for command: %s", command_error.cmd)
-
-        # stderr output
-        if command_error.stderr:
-            logging.error("Executable stderr output START\n%s", command_error.stderr)
-            logging.error("Executable stderr output END.")
-
-        # exit code
-        decoded = decode_exit_status_code(command_error.returncode)
-        if decoded:
-            logging.info('Exit status code: %d: %s (%s)', decoded[0], decoded[1], decoded[3])
-        else:
-            logging.info("Exist status code: %d", command_error.returncode)
-
-        # stdout output
-        if command_error.output:
-            logging.error("Executable output START\n%s", command_error.output)
-            logging.error("Executable output END.")
-
-        # exception handling
-        if output_type == ReturnContent.BOOL:
-            return False
-        raise
-    except subprocess.TimeoutExpired:
-        logging.warning("Timeout expired (%d)", timeout)
-        if output_type == ReturnContent.BOOL:
-            return False
-        raise
+    # except subprocess.TimeoutExpired:
+    #     logging.warning("Timeout expired (%d)", timeout)
+    #     if output_type == ReturnContent.BOOL:
+    #         return False
+    #     raise
