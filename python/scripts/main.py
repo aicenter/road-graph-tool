@@ -56,9 +56,9 @@ def insert_area(name: str, coordinates: list):
 
 
 def contract_graph_in_area(
-        target_area_id: int, target_area_srid: int, fill_speed: bool = True
+    target_area_id: int, target_area_srid: int, fill_speed: bool = True
 ):
-    logging.info("contracting graph")
+    logging.info("Contracting graph")
     sql_query = f'call public.contract_graph_in_area({target_area_id}::smallint, {target_area_srid}::int{", FALSE" if not fill_speed else ""})'
     result = db.execute_sql(sql_query)
     logging.info(result)

@@ -44,7 +44,7 @@ def insert_area(
 
     logging.info("Inserting area '%s' into the database.", name)
 
-    sql = f"SELECT insert_area('{name}', '{geom}', {id}, '{description}')"
+    sql = f"SELECT insert_area('{name}', {geom}, {id}, '{description}')"
 
     if geom is not None:
         # would not log the geom if it is too long
@@ -52,7 +52,7 @@ def insert_area(
         # TODO: if logging.DEBUG:
         # logging.debug(f"Executing SQL query: SELECT insert_area('{name}', {geom}, {id}, '{description}')")
     else:
-        logging.info(f"Executing SQL query: SELECT insert_area('{name}', '{geom}', {id}, '{description}')")
+        logging.info(f"Executing SQL query: {sql}")
 
     ret = db.db.execute_sql_and_fetch_all_rows(sql)
     return ret[0][0]

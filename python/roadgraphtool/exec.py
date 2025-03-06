@@ -6,7 +6,7 @@ import threading
 from typing import List, Optional, Tuple, Union
 from enum import Enum
 
-signal_status_codes = {
+_signal_status_codes = {
     1: {'signal': 'SIGHUP', 'action': '3',
         'desc': 'Hangup detected on controlling terminal or death of controlling process'},
     2: {'signal': 'SIGINT', 'action': '3', 'desc': 'Interrupt from keyboard'},
@@ -28,18 +28,18 @@ class ReturnContent(Enum):
     EXIT_CODE = 3
 
 
-def decode_exit_status_code(code: int) -> Optional[Tuple[int, str, str, str]]:
+def _decode_exit_status_code(code: int) -> Optional[Tuple[int, str, str, str]]:
     os_name = platform.system()
     if os_name == 'Linux':
         code = -code
-        if code in signal_status_codes:
-            data = signal_status_codes[code]
+        if code in _signal_status_codes:
+            data = _signal_status_codes[code]
             return code, data['signal'], data['action'], data['desc']
 
     return None
 
 
-def stream_output(stream, output_list, output_stream):
+def _stream_output(stream, output_list, output_stream):
     """Read a stream line by line and store the output."""
     for line in iter(stream.readline, ''):
         output_list.append(line)  # Store the line in the output list
@@ -59,8 +59,8 @@ Union[str, bool, int]:
         stdout_lines = []
         stderr_lines = []
         # Threads for reading stdout and stderr
-        stdout_thread = threading.Thread(target=stream_output, args=(process.stdout, stdout_lines, sys.stdout))
-        stderr_thread = threading.Thread(target=stream_output, args=(process.stderr, stderr_lines, sys.stderr))
+        stdout_thread = threading.Thread(target=_stream_output, args=(process.stdout, stdout_lines, sys.stdout))
+        stderr_thread = threading.Thread(target=_stream_output, args=(process.stderr, stderr_lines, sys.stderr))
         stdout_thread.start()
         stderr_thread.start()
 
@@ -91,7 +91,7 @@ Union[str, bool, int]:
                 logging.error("Executable stderr output END.")
 
             # exit code
-            decoded = decode_exit_status_code(return_code)
+            decoded = _decode_exit_status_code(return_code)
             if decoded:
                 logging.info('Exit status code: %d: %s (%s)', decoded[0], decoded[1], decoded[3])
             else:
