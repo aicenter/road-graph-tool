@@ -38,7 +38,7 @@ BEGIN
     ELSE
         INSERT INTO areas(id, name, description, geom)
         VALUES (
-            id,
+           area_id,
             name,
             description,
             geom

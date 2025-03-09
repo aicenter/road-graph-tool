@@ -50,16 +50,20 @@ To run the tests, follow these steps:
 
 1. Install the `pgTAP` extension for your PostgreSQL database cluster according to the [pgTAP manual](./doc/pgtap.md).
 1. If you haven't already, create and initialize the database
-    1. create new database using `CREATE DATABASE <database_name>;`
-    1. copy the `config-EXAMPLE.ini` file to `config.ini` and fill in the necessary information
-    1. inititalize new database using the script `<rgt root>/python/scripts/install_db.py`. 
-        - this script will install all necessary extensions and create all necessary tables, procedures, and functions.
-        - the configuration for the database is loaded from the `config.ini` file.
-4. Execute the tests by running the following query in your PostgreSQL console:
+1. Install the `pgTAP` extension in the database by running the following command in your PostgreSQL console:
+    ```sql
+    CREATE EXTENSION pgtap WITH SCHEMA public;
+    ```
+1. Execute the tests by running the following query in your PostgreSQL console:
     ```sql
     SELECT * FROM run_all_tests();
     ```
     - This query will return a result set containing the execution status of each test.
+
+To run just a selection of tests, use the following query:
+```sql
+SELECT * FROM mob_group_runtests('_insert_area_.*');
+```
 
 
 # Filtration of the input data
