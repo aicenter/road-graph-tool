@@ -2,9 +2,9 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 
 -- Mobility group runtests(): alternative for pgTap.runtests()
 
-CREATE OR REPLACE FUNCTION findfuncs_recursive(name, text, text) RETURNS text[]
-    LANGUAGE plpgsql
-AS
+CREATE OR REPLACE FUNCTION findfuncs_recursive(schema_name name, pattern text, exclude_pattern text) returns text[]
+    language plpgsql
+as
 $$
 DECLARE
     excluded_patterns TEXT[];
@@ -20,42 +20,42 @@ BEGIN
     -- ['^startup_get_ways_in_target_area_no_target_area$', '^startup_get_ways_in_target_area_no_target$', '^startup_get_ways_in_target_area_no$',
     -- '^startup_get_ways_in_target_area$', '^startup_get_ways_in_target$', '^startup_get_ways_in$', '^startup_get_ways$', '^startup_get$']
     -- Split the pattern by underscores
-    split_pattern := string_to_array($2, '_');
+    split_pattern := string_to_array(pattern, '_');
 
     -- get all functions that match the pattern
     -- Loop through the split pattern
     FOR i IN 2..array_length(split_pattern, 1)
-    LOOP
-        -- Create a new pattern by joining the split pattern with underscores
-        new_pattern := array_to_string(split_pattern[1:i], '_');
-
-        -- Add a caret at the start and a dollar sign at the end of the new pattern
-        new_pattern := new_pattern || '$';
-
-        -- Get all functions that match the new pattern
-        FOR funcs_sub IN
-            SELECT CASE WHEN $1 IS NULL THEN findfuncs(new_pattern) ELSE findfuncs($1, new_pattern) END -- if schema_name is NULL, then search in all schemas
         LOOP
-            -- Add the found funcs to the funcs array
-            funcs := funcs || funcs_sub;
+            -- Create a new pattern by joining the split pattern with underscores
+            new_pattern := array_to_string(split_pattern[1:i], '_');
+
+            -- Add a caret at the start and a dollar sign at the end of the new pattern
+            new_pattern := new_pattern || '$';
+
+            -- Get all functions that match the new pattern
+            FOR funcs_sub IN
+                SELECT CASE WHEN schema_name IS NULL THEN findfuncs(new_pattern) ELSE findfuncs(schema_name, new_pattern) END -- if schema_name is NULL, then search in all schemas
+                LOOP
+                    -- Add the found funcs to the funcs array
+                    funcs := funcs || funcs_sub;
+                END LOOP;
         END LOOP;
-    END LOOP;
 
     -- Now we need to exclude functions that match the exclusion pattern
-    IF $3 IS NOT NULL THEN
+    IF exclude_pattern IS NOT NULL THEN
         -- parse exclusion_pattern into excluded_patterns
-        excluded_patterns := string_to_array(substring($3, 3, length($3) - 3), '|');
+        excluded_patterns := string_to_array(substring(exclude_pattern, 3, length(exclude_pattern) - 3), '|');
         -- Get all functions that match the exclusion pattern
         FOR i IN 1..array_length(excluded_patterns, 1)
-        LOOP
-            -- Get all functions that match the exclusion pattern
-            FOR excluded_funcs IN
-                SELECT * FROM findfuncs_recursive($1, '^' || excluded_patterns[i])
             LOOP
-                -- Add the found funcs to the excluded_funcs array
-                excluded_funcs := excluded_funcs || excluded_funcs;
+                -- Get all functions that match the exclusion pattern
+                FOR excluded_funcs IN
+                    SELECT * FROM findfuncs_recursive(schema_name, '^' || excluded_patterns[i])
+                    LOOP
+                        -- Add the found funcs to the excluded_funcs array
+                        excluded_funcs := excluded_funcs || excluded_funcs;
+                    END LOOP;
             END LOOP;
-        END LOOP;
     END IF;
 
     -- Remove the excluded functions from the funcs array
@@ -66,31 +66,31 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION findfuncs_recursive(name, text) RETURNS text[]
+CREATE OR REPLACE FUNCTION findfuncs_recursive(schema_name name, pattern text) RETURNS text[]
     LANGUAGE plpgsql
 AS
 $$
     BEGIN
-    RETURN findfuncs_recursive($1, $2, NULL);
+    RETURN findfuncs_recursive(schema_name, pattern, NULL);
     END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION findfuncs_recursive(text, text) RETURNS text[]
+CREATE OR REPLACE FUNCTION findfuncs_recursive(pattern text, exclude_pattern text) RETURNS text[]
     LANGUAGE plpgsql
 AS
 $$
 BEGIN
-    RETURN findfuncs_recursive(NULL, $1, $2);
+    RETURN findfuncs_recursive(NULL, pattern, exclude_pattern);
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION findfuncs_recursive(text) RETURNS text[]
+CREATE OR REPLACE FUNCTION findfuncs_recursive(pattern text) RETURNS text[]
     LANGUAGE plpgsql
 AS
 $$
     BEGIN
-    RETURN findfuncs_recursive(NULL, $1, NULL);
+    RETURN findfuncs_recursive(NULL, pattern, NULL);
     END;
 $$;
 
@@ -107,16 +107,16 @@ $$;
 --  2.3. Run alphabetically ordered teardown functions once, which match the pattern "teardown" + $2.
 -- 3. Run alphabetically ordered shutdown functions once, which match the pattern "shutdown" + $2.
 -- 4. Return the results of the tests.
-create or replace function mob_group_runtests(name, text) returns SETOF text
+create or replace function mob_group_runtests(schema_name name, filter text) returns SETOF text
     language plpgsql
 as
 $$
 DECLARE
-    startup TEXT := 'startup' || $2;
-    shutdown TEXT := 'shutdown' || $2;
-    setup TEXT := 'setup' || $2;
-    teardown TEXT := 'teardown' || $2;
-    test TEXT := 'test' || $2;
+    startup TEXT := 'startup' || filter;
+    shutdown TEXT := 'shutdown' || filter;
+    setup TEXT := 'setup' || filter;
+    teardown TEXT := 'teardown' || filter;
+    test TEXT := 'test' || filter;
     startup_pattern TEXT := '^' || startup;
     shutdown_pattern TEXT := '^' || shutdown;
     setup_pattern TEXT := '^' || setup;
@@ -134,11 +134,11 @@ BEGIN
     BEGIN -- begin transaction for later rollback
         FOR result_record IN
             SELECT * FROM _runner(
-                findfuncs_recursive( $1, startup_pattern ),
-                findfuncs_recursive( $1, shutdown_pattern ),
-                findfuncs_recursive( $1, setup_pattern ),
-                findfuncs_recursive( $1, teardown_pattern ),
-                findfuncs_recursive( $1, test_pattern, exclude_pattern )
+                findfuncs_recursive( schema_name, startup_pattern ),
+                findfuncs_recursive( schema_name, shutdown_pattern ),
+                findfuncs_recursive( schema_name, setup_pattern ),
+                findfuncs_recursive( schema_name, teardown_pattern ),
+                findfuncs_recursive( schema_name, test_pattern, exclude_pattern )
             )
         LOOP
             RETURN NEXT result_record;
@@ -168,7 +168,7 @@ $$;
 --  2.3. Run alphabetically ordered teardown functions once, which match the pattern "teardown" + $1.
 -- 3. Run alphabetically ordered shutdown functions once, which match the pattern "shutdown" + $1.
 -- 4. Return the results of the tests.
-create or replace function mob_group_runtests(text) returns SETOF text
+create or replace function mob_group_runtests(filter text) returns SETOF text
     language plpgsql
 as
 $$
@@ -176,7 +176,7 @@ DECLARE
     record RECORD;
 BEGIN
     FOR record IN
-        SELECT * FROM mob_group_runtests(NULL, $1)
+        SELECT * FROM mob_group_runtests(NULL, filter)
     LOOP
         RETURN NEXT record;
     END LOOP;
