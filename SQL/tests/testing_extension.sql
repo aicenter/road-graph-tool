@@ -128,29 +128,17 @@ BEGIN
     -- create testing environment:
     CALL test_env_constructor();
 
-    -- A little note about raising exception in this function, it seems that `_runner` function
-    -- does not raise an exception, instead catching it and returning it as a record, so under
-    -- this assumption we raise "successful_completion" AKA "00000" exception to rollback the transaction.
-    BEGIN -- begin transaction for later rollback
-        FOR result_record IN
-            SELECT * FROM _runner(
-                findfuncs_recursive( schema_name, startup_pattern ),
-                findfuncs_recursive( schema_name, shutdown_pattern ),
-                findfuncs_recursive( schema_name, setup_pattern ),
-                findfuncs_recursive( schema_name, teardown_pattern ),
-                findfuncs_recursive( schema_name, test_pattern, exclude_pattern )
-            )
-        LOOP
-            RETURN NEXT result_record;
-        END LOOP;
-
-        -- Raise the exception
-        RAISE EXCEPTION '__TAP_ROLLBACK__' USING ERRCODE = '00000';
-    EXCEPTION
-        WHEN SQLSTATE '00000' THEN
-            -- Catch the exception to prevent it from propagating
-            NULL; -- Do nothing
-    END;
+    FOR result_record IN
+        SELECT * FROM _runner(
+            findfuncs_recursive( schema_name, startup_pattern ),
+            findfuncs_recursive( schema_name, shutdown_pattern ),
+            findfuncs_recursive( schema_name, setup_pattern ),
+            findfuncs_recursive( schema_name, teardown_pattern ),
+            findfuncs_recursive( schema_name, test_pattern, exclude_pattern )
+        )
+    LOOP
+        RETURN NEXT result_record;
+    END LOOP;
 
     -- destroy testing environment:
     CALL test_env_destructor();

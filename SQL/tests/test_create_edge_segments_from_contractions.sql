@@ -1,4 +1,5 @@
-CREATE OR REPLACE PROCEDURE startup_create_edge_segments_from_contractions()
+CREATE OR REPLACE FUNCTION startup_create_edge_segments_from_contractions()
+    RETURNS VOID
     LANGUAGE plpgsql
 AS $$
 BEGIN
@@ -67,7 +68,7 @@ BEGIN
        'Edge segment for road 2 is correct.'
    );
 
-    DISCARD TEMP;
+--     DISCARD TEMP;
 
 END;
 $$ LANGUAGE plpgsql;
