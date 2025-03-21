@@ -303,4 +303,13 @@ The **edges** file contains:
 - `speed`: the speed on the edge in km/h.
 
 
+# Development Guide
 
+## Tests
+To create a new test, just create a test function in the appropriate test file in the `tests` directory. Tests should be named `test_<function_name>_<test_description>`.
+
+To each test, you can create a setup and teardown fixture. These fixtures are named `setup_<test_name>` and `teardown_<test_name>`.
+
+If you need to crete a test for a function or procedure that is not covered by the existing test files, create a new test file in the `tests` directory. The test file should be named `test_<function_name>.sql`.
+
+For each test file, you can create a setup and teardown fixture. These fixtures are named `setup_<function_name>` and `teardown_<function_name>`.
