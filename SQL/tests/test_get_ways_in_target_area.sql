@@ -24,9 +24,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- function: get_ways_in_target_area()
--- startup function
-CREATE OR REPLACE FUNCTION startup_get_ways_in_target_area()
-RETURNS VOID AS $$
+-- setup function
+CREATE OR REPLACE FUNCTION startup_get_ways_in_target_area() RETURNS VOID AS $$
 BEGIN
     RAISE NOTICE 'execution of startup_get_ways_in_target_area() started';
     -- add area
@@ -37,7 +36,12 @@ BEGIN
     INSERT INTO nodes(id, area, geom) VALUES
     (1, 1652, ST_GeomFromText('POINT(0.5 0.5)', 4326)),
     (2, 1652, ST_GeomFromText('POINT(1 1)', 4326));
+END;
+$$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION prepare_test_area_with_non_intersecting_ways() RETURNS VOID AS $$
+BEGIN
+    RAISE NOTICE 'Preparing test area with non-intersecting ways';
     -- add ways, which do not intersect with the area
     INSERT INTO ways(id, tags, geom, area, "from", "to", oneway) VALUES
     (1, 'tiger:zip_left => 08330', ST_GeomFromText('LINESTRING(2 2, 2 3)', 4326), 1652, 1, 2, false),
@@ -47,9 +51,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 1st case: no records on return, when there is no target_area
--- setup
-CREATE OR REPLACE FUNCTION setup_get_ways_in_target_area_no_target_area()
-RETURNS SETOF TEXT AS $$
+CREATE OR REPLACE FUNCTION prepare_test_area_no_target_area() RETURNS VOID AS $$
 BEGIN
     RAISE NOTICE 'execution of setup_get_ways_in_target_area_no_target_area() started';
     INSERT INTO areas(id, name, description, geom)
@@ -57,10 +59,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION test_get_ways_in_target_area_no_target_area()
-RETURNS SETOF TEXT AS $$
+CREATE OR REPLACE FUNCTION test_get_ways_in_target_area_no_target_area() RETURNS SETOF TEXT AS $$
 BEGIN
     RAISE NOTICE 'execution of test_get_ways_in_target_area_no_target_area() started';
+    
+    -- Setup test data
+    PERFORM prepare_test_area_no_target_area();
+
     -- check that there is no area named 'test_area'
     IF EXISTS (SELECT * FROM areas WHERE id = 52) THEN
         RETURN NEXT fail('area test_area was not deleted');
@@ -74,28 +79,34 @@ BEGIN
     ELSE
         RETURN NEXT pass('function get_ways_in_target_area() returned no records when requested area does not exist');
     END IF;
-END
+END;
 $$ LANGUAGE plpgsql;
 
 -- 2nd case: no records on return, when there is no ways intersecting target_area
--- test
-CREATE OR REPLACE FUNCTION test_get_ways_in_target_area_no_ways_intersecting_target_area()
-RETURNS SETOF TEXT AS $$
+CREATE OR REPLACE FUNCTION test_get_ways_in_target_area_no_ways_intersecting_target_area() RETURNS SETOF TEXT AS $$
+DECLARE
+    items RECORD;
 BEGIN
     RAISE NOTICE 'execution of test_get_ways_in_target_area_no_ways_intersecting_target_area() started';
+    
+    -- Setup test data
+    PERFORM prepare_test_area_with_non_intersecting_ways();
+
     -- check that function returns no records when there are no ways intersecting target area
     IF EXISTS (SELECT * FROM get_ways_in_target_area(1652::smallint)) THEN
+        RAISE NOTICE 'Intersecting ways found';
+        FOR items IN SELECT * FROM get_ways_in_target_area(1652::smallint) LOOP
+            RAISE NOTICE 'Selected way: id1: %, geom: %', items.id, items.geom;
+        END LOOP;
         RETURN NEXT fail('function get_ways_in_target_area() returned records when there are no ways intersecting target area');
     ELSE
         RETURN NEXT pass('function get_ways_in_target_area() returned no records when there are no ways intersecting target area');
     END IF;
-END
+END;
 $$ LANGUAGE plpgsql;
 
 -- 3rd case: records on return, when there are ways intersecting target_area
--- setup function
-CREATE OR REPLACE FUNCTION setup_get_ways_in_target_area_ways_intersecting_target_area()
-RETURNS SETOF TEXT AS $$
+CREATE OR REPLACE FUNCTION prepare_test_area_with_intersecting_ways() RETURNS VOID AS $$
 BEGIN
     RAISE NOTICE 'execution of setup_get_ways_in_target_area_ways_intersecting_target_area() started';
     -- add ways, which intersect with the area
@@ -106,15 +117,42 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- test
-CREATE OR REPLACE FUNCTION test_get_ways_in_target_area_ways_intersecting_target_area()
-RETURNS SETOF TEXT AS $$
+CREATE OR REPLACE FUNCTION test_get_ways_in_target_area_ways_intersecting_target_area() RETURNS SETOF TEXT AS $$
 BEGIN
     RAISE NOTICE 'execution of test_get_ways_in_target_area_ways_intersecting_target_area() started';
+    
+    -- Setup test data
+    PERFORM prepare_test_area_with_intersecting_ways();
 
     RETURN NEXT set_eq('SELECT * FROM get_ways_in_target_area(1652::smallint)', 'SELECT * FROM ways WHERE id IN (4, 5, 6)',
         'function get_ways_in_target_area() returned correct records');
 END
+$$ LANGUAGE plpgsql;
+
+-- 4th case: exception when target area has NULL geometry
+CREATE OR REPLACE FUNCTION prepare_test_area_with_null_geometry() RETURNS VOID AS $$
+BEGIN
+    RAISE NOTICE 'Preparing test area with NULL geometry';
+    -- add area with NULL geometry
+    INSERT INTO areas(id, name, description, geom)
+    VALUES (1653, 'null_geom_area', 'area with NULL geometry', NULL);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_get_ways_in_target_area_null_geometry() RETURNS SETOF TEXT AS $$
+BEGIN
+    RAISE NOTICE '--- test_get_ways_in_target_area_null_geometry ---';
+    
+    -- Setup test data
+    PERFORM prepare_test_area_with_null_geometry();
+
+    -- Verify that the function raises an exception
+    RETURN NEXT throws_ok(
+        'SELECT * FROM get_ways_in_target_area(1653::smallint)',
+        'The target area with id 1653 has a NULL geometry',
+        'Function raises exception when target area has NULL geometry'
+    );
+END;
 $$ LANGUAGE plpgsql;
 
 -- tests that shouldn't be executed in any mob_group_runtests() as they are not mentioned in any mob_group_runtests() call
@@ -164,8 +202,10 @@ BEGIN
     UNION ALL
     SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_ways_intersecting_target_area')
     UNION ALL
-    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area');
-    END;
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_null_geometry');
+END;
 $$ LANGUAGE plpgsql;
 
 -- DROP FUNCTION IF EXISTS run_all_tests();
