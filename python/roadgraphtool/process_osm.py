@@ -208,14 +208,15 @@ def import_osm_to_db(config) -> int:
         resources_path = "roadgraphtool.resources"
         style_file_path = Path(__file__).resolve().parent.parent.parent / f"lua_styles/{config.importer.style_file}.lua"
     try:
-
         create_schema(config.importer.schema)
         add_postgis_extension(config.importer.schema)
 
         # importing to database
+        logging.info("Importing OSM data to database")
         run_osm2pgsql_cmd(config, style_file_path)
 
         # postprocessing
+        logging.info("Post-processing OSM data in database")
         area_id = postprocess_osm_import(config)
         return area_id
         # postprocess_osm_import(config)

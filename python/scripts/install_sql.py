@@ -2,9 +2,8 @@ import logging
 from pathlib import Path
 import sys
 
-from roadgraphtool.config import parse_config_file
-import roadgraphtool.log
-from roadgraphtool.db import db
+from roadgraphtool.config import parse_config_file, set_logging
+from roadgraphtool.db import db, init_db
 
 args = sys.argv
 if len(args) < 2:
@@ -12,12 +11,12 @@ if len(args) < 2:
     exit(-1)
 
 config = parse_config_file(Path(args[1]))
-roadgraphtool.db.init_db(config)
+init_db(config)
+set_logging(config)
 
 db_name = db.db_name
 sql_dir = Path(__file__).parent.parent.parent / "SQL"
 
-roadgraphtool.db.init_db(config)
 import_schema = config.importer.schema
 SCHEMA = config.schema
 
@@ -101,3 +100,29 @@ test_dir = sql_dir / "tests"
 logging.info("Importing test functions from %s", test_dir)
 for sql_test_file in test_dir.rglob("*.sql"):
     execute_sql_file(sql_test_file, SCHEMA, multistatement=True)
+
+def upload_graphml_to_db(graph_name: str, content: str):
+    """Upload a single GraphML file to the test_graphs table."""
+    sql = f"""
+    INSERT INTO test_graphs (name, content)
+    VALUES ('{graph_name}', '{content}'::xml)
+    ON CONFLICT (name) DO UPDATE 
+    SET content = EXCLUDED.content;
+    """
+    db.execute_sql(sql)
+
+def upload_test_graphs():
+    """Find all GraphML files in the data directory and upload them to the database."""
+    data_dir = sql_dir / "tests" / "data"
+    logging.info("Uploading test graphs from %s", data_dir)
+    
+    for graphml_file in data_dir.rglob("*.graphml"):
+        graph_name = graphml_file.stem
+        logging.info("Uploading graph: %s", graph_name)
+        
+        with graphml_file.open() as f:
+            content = f.read()
+            upload_graphml_to_db(graph_name, content)
+
+# Upload test graphs at the end
+upload_test_graphs()
