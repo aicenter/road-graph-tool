@@ -1,6 +1,21 @@
 -- Test suite for get_restricted_nodes function
 -- Test case 1: Simple graph with three nodes where n0 and n2 should be restricted
 
+-- Startup function to create required tables
+CREATE OR REPLACE FUNCTION startup_get_restricted_nodes() RETURNS VOID AS $$
+BEGIN
+    RAISE NOTICE 'execution of startup_get_restricted_nodes() started';
+    
+    -- Create temporary tables if they don't exist
+    CREATE TABLE IF NOT EXISTS road_segments (
+        from_node bigint NOT NULL,
+        to_node bigint NOT NULL,
+        PRIMARY KEY (from_node, to_node)
+    );
+    
+END;
+$$ LANGUAGE plpgsql;
+
 -- Test function for the first case
 CREATE OR REPLACE FUNCTION test_get_restricted_nodes_three_node_chain() RETURNS SETOF TEXT AS $$
 DECLARE
@@ -39,4 +54,5 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Example of running tests:
+-- SELECT * FROM mob_group_runtests('_get_restricted_nodes$'); -- runs only startup
 -- SELECT * FROM mob_group_runtests('_get_restricted_nodes_three_node_chain'); -- runs the test 
