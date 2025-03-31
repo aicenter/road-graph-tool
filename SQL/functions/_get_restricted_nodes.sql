@@ -12,7 +12,7 @@ BEGIN
         FROM nodes
             LEFT JOIN (
             -- case A: one ways to contract
-            SELECT max(nodes.id)
+            SELECT max(nodes.id) AS contract_node_id
             FROM nodes
                 JOIN road_segments
                      ON nodes.id = road_segments.from_node -- fileter nodes with from edges
@@ -36,8 +36,8 @@ BEGIN
                AND count(DISTINCT to_road_segments.from_node) = 2
                AND count(DISTINCT neighbour_nodes.id) = 2
         ) AS contract_nodes
-                      ON nodes.id = contract_nodes.id
-        WHERE contract_nodes.id IS NULL
+                      ON nodes.id = contract_node_id
+        WHERE contract_node_id IS NULL
     );
 
     RETURN restricted_nodes;
