@@ -88,8 +88,7 @@ BEGIN
         VALUES (
             edge_record.source_label::bigint,
             edge_record.target_label::bigint
-        )
-        ON CONFLICT DO NOTHING;
+        );
     END LOOP;
 END;
 $$; 

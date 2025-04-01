@@ -9,10 +9,9 @@ BEGIN
     RAISE NOTICE 'execution of startup_get_restricted_nodes() started';
     
     -- Create temporary tables if they don't exist
-    CREATE TABLE IF NOT EXISTS road_segments (
+    CREATE TEMPORARY TABLE IF NOT EXISTS road_segments (
         from_node bigint NOT NULL,
-        to_node bigint NOT NULL,
-        PRIMARY KEY (from_node, to_node)
+        to_node bigint NOT NULL
     );
     
 END;
@@ -100,6 +99,74 @@ BEGIN
     RETURN QUERY SELECT * FROM validate_restricted_nodes(restricted_nodes, expected_nodes, 'Three restricted nodes test');
 END;
 $$ LANGUAGE plpgsql;
+
+-- Test function for the third case
+CREATE OR REPLACE FUNCTION test_get_restricted_nodes_single_bidirectional_contraction()
+    RETURNS SETOF TEXT
+    LANGUAGE plpgsql
+AS $$
+DECLARE
+    restricted_nodes bigint[];
+    expected_nodes bigint[] := ARRAY[1, 3]; -- nodes 1, 2, and 3 should be restricted
+BEGIN
+    RAISE NOTICE 'execution of test_get_restricted_nodes_three_restricted_nodes() started';
+
+    -- Setup test data
+    PERFORM load_graphml_to_road_segments('single_bidirectional_contraction');
+
+    -- Get restricted nodes
+    restricted_nodes := get_restricted_nodes();
+
+    -- Validate results
+    RETURN QUERY SELECT * FROM validate_restricted_nodes(restricted_nodes, expected_nodes, 'Three restricted nodes test');
+END;
+$$;
+
+-- Test function for the third case
+CREATE OR REPLACE FUNCTION test_get_restricted_nodes_bidirectional_and_par_edge()
+    RETURNS SETOF TEXT
+    LANGUAGE plpgsql
+AS $$
+DECLARE
+    restricted_nodes bigint[];
+    expected_nodes bigint[] := ARRAY[1, 2, 3]; -- nodes 1, 2, and 3 should be restricted
+BEGIN
+    RAISE NOTICE 'execution of test_get_restricted_nodes_three_restricted_nodes() started';
+
+    -- Setup test data
+    PERFORM load_graphml_to_road_segments('single_bidirectional_contraction_and_parallel_edge');
+
+    -- Get restricted nodes
+    restricted_nodes := get_restricted_nodes();
+
+    -- Validate results
+    RETURN QUERY SELECT * FROM validate_restricted_nodes(restricted_nodes, expected_nodes, 'Three restricted nodes test');
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION test_get_restricted_nodes_single_bidirectional_to_parallel_edge()
+    RETURNS SETOF TEXT
+    LANGUAGE plpgsql
+AS $$
+DECLARE
+    restricted_nodes bigint[];
+    expected_nodes bigint[] := ARRAY[1, 2, 3]; -- nodes 1, 2, and 3 should be restricted
+BEGIN
+    RAISE NOTICE 'execution of test_get_restricted_nodes_three_restricted_nodes() started';
+
+    -- Setup test data
+    PERFORM load_graphml_to_road_segments('single_bidirectional_to_parallel_edge');
+
+    -- Get restricted nodes
+    restricted_nodes := get_restricted_nodes();
+
+    -- Validate results
+    RETURN QUERY SELECT * FROM validate_restricted_nodes(restricted_nodes, expected_nodes, 'Three restricted nodes test');
+END;
+$$;
+
+
 
 -- Example of running tests:
 -- SELECT * FROM mob_group_runtests('_get_restricted_nodes$'); -- runs only startup
