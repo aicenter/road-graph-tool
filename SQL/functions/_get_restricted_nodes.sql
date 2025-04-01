@@ -18,8 +18,8 @@ BEGIN
                      ON nodes.id = road_segments.from_node -- fileter nodes with from edges
                 JOIN road_segments AS to_road_segments ON nodes.id = to_road_segments.to_node -- filter nodes with to edges
             GROUP BY nodes.id
-            HAVING count(DISTINCT road_segments.to_node) = 1
-               AND count(DISTINCT to_road_segments.from_node) = 1
+            HAVING count(road_segments.to_node) = 1
+               AND count(to_road_segments.from_node) = 1
                AND max(road_segments.to_node) != max(to_road_segments.from_node)
             UNION
             -- case B: two ways to contract

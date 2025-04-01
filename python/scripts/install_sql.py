@@ -102,14 +102,16 @@ for sql_test_file in test_dir.rglob("*.sql"):
     execute_sql_file(sql_test_file, SCHEMA, multistatement=True)
 
 def upload_graphml_to_db(graph_name: str, content: str):
+
+
     """Upload a single GraphML file to the test_graphs table."""
-    sql = f"""
+    sql = """
     INSERT INTO test_graphs (name, content)
-    VALUES ('{graph_name}', '{content}'::xml)
+    VALUES (:graph_name, :xml_content)
     ON CONFLICT (name) DO UPDATE 
     SET content = EXCLUDED.content;
     """
-    db.execute_sql(sql)
+    db.execute_sql(sql, {"graph_name": graph_name, "xml_content": content})
 
 def upload_test_graphs():
     """Find all GraphML files in the data directory and upload them to the database."""

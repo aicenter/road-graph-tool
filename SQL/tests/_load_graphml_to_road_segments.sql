@@ -19,6 +19,29 @@ BEGIN
     END IF;
 
 --     RAISE NOTICE 'XML content: %', xml_data;
+    -- create nodes
+    FOR node_record IN
+        SELECT id, label
+        FROM XMLTABLE(
+            XMLNAMESPACES(
+                'http://graphml.graphdrawing.org/xmlns' AS dns,
+                'http://www.yworks.com/xml/yfiles-common/3.0' AS y,
+                'http://www.yworks.com/xml/yfiles-common/markup/3.0' AS x
+            ),
+            '//dns:node' PASSING xml_data
+            COLUMNS
+                id text PATH '@id',
+                label text PATH './/dns:data/x:List/y:Label/@Text'
+        ) AS nodes
+    LOOP
+        RAISE NOTICE 'Loaded node: %', node_record.label;
+        INSERT INTO nodes (id, geom)
+        VALUES (
+            node_record.label::bigint,
+            ST_MakePoint(0, 0)
+        )
+        ON CONFLICT DO NOTHING;
+    END LOOP;
 
     -- create road segments from edges
     FOR edge_record IN
@@ -30,7 +53,7 @@ BEGIN
                 XMLNAMESPACES('http://graphml.graphdrawing.org/xmlns' AS dns,
                     'http://www.yworks.com/xml/yfiles-common/3.0' AS y
                     ),
-                '//dns:edge' PASSING (SELECT * FROM xml_data)
+                '//dns:edge' PASSING xml_data
                 COLUMNS
                     source text PATH '@source',
                     target text PATH '@target'
@@ -41,7 +64,7 @@ BEGIN
                     'http://www.yworks.com/xml/yfiles-common/3.0' AS y,
                     'http://www.yworks.com/xml/yfiles-common/markup/3.0' AS x
                     ),
-                '//dns:node' PASSING (SELECT * FROM xml_data)
+                '//dns:node' PASSING xml_data
                 COLUMNS
                     id text PATH '@id',
                     label text PATH './/dns:data/x:List/y:Label/@Text'
@@ -53,7 +76,7 @@ BEGIN
                     'http://www.yworks.com/xml/yfiles-common/3.0' AS y,
                     'http://www.yworks.com/xml/yfiles-common/markup/3.0' AS x
                     ),
-                '//dns:node' PASSING (SELECT * FROM xml_data)
+                '//dns:node' PASSING xml_data
                 COLUMNS
                     id text PATH '@id',
                     label text PATH './/dns:data/x:List/y:Label/@Text'
@@ -63,8 +86,8 @@ BEGIN
         RAISE NOTICE 'Loaded edge: % -> %', edge_record.source_label, edge_record.target_label;
         INSERT INTO road_segments (from_node, to_node)
         VALUES (
-            source_label::bigint,
-            target_label::bigint
+            edge_record.source_label::bigint,
+            edge_record.target_label::bigint
         )
         ON CONFLICT DO NOTHING;
     END LOOP;
