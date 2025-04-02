@@ -1,28 +1,32 @@
-CREATE OR REPLACE PROCEDURE contract_graph_in_area(IN target_area_id smallint, IN target_area_srid integer, IN fill_speed boolean DEFAULT TRUE)
-LANGUAGE plpgsql
+CREATE OR REPLACE PROCEDURE contract_graph_in_area(
+    IN target_area_id smallint, IN target_area_srid integer, IN fill_speed boolean DEFAULT TRUE
+)
+    LANGUAGE plpgsql
 AS $$
 DECLARE
     non_contracted_edges_count integer;
+    restricted_nodes bigint[];
 BEGIN
+
 -- road segments table
 RAISE NOTICE 'Creating road segments table';
 IF fill_speed THEN
 CREATE TEMPORARY TABLE road_segments AS (
-	    SELECT
-        from_id,
-        to_id,
-        from_node,
-        to_node,
-        from_position,
-        to_position,
-        way_id,
-        geom,
-        nodes_ways_speeds.speed AS speed,
-        nodes_ways_speeds.quality AS quality
-        FROM select_node_segments_in_area(target_area_id, target_area_srid)
-            JOIN nodes_ways_speeds ON
-                from_id = nodes_ways_speeds.from_node_ways_id
-                AND to_id = nodes_ways_speeds.to_node_ways_id
+    SELECT
+    from_id,
+    to_id,
+    from_node,
+    to_node,
+    from_position,
+    to_position,
+    way_id,
+    geom,
+    nodes_ways_speeds.speed AS speed,
+    nodes_ways_speeds.quality AS quality
+    FROM select_node_segments_in_area(target_area_id, target_area_srid)
+        JOIN nodes_ways_speeds ON
+            from_id = nodes_ways_speeds.from_node_ways_id
+            AND to_id = nodes_ways_speeds.to_node_ways_id
 );
 ELSE
     CREATE TEMPORARY TABLE road_segments AS (
@@ -33,22 +37,12 @@ end if;
 CREATE INDEX road_segments_index_from_to ON road_segments (from_id, to_id);
 RAISE NOTICE 'Road segments table created: % road segments', (SELECT count(*) FROM road_segments);
 
-RAISE NOTICE 'Contracting graph';
-CREATE TEMPORARY TABLE contractions AS (
-	SELECT
-	    id,
-		source,
-		target,
-		unnest(contracted_vertices) AS contracted_vertex
-		FROM
-			pgr_contraction(
-				'SELECT row_number() OVER () AS id, "from_node" AS source, "to_node" AS target, 0 AS cost FROM road_segments',
-				ARRAY [2]
-			)
-);
-CREATE INDEX contractions_index_contracted_vertex ON contractions (contracted_vertex);
-CREATE INDEX contractions_index_from_to ON contractions (source, target);
-RAISE NOTICE '% nodes contracted', (SELECT count(*) FROM contractions);
+-- get restricted nodes
+RAISE NOTICE 'Computing restricted nodes';
+restricted_nodes = get_restricted_nodes();
+
+-- contraction
+CALL contract_graph(restricted_nodes);
 
 -- update nodes
 RAISE NOTICE 'Updating nodes';
@@ -91,75 +85,7 @@ non_contracted_edges_count := (SELECT count(*) FROM edges WHERE area = target_ar
 RAISE NOTICE '% Edges for non-contracted road segments created', non_contracted_edges_count;
 
 -- contraction segments generation
-RAISE NOTICE 'Generating contraction segments';
-IF fill_speed THEN
-CREATE TEMPORARY TABLE contraction_segments AS (
-SELECT
-    from_contraction.id,
-	from_contraction.contracted_vertex AS from_node,
-	to_contraction.contracted_vertex AS to_node,
-	geom,
-	speed
-FROM
-    contractions from_contraction
-	JOIN contractions to_contraction
-	    ON from_contraction.id = to_contraction.id
-	JOIN road_segments
-	    ON road_segments.from_node = from_contraction.contracted_vertex
-		AND road_segments.to_node = to_contraction.contracted_vertex
-UNION
-SELECT
-    id,
-    source AS from_node,
-    contracted_vertex AS to_node,
-	geom,
-	speed
-FROM contractions
-	JOIN road_segments ON road_segments.from_node = source AND road_segments.to_node = contracted_vertex
-UNION
-SELECT
-    id,
-    contracted_vertex AS from_node,
-    target AS to_node,
-	geom,
-	speed
-FROM contractions
-	JOIN road_segments ON road_segments.from_node = contracted_vertex AND road_segments.to_node = target
-);
-ELSE
-CREATE TEMPORARY TABLE contraction_segments AS (
-    SELECT
-        from_contraction.id,
-        from_contraction.contracted_vertex AS from_node,
-        to_contraction.contracted_vertex AS to_node,
-        geom
-    FROM
-        contractions from_contraction
-            JOIN contractions to_contraction
-                 ON from_contraction.id = to_contraction.id
-            JOIN road_segments
-                 ON road_segments.from_node = from_contraction.contracted_vertex
-                     AND road_segments.to_node = to_contraction.contracted_vertex
-    UNION
-    SELECT
-        id,
-        source AS from_node,
-        contracted_vertex AS to_node,
-        geom
-    FROM contractions
-             JOIN road_segments ON road_segments.from_node = source AND road_segments.to_node = contracted_vertex
-    UNION
-    SELECT
-        id,
-        contracted_vertex AS from_node,
-        target AS to_node,
-        geom
-    FROM contractions
-             JOIN road_segments ON road_segments.from_node = contracted_vertex AND road_segments.to_node = target
-);
-END IF;
-
-RAISE NOTICE '% contraction segments generated', (SELECT count(*) FROM contraction_segments);
+CALL create_edge_segments_from_contractions(fill_speed);
 
 -- edges for contracted road segments
 RAISE NOTICE 'Creating edges for contracted road segments';

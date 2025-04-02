@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE create_edge_segments_from_contractions(IN fill_speed boolean DEFAULT TRUE)
+CREATE OR REPLACE PROCEDURE create_edge_segments_from_contractions(IN fill_speed boolean DEFAULT FALSE)
     LANGUAGE plpgsql
 AS $$
 BEGIN
