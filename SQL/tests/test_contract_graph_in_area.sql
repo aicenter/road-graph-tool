@@ -66,6 +66,82 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Test function for the second case (no contraction expected)
+CREATE OR REPLACE FUNCTION test_contract_graph_in_area_no_contraction() RETURNS SETOF TEXT AS $$
+DECLARE
+    expected_contracted_nodes bigint[] := ARRAY[]::bigint[]; -- No nodes should be contracted
+BEGIN
+    RAISE NOTICE 'execution of test_contract_graph_in_area_no_contraction() started';
+    
+    -- Setup test data
+    PERFORM load_graphml_to_nodes_edges('test_2');
+    
+    -- Perform contraction
+    CALL contract_graph_in_area(9999::smallint, 4326);
+
+    -- Validate results
+    RETURN QUERY SELECT * FROM validate_contracted_nodes(expected_contracted_nodes, 'No contraction test');
+END;
+$$ LANGUAGE plpgsql;
+
+-- Test function for the third case (no contraction expected)
+CREATE OR REPLACE FUNCTION test_contract_graph_in_area_test_3() RETURNS SETOF TEXT AS $$
+DECLARE
+    expected_contracted_nodes bigint[] := ARRAY[]::bigint[]; -- No nodes should be contracted
+BEGIN
+    RAISE NOTICE 'execution of test_contract_graph_in_area_test_3() started';
+    
+    -- Setup test data
+    PERFORM load_graphml_to_nodes_edges('test_3');
+    
+    -- Perform contraction
+    CALL contract_graph_in_area(9999::smallint, 4326);
+
+    -- Validate results
+    RETURN QUERY SELECT * FROM validate_contracted_nodes(expected_contracted_nodes, 'Test 3 graph - no contraction');
+END;
+$$ LANGUAGE plpgsql;
+
+-- Test function for the fourth case (single bidirectional contraction)
+CREATE OR REPLACE FUNCTION test_contract_graph_in_area_single_bidirectional_contraction() RETURNS SETOF TEXT AS $$
+DECLARE
+    expected_contracted_nodes bigint[] := ARRAY[2]; -- Node 2 should be contracted
+BEGIN
+    RAISE NOTICE 'execution of test_contract_graph_in_area_single_bidirectional_contraction() started';
+    
+    -- Setup test data
+    PERFORM load_graphml_to_nodes_edges('single_bidirectional_contraction');
+    
+    -- Perform contraction
+    CALL contract_graph_in_area(9999::smallint, 4326);
+
+    -- Validate results
+    RETURN QUERY SELECT * FROM validate_contracted_nodes(expected_contracted_nodes, 'Single bidirectional contraction test');
+END;
+$$ LANGUAGE plpgsql;
+
+-- Test function for the fifth case (single bidirectional contraction with parallel edge, no contraction)
+CREATE OR REPLACE FUNCTION test_contract_graph_in_area_single_bidirectional_and_parallel() RETURNS SETOF TEXT AS $$
+DECLARE
+    expected_contracted_nodes bigint[] := ARRAY[]::bigint[]; -- No nodes should be contracted
+BEGIN
+    RAISE NOTICE 'execution of test_contract_graph_in_area_single_bidirectional_and_parallel() started';
+    
+    -- Setup test data
+    PERFORM load_graphml_to_nodes_edges('single_bidirectional_contraction_and_parallel_edge');
+    
+    -- Perform contraction
+    CALL contract_graph_in_area(9999::smallint, 4326);
+
+    -- Validate results
+    RETURN QUERY SELECT * FROM validate_contracted_nodes(expected_contracted_nodes, 'Single bidirectional and parallel edge test');
+END;
+$$ LANGUAGE plpgsql;
+
 -- Example of running tests:
 -- SELECT * FROM mob_group_runtests('_contract_graph_in_area$'); -- runs only startup
--- SELECT * FROM mob_group_runtests('_contract_graph_in_area_three_node_chain'); -- runs the first test 
+-- SELECT * FROM mob_group_runtests('_contract_graph_in_area_three_node_chain'); -- runs the first test
+-- SELECT * FROM mob_group_runtests('_contract_graph_in_area_no_contraction'); -- runs the second test
+-- SELECT * FROM mob_group_runtests('_contract_graph_in_area_test_3'); -- runs the third test
+-- SELECT * FROM mob_group_runtests('_contract_graph_in_area_single_bidirectional_contraction'); -- runs the fourth test
+-- SELECT * FROM mob_group_runtests('_contract_graph_in_area_single_bidirectional_and_parallel'); -- runs the fifth test 

@@ -1,5 +1,5 @@
 CREATE OR REPLACE PROCEDURE contract_graph_in_area(
-    IN target_area_id smallint, IN target_area_srid integer, IN fill_speed boolean DEFAULT TRUE
+    IN target_area_id smallint, IN target_area_srid integer, IN fill_speed boolean DEFAULT FALSE
 )
     LANGUAGE plpgsql
 AS $$

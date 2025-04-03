@@ -18,6 +18,8 @@ CREATE TEMPORARY TABLE target_ways AS
 CREATE INDEX target_ways_id_idx ON target_ways(id);
 CREATE INDEX target_ways_oneway_idx ON target_ways(oneway);
 
+RAISE NOTICE '% ways in target area', (SELECT count(*) FROM target_ways);
+
 RETURN QUERY
 SELECT
 	from_nodes_ways.id::bigint AS from_id,

@@ -12,6 +12,7 @@ BEGIN
     END IF;
 
     -- Clear existing data
+    DELETE FROM nodes_ways WHERE area = 9999;
     DELETE FROM ways WHERE area = 9999;
     DELETE FROM nodes WHERE area = 9999;
     
@@ -42,7 +43,7 @@ BEGIN
             (SELECT geom FROM nodes WHERE id = source_nodes.label::bigint),
             (SELECT geom FROM nodes WHERE id = target_nodes.label::bigint)
         )),
-        false,  -- Default to two-way
+        true,  -- Default to one-way
         9999
     FROM XMLTABLE(
         XMLNAMESPACES(
@@ -77,10 +78,30 @@ BEGIN
             id text PATH '@id',
             label text PATH './/dns:data/x:List/y:Label/@Text'
     )) AS target_nodes ON edges.target = target_nodes.id;
+
+    -- Create node-way relationships for all ways
+    INSERT INTO nodes_ways (way_id, node_id, position, area)
+    SELECT 
+        w.id,
+        w."from",
+        0::smallint,  -- First position
+        9999
+    FROM ways w
+    WHERE w.area = 9999;
+
+    INSERT INTO nodes_ways (way_id, node_id, position, area)
+    SELECT 
+        w.id,
+        w."to",
+        1::smallint,  -- Second position
+        9999
+    FROM ways w
+    WHERE w.area = 9999;
     
-    RAISE NOTICE 'Loaded graph % with % nodes and % ways', 
+    RAISE NOTICE 'Loaded graph % with % nodes, % ways, and % node-way relationships', 
         graph_name, 
         (SELECT count(*) FROM nodes WHERE area = 9999),
-        (SELECT count(*) FROM ways WHERE area = 9999);
+        (SELECT count(*) FROM ways WHERE area = 9999),
+        (SELECT count(*) FROM nodes_ways WHERE area = 9999);
 END;
 $$ LANGUAGE plpgsql; 
