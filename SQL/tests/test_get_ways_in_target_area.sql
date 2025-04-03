@@ -222,6 +222,11 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION prepare_test_area_with_graphml_ways() RETURNS VOID AS $$
 BEGIN
     RAISE NOTICE 'Preparing test area with GraphML ways';
+    -- Create the test area first
+    INSERT INTO areas(id, name, description, geom)
+    VALUES (9999, 'graphml_test_area', 'Test area for GraphML data', 
+            ST_Buffer(ST_SetSRID(ST_MakePoint(0, 0), 4326), 0.001));  -- small buffer around [0,0]
+    
     -- Load the test_1 graph into the database
     PERFORM load_graphml_to_nodes_edges('test_1');
 END;
@@ -233,6 +238,7 @@ DECLARE
     selected_count integer;
 BEGIN
     RAISE NOTICE '--- test_get_ways_in_target_area_graphml_ways ---';
+    RAISE NOTICE 'Search path: %', current_setting('search_path');
     
     -- Setup test data
     PERFORM prepare_test_area_with_graphml_ways();
@@ -278,7 +284,7 @@ BEGIN
     IF selected_count != way_count THEN
         RETURN NEXT fail(format('get_ways_in_target_area returned %s ways, expected %s', selected_count, way_count));
     ELSE
-        RETURN NEXT pass(format('get_ways_in_target_area correctly selected all % ways', way_count));
+        RETURN NEXT pass(format('get_ways_in_target_area correctly selected all %s ways', way_count));
     END IF;
 
     -- Clean up
