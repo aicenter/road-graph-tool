@@ -42,7 +42,7 @@ RAISE NOTICE 'Computing restricted nodes';
 restricted_nodes = get_restricted_nodes();
 
 -- contraction
-CALL contract_graph(restricted_nodes);
+CALL compute_contractions(restricted_nodes);
 
 -- update nodes
 RAISE NOTICE 'Updating nodes';
@@ -113,6 +113,5 @@ SELECT
 END IF;
 RAISE NOTICE '% Edges for contracted road segments created', (SELECT count(*) FROM edges WHERE area = target_area_id) - non_contracted_edges_count;
 
-DISCARD TEMPORARY;
 END
 $$

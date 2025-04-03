@@ -31,17 +31,17 @@ BEGIN
     -- add area
     INSERT INTO areas(id, name, description, geom)
     VALUES (1652, 'test_area', 'description of test_area ', ST_GeomFromText('POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))', 4326));
-
-    -- add nodes with id 1 and 2
-    INSERT INTO nodes(id, area, geom) VALUES
-    (1, 1652, ST_GeomFromText('POINT(0.5 0.5)', 4326)),
-    (2, 1652, ST_GeomFromText('POINT(1 1)', 4326));
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION prepare_test_area_with_non_intersecting_ways() RETURNS VOID AS $$
 BEGIN
     RAISE NOTICE 'Preparing test area with non-intersecting ways';
+    -- add nodes with id 1 and 2
+    INSERT INTO nodes(id, area, geom) VALUES
+    (1, 1652, ST_GeomFromText('POINT(0.5 0.5)', 4326)),
+    (2, 1652, ST_GeomFromText('POINT(1 1)', 4326));
+
     -- add ways, which do not intersect with the area
     INSERT INTO ways(id, tags, geom, area, "from", "to", oneway) VALUES
     (1, 'tiger:zip_left => 08330', ST_GeomFromText('LINESTRING(2 2, 2 3)', 4326), 1652, 1, 2, false),
@@ -109,6 +109,11 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION prepare_test_area_with_intersecting_ways() RETURNS VOID AS $$
 BEGIN
     RAISE NOTICE 'execution of setup_get_ways_in_target_area_ways_intersecting_target_area() started';
+    -- add nodes with id 1 and 2
+    INSERT INTO nodes(id, area, geom) VALUES
+    (1, 1652, ST_GeomFromText('POINT(0.5 0.5)', 4326)),
+    (2, 1652, ST_GeomFromText('POINT(1 1)', 4326));
+
     -- add ways, which intersect with the area
     INSERT INTO ways(id, tags, geom, area, "from", "to", oneway) VALUES
     (4, 'tiger:zip_left => 08330', ST_GeomFromText('LINESTRING(0.5 0.5, 1 1)', 4326), 1652, 1, 2, false),
@@ -204,9 +209,80 @@ BEGIN
     UNION ALL
     SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area')
     UNION ALL
-    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_null_geometry');
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_null_geometry')
+    UNION ALL
+    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_graphml_ways');
 END;
 $$ LANGUAGE plpgsql;
 
 -- DROP FUNCTION IF EXISTS run_all_tests();
 -- SELECT * FROM run_all_tests();
+
+-- 5th case: test loading road segments from GraphML
+CREATE OR REPLACE FUNCTION prepare_test_area_with_graphml_ways() RETURNS VOID AS $$
+BEGIN
+    RAISE NOTICE 'Preparing test area with GraphML ways';
+    -- Load the test_1 graph into the database
+    PERFORM load_graphml_to_nodes_edges('test_1');
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_get_ways_in_target_area_graphml_ways() RETURNS SETOF TEXT AS $$
+DECLARE
+    way_count integer;
+    selected_count integer;
+BEGIN
+    RAISE NOTICE '--- test_get_ways_in_target_area_graphml_ways ---';
+    
+    -- Setup test data
+    PERFORM prepare_test_area_with_graphml_ways();
+
+    -- Get the count of ways loaded from GraphML
+    SELECT COUNT(*) INTO way_count FROM ways WHERE area = 9999;
+    
+    -- Verify that ways were created
+    IF way_count = 0 THEN
+        RETURN NEXT fail('No ways were created from GraphML data');
+    ELSE
+        RETURN NEXT pass(format('Successfully created %s ways from GraphML data', way_count));
+    END IF;
+
+    -- Verify that the ways have correct geometry
+    IF EXISTS (
+        SELECT 1 FROM ways 
+        WHERE area = 9999 
+        AND geom IS NULL
+    ) THEN
+        RETURN NEXT fail('Some ways have NULL geometry');
+    ELSE
+        RETURN NEXT pass('All ways have valid geometry');
+    END IF;
+
+    -- Verify that the ways have correct from/to nodes
+    IF EXISTS (
+        SELECT 1 FROM ways w
+        WHERE area = 9999 
+        AND (
+            NOT EXISTS (SELECT 1 FROM nodes WHERE id = w."from" AND area = 9999)
+            OR NOT EXISTS (SELECT 1 FROM nodes WHERE id = w."to" AND area = 9999)
+        )
+    ) THEN
+        RETURN NEXT fail('Some ways reference non-existent nodes');
+    ELSE
+        RETURN NEXT pass('All ways reference valid nodes');
+    END IF;
+
+    -- Verify that get_ways_in_target_area selects all ways
+    SELECT COUNT(*) INTO selected_count FROM get_ways_in_target_area(9999::smallint);
+    
+    IF selected_count != way_count THEN
+        RETURN NEXT fail(format('get_ways_in_target_area returned %s ways, expected %s', selected_count, way_count));
+    ELSE
+        RETURN NEXT pass(format('get_ways_in_target_area correctly selected all % ways', way_count));
+    END IF;
+
+    -- Clean up
+    DELETE FROM ways WHERE area = 9999;
+    DELETE FROM nodes WHERE area = 9999;
+END;
+$$ LANGUAGE plpgsql;
