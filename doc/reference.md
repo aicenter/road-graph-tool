@@ -435,6 +435,7 @@ TODO update, now it is not a procedure!
 This function inserts a new area into a database table named `areas`. The area is defined by its name and a list of coordinates representing its geometry.
 
 ### Parameters
+
 - `name` (string): The name of the area being inserted.
 - `coordinates` (list): A list of coordinates representing the geometry of the area.
 

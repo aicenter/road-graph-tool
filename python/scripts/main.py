@@ -61,7 +61,7 @@ def contract_graph_in_area(
     logging.info("Contracting graph")
     sql_query = f'call public.contract_graph_in_area({target_area_id}::smallint, {target_area_srid}::int{", FALSE" if not fill_speed else ""})'
     result = db.execute_sql(sql_query)
-    logging.info(result)
+    logging.info("Graph Contracted")
 
 
 def select_network_nodes_in_area(target_area_id: int) -> list:
