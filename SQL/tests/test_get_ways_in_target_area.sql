@@ -160,21 +160,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- tests that shouldn't be executed in any mob_group_runtests() as they are not mentioned in any mob_group_runtests() call
-CREATE OR REPLACE FUNCTION startup_assign_average_speed_to_ways()
-RETURNS VOID AS $$
-BEGIN
-    RAISE NOTICE 'execution of startup_assign_average_speed_to_ways() started';
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION setup_assign_average_speed_to_ways()
-RETURNS SETOF TEXT AS $$
-BEGIN
-    RAISE NOTICE 'execution of setup_assign_average_speed_to_ways() started';
-END;
-$$ LANGUAGE plpgsql;
-
 CREATE OR REPLACE FUNCTION test_assign_average_speed_to_ways()
 RETURNS SETOF TEXT AS $$
 BEGIN

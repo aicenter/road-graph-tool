@@ -112,11 +112,11 @@ create or replace function mob_group_runtests(schema_name name, filter text) ret
 as
 $$
 DECLARE
-    startup TEXT := 'startup' || filter;
-    shutdown TEXT := 'shutdown' || filter;
-    setup TEXT := 'setup' || filter;
-    teardown TEXT := 'teardown' || filter;
-    test TEXT := 'test' || filter;
+    startup TEXT := 'startup_' || filter;
+    shutdown TEXT := 'shutdown_' || filter;
+    setup TEXT := 'setup_' || filter;
+    teardown TEXT := 'teardown_' || filter;
+    test TEXT := 'test_' || filter;
     startup_pattern TEXT := '^' || startup;
     shutdown_pattern TEXT := '^' || shutdown;
     setup_pattern TEXT := '^' || setup;

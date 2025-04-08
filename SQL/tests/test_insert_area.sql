@@ -1,6 +1,8 @@
 CREATE OR REPLACE FUNCTION startup_insert_area() RETURNS VOID AS
 $$
 BEGIN
+    RAISE NOTICE 'Executing startup_insert_area()';
+
   -- create temp table containing data for each case
   CREATE TEMP TABLE test_insert_area_data(
     name VARCHAR,
