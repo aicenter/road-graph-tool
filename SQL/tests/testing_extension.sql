@@ -95,21 +95,16 @@ $$
 $$;
 
 
--- Function: mob_group_runtests(name, text)
--- This function is used to run a group of tests.
--- Input parameters: name - the name of the schema to look for the test functions;
---                   text - the pattern to match the names of the functions to run.
--- Flow:
--- 1. Run alphabetically ordered startup functions once, which match the pattern "startup" + $2.
--- 2. Enter a loop:
---  2.1. Run alphabetically ordered setup functions once, which match the pattern "setup" + $2.
---  2.2. Run alphabetically ordered test functions once, which match the pattern $2.
---  2.3. Run alphabetically ordered teardown functions once, which match the pattern "teardown" + $2.
--- 3. Run alphabetically ordered shutdown functions once, which match the pattern "shutdown" + $2.
--- 4. Return the results of the tests.
-create or replace function mob_group_runtests(schema_name name, filter text) returns SETOF text
-    language plpgsql
-as
+-- Procedure: _internal_mob_group_runtests(name, text, OUT text[])
+-- Internal procedure to run a group of tests and collect results in an OUT parameter.
+-- This contains the core logic previously in mob_group_runtests function.
+CREATE OR REPLACE PROCEDURE _internal_mob_group_runtests(
+    IN schema_name name,
+    IN filter text,
+    INOUT results text[] DEFAULT ARRAY[]::text[]
+)
+LANGUAGE plpgsql
+AS
 $$
 DECLARE
     startup TEXT := 'startup_' || filter;
@@ -122,12 +117,13 @@ DECLARE
     setup_pattern TEXT := '^' || setup;
     test_pattern TEXT := '^' || test;
     teardown_pattern TEXT := '^' || teardown;
-    exclude_pattern TEXT := '^(' || startup || '|' || shutdown || '|' || setup || '|' || teardown || ')';
+    exclude_pattern TEXT := '^' || startup || '$'; -- Exclude only exact startup match, let recursive find handle others
     result_record RECORD;
 BEGIN
     -- create testing environment:
     CALL test_env_constructor();
 
+    -- Use a loop to collect results from _runner into the results array
     FOR result_record IN
         SELECT * FROM _runner(
             findfuncs_recursive( schema_name, startup_pattern ),
@@ -137,11 +133,29 @@ BEGIN
             findfuncs_recursive( schema_name, test_pattern, exclude_pattern )
         )
     LOOP
-        RETURN NEXT result_record;
+        results := results || result_record::text;
     END LOOP;
 
     -- destroy testing environment:
     CALL test_env_destructor();
+END;
+$$;
+
+
+-- Function: mob_group_runtests(name, text)
+-- Wrapper function that calls the internal procedure and returns results as SETOF text.
+CREATE OR REPLACE FUNCTION mob_group_runtests(schema_name name, filter text) RETURNS SETOF TEXT
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    results_array text[] := ARRAY[]::text[];
+BEGIN
+    -- Call the internal procedure to run tests and get results
+    CALL _internal_mob_group_runtests(schema_name, filter, results_array);
+
+    -- Return the results by unnesting the array
+    RETURN QUERY SELECT unnest(results_array);
 END;
 $$;
 
@@ -237,42 +251,44 @@ DECLARE
     table_name_i TEXT;
     tmp TEXT;
 BEGIN
-    -- check that given schema name is not empty and not 'public'
-    IF test_scheme_name = '' OR test_scheme_name = 'public' THEN
-        RAISE EXCEPTION 'Schema name should not be empty or "public"';
-    END IF;
-
-    -- check if schema exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
-        RAISE EXCEPTION 'Schema % does not exist, thus nothing to do', test_scheme_name;
-    END IF;
-
-    -- drop every sequence in test_scheme_name
-    FOR tmp IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = test_scheme_name)
-        LOOP
-            EXECUTE format('DROP SEQUENCE %I.%I', test_scheme_name, tmp);
-        END LOOP;
-
-    -- drop every view in test_scheme_name
-    FOR table_name_i IN (SELECT table_name FROM information_schema.views WHERE table_schema = test_scheme_name)
-        LOOP
-            EXECUTE format('DROP VIEW %I.%I', test_scheme_name, table_name_i);
-        END LOOP;
-
-    -- drop every table in test_scheme_name
-    FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = test_scheme_name)
-        LOOP
-            EXECUTE format('DROP TABLE %I.%I', test_scheme_name, table_name_i);
-        END LOOP;
-
-    -- drop routines in test_scheme_name
-    FOR table_name_i IN (SELECT routine_name FROM information_schema.routines WHERE routine_schema = test_scheme_name)
-        LOOP
-            EXECUTE format('DROP FUNCTION %I.%I', test_scheme_name, table_name_i);
-        END LOOP;
-
-    -- update search path
-    RESET search_path;
+--     -- check that given schema name is not empty and not 'public'
+--     IF test_scheme_name = '' OR test_scheme_name = 'public' THEN
+--         RAISE EXCEPTION 'Schema name should not be empty or "public"';
+--     END IF;
+--
+--     -- check if schema exists
+--     IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
+--         RAISE EXCEPTION 'Schema % does not exist, thus nothing to do', test_scheme_name;
+--     END IF;
+--
+--     -- drop every sequence in test_scheme_name
+--     FOR tmp IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = test_scheme_name)
+--         LOOP
+--             EXECUTE format('DROP SEQUENCE %I.%I', test_scheme_name, tmp);
+--         END LOOP;
+--
+--     -- drop every view in test_scheme_name
+--     FOR table_name_i IN (SELECT table_name FROM information_schema.views WHERE table_schema = test_scheme_name)
+--         LOOP
+--             EXECUTE format('DROP VIEW %I.%I', test_scheme_name, table_name_i);
+--         END LOOP;
+--
+--     -- drop every table in test_scheme_name
+--     FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = test_scheme_name)
+--         LOOP
+--             EXECUTE format('DROP TABLE %I.%I', test_scheme_name, table_name_i);
+--         END LOOP;
+--
+--     -- drop routines in test_scheme_name
+--     FOR table_name_i IN (SELECT routine_name FROM information_schema.routines WHERE routine_schema = test_scheme_name)
+--         LOOP
+--             EXECUTE format('DROP FUNCTION %I.%I', test_scheme_name, table_name_i);
+--         END LOOP;
+--
+--     -- update search path
+--     RESET search_path;
+    RAISE NOTICE 'Rolling back all changes in schema %', test_scheme_name;
+    ROLLBACK;
 END;
 $$
     LANGUAGE plpgsql;
