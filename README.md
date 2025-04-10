@@ -43,12 +43,12 @@ Additionaly, it is necessary to store some sensitive information like passwords.
 
 
 # Testing
-For testing the PostgreSQL procedures that are the core of the Road Graph Tool, we use the [pgTAP testing framework](https://github.com/theory/pgtap). To learn how to use pgTAP, see the [pgTAP manual](./doc/pgtap.md).
+For testing the PostgreSQL procedures that are the core of the Road Graph Tool, we use the [pgTAP testing framework](https://github.com/theory/pgtap). To learn how to use pgTAP, see the [pgTAP manual](https://f-i-d-o.github.io/Manuals/Programming/Database/PostgreSQL%20Manual/#testing-with-pgtap).
 
 
 To run the tests, follow these steps:
 
-1. Install the `pgTAP` extension for your PostgreSQL database cluster according to the [pgTAP manual](./doc/pgtap.md).
+1. Install the `pgTAP` extension for your PostgreSQL database cluster according to the [pgTAP manual](https://f-i-d-o.github.io/Manuals/Programming/Database/PostgreSQL%20Manual/#installation).
 1. If you haven't already, create and initialize the database
 1. Install the `pgTAP` extension in the database by running the following command in your PostgreSQL console:
     ```sql
@@ -64,6 +64,7 @@ To run just a selection of tests, use the following query:
 ```sql
 SELECT * FROM mob_group_runtests('_insert_area_.*');
 ```
+This query will run all tests that match the regular expression `_insert_area_.*`, and also the fixtures that match the same regular expression.
 
 
 # Filtration of the input data
@@ -305,11 +306,20 @@ The **edges** file contains:
 
 # Development Guide
 
-## Tests
-To create a new test, just create a test function in the appropriate test file in the `tests` directory. Tests should be named `test_<function_name>_<test_description>`.
+## PostgreSQL Tests
+For testing the PostgreSQL, we use the [pgTAP](https://pgtap.org/) framework. You can find more information about the framework in the [pgTAP manual](https://f-i-d-o.github.io/Manuals/Programming/Database/PostgreSQL%20Manual).
 
-To each test, you can create a setup and teardown fixture. These fixtures are named `setup_<test_name>` and `teardown_<test_name>`.
+
+### Custom test executer
+Because pgTAP provides only a basic function for executing tests, that for example, executes every single fixture even if a test filter is used, we created a custom test executer `mob_group_runtests` that can be used to run tests. The source code for this execution machinery can be found in the `SQL/tests/test_extensions.sql` file. The main difference compared to the default test runner:
+
+- filter is applied to the test fixtures as well, not only to the tests
+- tests are executed in a separate schema (`test_env` by default)
+
+
+### Creating new tests
+To create a new test, just create a test function in the appropriate test file in the `tests` directory. Tests have to be named `test_<function_name>_<test_description>`.
+
+You can also create [*fixtures*](https://f-i-d-o.github.io/Manuals/Programming/Database/PostgreSQL%20Manual/#fixtures). To be compatible with the custom test executer you have to follow the naming convention `<fixture_type>_<function_name>_<test_description>`. Note that unlike other programming languages, here all fixtures of a certain type are executed at once, not just the onec with the name that matches the test name.
 
 If you need to crete a test for a function or procedure that is not covered by the existing test files, create a new test file in the `tests` directory. The test file should be named `test_<function_name>.sql`.
-
-For each test file, you can create a setup and teardown fixture. These fixtures are named `setup_<function_name>` and `teardown_<function_name>`.
