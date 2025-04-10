@@ -42,19 +42,15 @@ BEGIN
     -- Setup test data
     PERFORM prepare_test_area_no_target_area();
 
-    -- check that there is no area named 'test_area'
-    IF EXISTS (SELECT * FROM areas WHERE id = 52) THEN
-        RETURN NEXT fail('area test_area was not deleted');
-    ELSE
-        RETURN NEXT pass('area test_area was deleted');
-    END IF;
+    -- Check that the function raises an exception when the requested area does not exist
+    RETURN NEXT throws_ok(
+        'SELECT * FROM get_ways_in_target_area(52::smallint)',
+        'The target area with id 52 does not exist',
+        'Function raises exception when requested area does not exist'
+    );
 
-    -- check that function returns no records when requested area does not exist
-    IF EXISTS (SELECT * FROM get_ways_in_target_area(52::smallint)) THEN
-        RETURN NEXT fail('function get_ways_in_target_area() returned records when requested area does not exist');
-    ELSE
-        RETURN NEXT pass('function get_ways_in_target_area() returned no records when requested area does not exist');
-    END IF;
+    -- Clean up (optional, depending on test isolation needs)
+    DELETE FROM areas WHERE id = 51;
 END;
 $$ LANGUAGE plpgsql;
 

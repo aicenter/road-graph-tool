@@ -8,6 +8,7 @@ from roadgraphtool.config import parse_config_file, set_logging
 import roadgraphtool.db
 from roadgraphtool.db import db
 from roadgraphtool.process_osm import import_osm_to_db
+import roadgraphtool.export
 
 
 def get_area_for_demand(
@@ -82,8 +83,10 @@ def assign_average_speed_to_all_segments_in_area(
 
 
 def compute_strong_components(target_area_id: int):
+    logging.info("computing strong components for area_id = {}".format(target_area_id))
     sql_query = f"call public.compute_strong_components({target_area_id}::smallint)"
     db.execute_sql(sql_query)
+    logging.info("storing the results in the component_data table")
 
 
 def compute_speeds_for_segments(
@@ -196,10 +199,12 @@ def main():
 
     if config.contraction.activated:
         contract_graph_in_area(area_id, config.srid, False)
-    
-    # logging.info("computing strong components for area_id = {}".format(area_id))
-    # compute_strong_components(area_id)
-    # logging.info("storing the results in the component_data table")
+
+    if config.strong_components.activated:
+        compute_strong_components(area_id)
+
+    if config.export.activated:
+        roadgraphtool.export.export(config)
     
     # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
     # try:

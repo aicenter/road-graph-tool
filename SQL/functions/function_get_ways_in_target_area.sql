@@ -4,6 +4,11 @@ create OR REPLACE function get_ways_in_target_area(target_area_id smallint)
 as
 $$
 BEGIN
+    -- raise exception if the target area does not exist
+    IF NOT EXISTS (SELECT 1 FROM areas WHERE areas.id = target_area_id) THEN
+        RAISE EXCEPTION 'The target area with id % does not exist', target_area_id;
+    END IF;
+
     -- raise exception if the geometry of the target area is NULL
     IF (SELECT areas.geom IS NULL FROM areas WHERE areas.id = target_area_id) THEN
         RAISE EXCEPTION 'The target area with id % has a NULL geometry', target_area_id;
