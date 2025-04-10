@@ -3,10 +3,10 @@
 -- Test case 2: Graph with three nodes where node 2 should be contracted
 -- Test case 3: Graph with three nodes where node 2 should be contracted
 
--- Startup function to create required tables
-CREATE OR REPLACE FUNCTION startup_compute_contractions() RETURNS VOID AS $$
+-- Renamed startup function to avoid pgtap auto-execution
+CREATE OR REPLACE FUNCTION prepare_road_segments_table() RETURNS VOID AS $$
 BEGIN
-    RAISE NOTICE 'execution of startup_compute_contractions() started';
+    RAISE NOTICE 'execution of prepare_road_segments_table() started';
     
     -- Create temporary tables if they don't exist
     CREATE TEMPORARY TABLE IF NOT EXISTS road_segments (
@@ -54,6 +54,7 @@ DECLARE
     restricted_nodes bigint[] := ARRAY[]::bigint[];
     expected_contracted_nodes bigint[] := ARRAY[]::bigint[]; -- no nodes should be contracted
 BEGIN
+    PERFORM prepare_road_segments_table(); -- Ensure table exists
     RAISE NOTICE 'execution of test_compute_contractions_two_restricted_nodes() started';
     
     -- Setup test data
@@ -73,6 +74,7 @@ DECLARE
     restricted_nodes bigint[] := ARRAY[]::bigint[];
     expected_contracted_nodes bigint[] := ARRAY[2]; -- node 2 should be contracted
 BEGIN
+    PERFORM prepare_road_segments_table(); -- Ensure table exists
     RAISE NOTICE 'execution of test_compute_contractions_three_node_chain() started';
     
     -- Setup test data
@@ -92,6 +94,7 @@ DECLARE
     restricted_nodes bigint[] := ARRAY[]::bigint[];
     expected_contracted_nodes bigint[] := ARRAY[2]; -- node 2 should be contracted
 BEGIN
+    PERFORM prepare_road_segments_table(); -- Ensure table exists
     RAISE NOTICE 'execution of test_compute_contractions_three_restricted_nodes() started';
     
     -- Setup test data

@@ -1,10 +1,10 @@
 -- Test suite for contract_graph_in_area procedure
 -- Test case 1: Simple graph with three nodes where node 2 should be contracted
 
--- Startup function to create required tables and test area
-CREATE OR REPLACE FUNCTION startup_contract_graph_in_area() RETURNS VOID AS $$
+-- Renamed startup function to avoid pgtap auto-execution
+CREATE OR REPLACE FUNCTION prepare_contract_graph_area() RETURNS VOID AS $$
 BEGIN
-    RAISE NOTICE 'execution of startup_contract_graph_in_area() started';
+    RAISE NOTICE 'execution of prepare_contract_graph_area() started';
     
     -- Create test area that contains nodes at [0,0]
     INSERT INTO areas (id, name, geom)
@@ -53,6 +53,7 @@ CREATE OR REPLACE FUNCTION test_contract_graph_in_area_three_node_chain() RETURN
 DECLARE
     expected_contracted_nodes bigint[] := ARRAY[2]; -- node 2 should be contracted
 BEGIN
+    PERFORM prepare_contract_graph_area(); -- Ensure area exists
     RAISE NOTICE 'execution of test_contract_graph_in_area_three_node_chain() started';
     
     -- Setup test data
@@ -71,6 +72,7 @@ CREATE OR REPLACE FUNCTION test_contract_graph_in_area_no_contraction() RETURNS 
 DECLARE
     expected_contracted_nodes bigint[] := ARRAY[]::bigint[]; -- No nodes should be contracted
 BEGIN
+    PERFORM prepare_contract_graph_area(); -- Ensure area exists
     RAISE NOTICE 'execution of test_contract_graph_in_area_no_contraction() started';
     
     -- Setup test data
@@ -89,6 +91,7 @@ CREATE OR REPLACE FUNCTION test_contract_graph_in_area_test_3() RETURNS SETOF TE
 DECLARE
     expected_contracted_nodes bigint[] := ARRAY[]::bigint[]; -- No nodes should be contracted
 BEGIN
+    PERFORM prepare_contract_graph_area(); -- Ensure area exists
     RAISE NOTICE 'execution of test_contract_graph_in_area_test_3() started';
     
     -- Setup test data
@@ -107,6 +110,7 @@ CREATE OR REPLACE FUNCTION test_contract_graph_in_area_single_bidirectional_cont
 DECLARE
     expected_contracted_nodes bigint[] := ARRAY[2]; -- Node 2 should be contracted
 BEGIN
+    PERFORM prepare_contract_graph_area(); -- Ensure area exists
     RAISE NOTICE 'execution of test_contract_graph_in_area_single_bidirectional_contraction() started';
     
     -- Setup test data
@@ -125,6 +129,7 @@ CREATE OR REPLACE FUNCTION test_contract_graph_in_area_single_bidirectional_and_
 DECLARE
     expected_contracted_nodes bigint[] := ARRAY[]::bigint[]; -- No nodes should be contracted
 BEGIN
+    PERFORM prepare_contract_graph_area(); -- Ensure area exists
     RAISE NOTICE 'execution of test_contract_graph_in_area_single_bidirectional_and_parallel() started';
     
     -- Setup test data

@@ -3,10 +3,10 @@
 -- Test case 2: Graph with nodes 1 and 2 as restricted nodes
 -- Test case 3: Graph with nodes 1, 2, and 3 as restricted nodes
 
--- Startup function to create required tables
-CREATE OR REPLACE FUNCTION startup_get_restricted_nodes() RETURNS VOID AS $$
+-- Renamed startup function to avoid pgtap auto-execution
+CREATE OR REPLACE FUNCTION prepare_restricted_nodes_test_env() RETURNS VOID AS $$
 BEGIN
-    RAISE NOTICE 'execution of startup_get_restricted_nodes() started';
+    RAISE NOTICE 'execution of prepare_restricted_nodes_test_env() started';
     
     -- Create temporary tables if they don't exist
     CREATE TEMPORARY TABLE IF NOT EXISTS road_segments (
@@ -49,6 +49,7 @@ DECLARE
     restricted_nodes bigint[];
     expected_nodes bigint[] := ARRAY[1, 3]; -- n0 and n2 should be restricted
 BEGIN
+    PERFORM prepare_restricted_nodes_test_env(); -- Ensure table exists
     RAISE NOTICE 'execution of test_get_restricted_nodes_three_node_chain() started';
     
     -- Setup test data
@@ -68,6 +69,7 @@ DECLARE
     restricted_nodes bigint[];
     expected_nodes bigint[] := ARRAY[1, 2]; -- nodes 1 and 2 should be restricted
 BEGIN
+    PERFORM prepare_restricted_nodes_test_env(); -- Ensure table exists
     RAISE NOTICE 'execution of test_get_restricted_nodes_two_restricted_nodes() started';
     
     -- Setup test data
@@ -87,6 +89,7 @@ DECLARE
     restricted_nodes bigint[];
     expected_nodes bigint[] := ARRAY[1, 2, 3]; -- nodes 1, 2, and 3 should be restricted
 BEGIN
+    PERFORM prepare_restricted_nodes_test_env(); -- Ensure table exists
     RAISE NOTICE 'execution of test_get_restricted_nodes_three_restricted_nodes() started';
     
     -- Setup test data
@@ -109,6 +112,7 @@ DECLARE
     restricted_nodes bigint[];
     expected_nodes bigint[] := ARRAY[1, 3]; -- nodes 1, 2, and 3 should be restricted
 BEGIN
+    PERFORM prepare_restricted_nodes_test_env(); -- Ensure table exists
     RAISE NOTICE 'execution of test_get_restricted_nodes_three_restricted_nodes() started';
 
     -- Setup test data
@@ -131,6 +135,7 @@ DECLARE
     restricted_nodes bigint[];
     expected_nodes bigint[] := ARRAY[1, 2, 3]; -- nodes 1, 2, and 3 should be restricted
 BEGIN
+    PERFORM prepare_restricted_nodes_test_env(); -- Ensure table exists
     RAISE NOTICE 'execution of test_get_restricted_nodes_three_restricted_nodes() started';
 
     -- Setup test data
@@ -153,6 +158,7 @@ DECLARE
     restricted_nodes bigint[];
     expected_nodes bigint[] := ARRAY[1, 2, 3]; -- nodes 1, 2, and 3 should be restricted
 BEGIN
+    PERFORM prepare_restricted_nodes_test_env(); -- Ensure table exists
     RAISE NOTICE 'execution of test_get_restricted_nodes_three_restricted_nodes() started';
 
     -- Setup test data

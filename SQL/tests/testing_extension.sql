@@ -126,7 +126,7 @@ DECLARE
     result_record RECORD;
 BEGIN
     -- create testing environment:
-    CALL test_env_constructor();
+    CALL _env_constructor();
 
     FOR result_record IN
         SELECT * FROM _runner(
@@ -177,7 +177,7 @@ $$;
 
 -- procedures for creating testing environment
 
-CREATE OR REPLACE PROCEDURE test_env_constructor(text) AS
+CREATE OR REPLACE PROCEDURE _env_constructor(text) AS
 $$
 DECLARE
     test_scheme_name TEXT := $1;
@@ -225,11 +225,11 @@ END;
 $$
     LANGUAGE plpgsql;
 
-CREATE OR REPLACE PROCEDURE test_env_constructor() AS
+CREATE OR REPLACE PROCEDURE _env_constructor() AS
 $$
 BEGIN
     -- call with default value
-    CALL test_env_constructor('test_env');
+    CALL _env_constructor('test_env');
 END;
 $$
     LANGUAGE plpgsql;

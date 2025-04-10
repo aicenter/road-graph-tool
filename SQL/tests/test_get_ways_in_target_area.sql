@@ -1,33 +1,9 @@
--- this file is purposed to to test function mentioned below
-
--- test delete area
-CREATE OR REPLACE FUNCTION startup_delete_area() RETURNS VOID AS $$
-BEGIN
-    PERFORM startup_get_ways_in_target_area(); -- add area 'test_area'
-    RAISE NOTICE 'execution of startup_delete_area() started';
-    DELETE FROM ways WHERE area = 1652;
-    DELETE FROM nodes WHERE area = 1652;
-    DELETE FROM areas WHERE name = 'test_area';
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION test_delete_area() RETURNS SETOF TEXT AS $$
-BEGIN
-    RAISE NOTICE 'execution of test_delete_area() started';
-    -- check that there is no area named 'test_area'
-    IF EXISTS (SELECT * FROM areas WHERE name = 'test_area') THEN
-        RETURN NEXT fail('area test_area was not deleted');
-    ELSE
-        RETURN NEXT pass('area test_area was deleted');
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
 
 -- function: get_ways_in_target_area()
--- setup function
-CREATE OR REPLACE FUNCTION startup_get_ways_in_target_area() RETURNS VOID AS $$
+-- Renamed startup function to avoid pgtap auto-execution
+CREATE OR REPLACE FUNCTION prepare_get_ways_test_area_1652() RETURNS VOID AS $$
 BEGIN
-    RAISE NOTICE 'execution of startup_get_ways_in_target_area() started';
+    RAISE NOTICE 'execution of prepare_get_ways_test_area_1652() started';
     -- add area
     INSERT INTO areas(id, name, description, geom)
     VALUES (1652, 'test_area', 'description of test_area ', ST_GeomFromText('POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))', 4326));
@@ -36,6 +12,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION prepare_test_area_with_non_intersecting_ways() RETURNS VOID AS $$
 BEGIN
+    PERFORM prepare_get_ways_test_area_1652(); -- Ensure the area exists first
     RAISE NOTICE 'Preparing test area with non-intersecting ways';
     -- add nodes with id 1 and 2
     INSERT INTO nodes(id, area, geom) VALUES
@@ -108,6 +85,7 @@ $$ LANGUAGE plpgsql;
 -- 3rd case: records on return, when there are ways intersecting target_area
 CREATE OR REPLACE FUNCTION prepare_test_area_with_intersecting_ways() RETURNS VOID AS $$
 BEGIN
+    PERFORM prepare_get_ways_test_area_1652(); -- Ensure the area exists first
     RAISE NOTICE 'execution of setup_get_ways_in_target_area_ways_intersecting_target_area() started';
     -- add nodes with id 1 and 2
     INSERT INTO nodes(id, area, geom) VALUES
@@ -160,13 +138,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION test_assign_average_speed_to_ways()
-RETURNS SETOF TEXT AS $$
-BEGIN
-    RAISE NOTICE 'execution of test_assign_average_speed_to_ways() started';
-    RETURN NEXT pass('PASSED test_assign_average_speed_to_ways');
-END;
-$$ LANGUAGE plpgsql;
+
+
 
 -- Example of running tests
 -- Note: for now as we do not have automatic grouping of tests, we need to run tests with as much precise group naming as possible !!!
