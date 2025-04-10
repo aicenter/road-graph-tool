@@ -495,30 +495,3 @@ CREATE OR REPLACE FUNCTION test_aastas_no_records() RETURNS SETOF TEXT AS $$
 
     END;
 $$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION run_all_aastas_tests() RETURNS SETOF TEXT AS $$
-    DECLARE
-        record RECORD;
-BEGIN
-    FOR record IN
-        SELECT * FROM mob_group_runtests('_aastas_output_1')
-        UNION ALL
-        SELECT * FROM mob_group_runtests('_aastas_output_2')
-        UNION ALL
-        SELECT * FROM mob_group_runtests('_aastas_output_3')
-        UNION ALL
-        SELECT * FROM mob_group_runtests('_aastas_output_4')
-        UNION ALL
-        SELECT * FROM mob_group_runtests('_aastas_double_exec')
-        UNION ALL
-        SELECT * FROM mob_group_runtests('_aastas_invalid_area_id')
-        UNION ALL
-        SELECT * FROM mob_group_runtests('_aastas_no_records')
-    LOOP
-        RETURN NEXT record;
-    END loop;
-END;
-$$ LANGUAGE plpgsql;
-
--- DEBUG:
--- SELECT * FROM run_all_aastas_tests();

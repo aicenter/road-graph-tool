@@ -114,12 +114,3 @@ BEGIN
                         ' FROM test_insert_area_data test_data WHERE name = ''test4'';', '22023');
 END;
 $$ LANGUAGE plpgsql;
-
--- run all tests of the function
-CREATE OR REPLACE FUNCTION run_all_insert_area_tests() RETURNS SETOF TEXT AS
-$$
-BEGIN
-  -- runtests
-  RETURN QUERY SELECT * FROM mob_group_runtests('_insert_area_.*');
-END;
-$$ LANGUAGE plpgsql;

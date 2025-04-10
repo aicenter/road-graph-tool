@@ -161,34 +161,3 @@ CREATE OR REPLACE FUNCTION test_compute_speeds_from_neighborhood_segments_4() RE
 	RETURN NEXT set_eq('SELECT * FROM expected_results_for_test_3_and_4', 'SELECT from_node_ways_id, speed, st_dev, to_node_ways_id, quality, source_records_count FROM nodes_ways_speeds WHERE quality IN (3,4,5)', 'Test 4 results unchanged after second call');
 	END;
 $$ LANGUAGE plpgsql;
-
-
--- all tests
-CREATE OR REPLACE FUNCTION run_all_compute_speeds_from_neighborhood_segments_tests() RETURNS SETOF TEXT AS $$
-	DECLARE
-		record RECORD;
-BEGIN
-		RAISE NOTICE '--- run_all_compute_speeds_from_neighborhood_segments_tests ---';
-	FOR record IN
-		SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_1')
-		UNION ALL
-		SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_2_areas')
-		UNION ALL
-		SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_2_nodes')
-		UNION ALL
-		SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_2_nodesways')
-		UNION ALL
-		SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_2_ways')
-		UNION ALL
-		SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_3')
-		UNION ALL
-		SELECT * FROM mob_group_runtests('_compute_speeds_from_neighborhood_segments_4') -- Keep this call as it runs the test function itself
-	LOOP
-		RETURN NEXT record;
-	END LOOP;
-
-END;
-$$ LANGUAGE plpgsql;
-
--- Run tests
--- SELECT * FROM run_all_compute_speeds_from_neighborhood_segments_tests();

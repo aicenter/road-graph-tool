@@ -1,4 +1,3 @@
-
 -- function: get_ways_in_target_area()
 -- Renamed startup function to avoid pgtap auto-execution
 CREATE OR REPLACE FUNCTION prepare_get_ways_test_area_1652() RETURNS VOID AS $$
@@ -137,44 +136,6 @@ BEGIN
     );
 END;
 $$ LANGUAGE plpgsql;
-
-
-
-
--- Example of running tests
--- Note: for now as we do not have automatic grouping of tests, we need to run tests with as much precise group naming as possible !!!
--- SELECT * FROM mob_group_runtests('_get_ways_in_target_area$'); -- runs only startup
--- SELECT * FROM mob_group_runtests('_get_ways_in_target_area'); -- runs only startup
--- SELECT * FROM mob_group_runtests('_delete_area'); -- WARNING: startup_delete_area calls startup_get_ways_in_target_area, corresponding text will be printed
--- SELECT * FROM mob_group_runtests('public', '_get_ways_in_target_area_no_target_area'); -- tests 1st case
--- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_ways_intersecting_target_area'); -- tests 2nd case
--- SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area'); -- tests 3rd case
-
--- Example of combination
-CREATE OR REPLACE FUNCTION run_all_get_ways_in_target_area_tests() RETURNS SETOF TEXT AS
-$$
-BEGIN
-    -- run tests
-    RETURN QUERY SELECT * FROM mob_group_runtests('_get_ways_in_target_area$')
-    UNION ALL
-    SELECT * FROM mob_group_runtests('_get_ways_in_target_area')
-    UNION ALL
-    SELECT * FROM mob_group_runtests('_delete_area')
-    UNION ALL
-    SELECT * FROM mob_group_runtests('public', '_get_ways_in_target_area_no_target_area')
-    UNION ALL
-    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_no_ways_intersecting_target_area')
-    UNION ALL
-    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_ways_intersecting_target_area')
-    UNION ALL
-    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_null_geometry')
-    UNION ALL
-    SELECT * FROM mob_group_runtests('_get_ways_in_target_area_graphml_ways');
-END;
-$$ LANGUAGE plpgsql;
-
--- DROP FUNCTION IF EXISTS run_all_tests();
--- SELECT * FROM run_all_tests();
 
 -- 5th case: test loading road segments from GraphML
 CREATE OR REPLACE FUNCTION prepare_test_area_with_graphml_ways() RETURNS VOID AS $$
