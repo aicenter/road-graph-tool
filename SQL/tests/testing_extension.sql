@@ -140,8 +140,12 @@ BEGIN
         RETURN NEXT result_record;
     END LOOP;
 
-    -- destroy testing environment:
-    CALL test_env_destructor();
+    -- trigger the rollback
+    RAISE EXCEPTION 'Roll back triggered' USING ERRCODE = 'T0000';
+EXCEPTION
+    WHEN SQLSTATE 'T0000' THEN
+        -- do nothing, just rollback
+        RAISE NOTICE 'Rolling back...';
 END;
 $$;
 
@@ -226,62 +230,6 @@ $$
 BEGIN
     -- call with default value
     CALL test_env_constructor('test_env');
-END;
-$$
-    LANGUAGE plpgsql;
-
-CREATE OR REPLACE PROCEDURE test_env_destructor(text) AS
-$$
-DECLARE
-    test_scheme_name TEXT := $1;
-    table_name_i TEXT;
-    tmp TEXT;
-BEGIN
-    -- check that given schema name is not empty and not 'public'
-    IF test_scheme_name = '' OR test_scheme_name = 'public' THEN
-        RAISE EXCEPTION 'Schema name should not be empty or "public"';
-    END IF;
-
-    -- check if schema exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = test_scheme_name) THEN
-        RAISE EXCEPTION 'Schema % does not exist, thus nothing to do', test_scheme_name;
-    END IF;
-
-    -- drop every sequence in test_scheme_name
-    FOR tmp IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = test_scheme_name)
-        LOOP
-            EXECUTE format('DROP SEQUENCE %I.%I', test_scheme_name, tmp);
-        END LOOP;
-
-    -- drop every view in test_scheme_name
-    FOR table_name_i IN (SELECT table_name FROM information_schema.views WHERE table_schema = test_scheme_name)
-        LOOP
-            EXECUTE format('DROP VIEW %I.%I', test_scheme_name, table_name_i);
-        END LOOP;
-
-    -- drop every table in test_scheme_name
-    FOR table_name_i IN (SELECT table_name FROM information_schema.tables WHERE table_schema = test_scheme_name)
-        LOOP
-            EXECUTE format('DROP TABLE %I.%I', test_scheme_name, table_name_i);
-        END LOOP;
-
-    -- drop routines in test_scheme_name
-    FOR table_name_i IN (SELECT routine_name FROM information_schema.routines WHERE routine_schema = test_scheme_name)
-        LOOP
-            EXECUTE format('DROP FUNCTION %I.%I', test_scheme_name, table_name_i);
-        END LOOP;
-
-    -- update search path
-    RESET search_path;
-END;
-$$
-    LANGUAGE plpgsql;
-
-CREATE OR REPLACE PROCEDURE test_env_destructor() AS
-$$
-BEGIN
-    -- call with default value
-    CALL test_env_destructor('test_env');
 END;
 $$
     LANGUAGE plpgsql;
