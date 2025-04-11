@@ -89,7 +89,7 @@ def add_node_highway_tags(nodes, G):
             nodes.loc[nodes.index[[v]], 'highway'] = tag
 
 
-def _get_map_from_db(config: dict) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+def _get_map_from_db(config) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     nodes = get_map_nodes_from_db(config.area_id)
     logging.info(f"{len(nodes)} nodes fetched from db")
     edges = get_map_edges_from_db(config)
@@ -98,7 +98,7 @@ def _get_map_from_db(config: dict) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
 
 
 def _save_map_csv(map_dir: Path, nodes: gpd.GeoDataFrame, edges: pd.DataFrame):
-    map_dir.makedirs(exist_ok=True)
+    map_dir.mkdir(exist_ok=True, parents=True)
     nodes_path = map_dir / 'nodes.csv'
     logging.info("Saving map nodes to %s", nodes_path)
     nodes_for_export = nodes.loc[:, nodes.columns != 'geom']

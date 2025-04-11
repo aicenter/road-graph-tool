@@ -31,14 +31,23 @@ To execute the configured pipeline, follow these steps:
 
 
 # Configuration
-For configuring the Road Graph Tool, we use the [YAML](https://yaml.org/) format. The path to the configuration file should be specified as a first argument when running the main script. All the relative paths specified in the configuration file are relative to the configuration file itself, unless specified otherwise. The main configuration affecting the whole tool is in the root of the configuration file. Other parameters are in following sections:
+For configuring the Road Graph Tool, we use the [YAML](https://yaml.org/) format. The path to the configuration file should be specified as a first argument when running the main script.
+
+All the relative paths specified in the configuration file are relative to the configuration file itself, unless specified otherwise.
+
+The main configuration affecting the whole tool is in the root of the configuration file. Other parameters are in following sections:
 
 - `db`: database configuration
-- `import`: configuration for the import component
+- `importer`: configuration for the import component
 - `export`: configuration for the export component
+- `contraction`: configuration for the contraction component
+- `strong_components`: configuration for the strong component which filters out the isolated vertices from the graph
+
+Each component configuration has a property `activated` that activates the component if set to `true` and deactivates it if set to `false`.
 
 In the root of the project, there is an example configuration file named `config-example.yml`.
 
+## Password configuration
 Additionaly, it is necessary to store some sensitive information like passwords. These are stored in the `secrets.yml` file, that should be stored in the same directory as the configuration file. The structure of the file is the same as the structure of the main configuration file. The example file is stored in the root of the project and is named `secrets-example.yml`.
 
 

@@ -1,35 +1,36 @@
-password_config_file: ./secrets.yml
+password_config_file: ./secrets.yaml
 schema: public
 srid: 32631
 area_id: 2
+log_level: DEBUG
 
 db: {
     username: postgres,
     db_host: localhost,
     db_name: rgt,
     db_server_port: 5432,
-    # ssh: {
-    # 	server_username: <server_username>,
-    # 	private_key_path: <private_key_path>,
-    # 	private_key_passphrase: <private_key_passphrase>,
-    # }
 }
 
 importer: {
-    activated: true,
-    input_file: ./andorra-latest.osm,
+    activated: false,
+    input_file: ./andorra-latest-filtered.osm,
     force: true,
     schema: importer,
     style_file: pipeline,
-    area_name: estonia,
-        boundary_source:
-            #    geojson_file:
-            #    overpass:
-            convex_hull:
-                buffer_in_m: 1000,
-    # if true, a `pgpass.conf` file will be automatically created in root folder of the project. Otherwise, the user
-    # will be prompted to enter the password each time the importer is run.
     pgpass: true,
-    pgpass_file: "~/pgpass.conf"
+    pgpass_file: "~/pgpass.conf",
+    area_name: Andorra
 }
-    
+
+contraction: {
+    activated: false
+}
+
+strong_components: {
+    activated: false
+}
+
+export: {
+    activated: true,
+    dir: ./
+}

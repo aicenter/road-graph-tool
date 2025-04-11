@@ -90,26 +90,24 @@ CALL create_edge_segments_from_contractions(fill_speed);
 -- edges for contracted road segments
 RAISE NOTICE 'Creating edges for contracted road segments';
 IF fill_speed THEN
-INSERT INTO edges ("from", "to", area, geom, speed)
-SELECT
-	max(source) AS "from",
-	max(target) AS "to",
-	target_area_id AS area,
-	st_transform(st_multi(st_union(geom)), 4326) AS geom,
-	sum(speed * st_length(geom)) / sum(st_length(geom)) AS speed
-	FROM contractions
-	    JOIN contraction_segments ON contraction_segments.id = contractions.id
-	GROUP BY contractions.id;
+    INSERT INTO edges ("from", "to", area, geom, speed)
+    SELECT
+        max(edge_from),
+        max(edge_to),
+        target_area_id AS area,
+        st_transform(st_multi(st_union(geom)), 4326) AS geom,
+        sum(speed * st_length(geom)) / sum(st_length(geom)) AS speed
+    FROM contraction_segments
+    GROUP BY id;
 ELSE
-INSERT INTO edges ("from", "to", area, geom)
-SELECT
-    max(source) AS "from",
-    max(target) AS "to",
-    target_area_id AS area,
-    st_transform(st_multi(st_union(geom)), 4326) AS geom
-    FROM contractions
-        JOIN contraction_segments ON contraction_segments.id = contractions.id
-    GROUP BY contractions.id;
+    INSERT INTO edges ("from", "to", area, geom)
+    SELECT
+        max(edge_from),
+        max(edge_to),
+        target_area_id AS area,
+        st_transform(st_multi(st_union(geom)), 4326) AS geom
+    FROM contraction_segments
+    GROUP BY id;
 END IF;
 RAISE NOTICE '% Edges for contracted road segments created', (SELECT count(*) FROM edges WHERE area = target_area_id) - non_contracted_edges_count;
 
