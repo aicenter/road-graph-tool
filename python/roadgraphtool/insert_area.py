@@ -38,13 +38,13 @@ def insert_area(
     if geom is None:
         geom = "NULL"
     elif isinstance(geom, geojson.Feature):
-        geom = f"'{geojson.dumps(geom.geometry)}'"
+        geom = f"{geojson.dumps(geom.geometry)}"
     elif not isinstance(geom, str):
-        geom = f"'{geojson.dumps(geom[0].geometry)}'"
+        geom = f"{geojson.dumps(geom[0].geometry)}"
 
     logging.info("Inserting area '%s' into the database.", name)
 
-    sql = f"SELECT insert_area('{name}', {geom}, {id}, '{description}')"
+    sql = f"SELECT insert_area('{name}', '{geom}', {id}, '{description}')"
 
     if geom is not None:
         # would not log the geom if it is too long

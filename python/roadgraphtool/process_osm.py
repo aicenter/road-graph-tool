@@ -194,15 +194,19 @@ def import_osm_to_db(config) -> int:
     importer_config = config.importer
     input_file_path = get_path_from_config(config, importer_config.input_file)
 
-    if not input_file_path.exists() or not is_valid_extension(input_file_path):
-        raise FileNotFoundError("No valid file to import was found.")
+    if not is_valid_extension(input_file_path):
+        raise InvalidInputError(f"Imported file must have one of the following extensions: osm, osm.pbf, osm.bz2. Provided file: {input_file_path}")
+
+    if not input_file_path.exists():
+        raise FileNotFoundError(f"Imported file {input_file_path} does not exist.")
+
 
     # custom style file
     if config.importer.style_file.endswith('.lua'):
         style_file_path = get_path_from_config(config, importer_config.style_file)
 
         if not style_file_path.exists():
-            raise FileNotFoundError(f"Style file {config.importer.style_file} does not exist.")
+            raise FileNotFoundError(f"Importer style file {config.importer.style_file} does not exist.")
     # predefined style file
     else:
         resources_path = "roadgraphtool.resources"

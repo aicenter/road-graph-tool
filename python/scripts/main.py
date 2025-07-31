@@ -204,7 +204,7 @@ def main():
         compute_strong_components(area_id)
 
     if config.export.activated:
-        roadgraphtool.export.export(config)
+        roadgraphtool.export.export(config, area_id)
     
     # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
     # try:
