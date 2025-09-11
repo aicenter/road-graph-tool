@@ -169,7 +169,7 @@ class Database(object):
             if not use_transactions:
                 connection.execution_options(isolation_level="AUTOCOMMIT")
             with connection.begin():
-                connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
+                connection.execute(sqlalchemy.text(f"SET search_path TO {schema}, public;"))
                 result = connection.execute(sqlalchemy.text(query), *args)
                 connection.execute(sqlalchemy.text(f"SET search_path TO public;"))
                 return result

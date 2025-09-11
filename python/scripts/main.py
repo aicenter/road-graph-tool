@@ -197,6 +197,8 @@ def main():
     if not area_id:
         area_id = config.area_id
 
+    db.execute_sql(f"SET search_path TO {config.schema},public;")
+
     if config.contraction.activated:
         contract_graph_in_area(area_id, config.srid, False)
 

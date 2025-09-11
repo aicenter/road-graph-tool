@@ -27,7 +27,7 @@ def execute_sql_file(sql_file: Path, schema: str, multistatement: bool = False):
     else:
         with sql_file.open() as f:
             sql = f.read().replace('{schema}', schema)
-            db.execute_sql(sql)
+            db.execute_sql(sql, schema=schema)
 
 # Check availability status of extensions in db
 logging.info("Checking availability of extensions in the database")

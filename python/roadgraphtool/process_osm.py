@@ -281,6 +281,10 @@ def postprocess_osm_import(config):
 
     area_id = insert_area(name=config.importer.area_name, description=description, geom=boundary_geom)
 
+    if schema == target_schema:
+        # TODO: possibly create indexes
+        return area_id
+
     overlaps = {}
     overlaps['nodes'] = get_overlapping_elements_count(schema, target_schema, 'nodes')
     overlaps['ways'] = get_overlapping_elements_count(schema, target_schema, 'ways')
