@@ -1,18 +1,16 @@
 import atexit
-import logging
+from typing import Optional
+
 import psycopg2
 import sshtunnel
 import sqlalchemy
 import pandas as pd
 import psycopg2.errors
 import geopandas as gpd
+import logging
+
 from pathlib import Path
 from sqlalchemy.engine import Row
-
-from roadgraphtool.credentials_config import CREDENTIALS
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
-
 
 def connect_db_if_required(db_function):
     """
@@ -30,7 +28,7 @@ def connect_db_if_required(db_function):
     return wrapper
 
 
-class __Database:
+class Database(object):
     """
     To be used as singleton instance db.
 
@@ -39,23 +37,33 @@ class __Database:
     Import as:
     from db import db
     """
-    config = CREDENTIALS
 
     def __init__(self):
+        self._sqlalchemy_engine: Optional[sqlalchemy.engine.Engine] = None
+        self._psycopg2_connection = None
+        self._sql_alchemy_engine_str = None
+        self.host = None
+        self.ssh_server = None
+        self.server = None
+        self.ssh_tunnel_local_port = None
+        self.db_name = None
+        self.db_server_port = None
+        self.config = None
+
+    def set_config(self, config):
+        self.config = config
         # If private key specified, assume ssh connection and try to set it up
         self.db_server_port = self.config.db_server_port
         self.db_name = self.config.db_name
-        self.ssh_tunnel_local_port = 1113
-        if hasattr(self.config, 'server'):
-            self.server = self.config.server
+        # self.ssh_tunnel_local_port = 1113
+        if hasattr(self.config, 'ssh'):
+            self.ssh_tunnel_local_port = self.config.ssh.tunnel_port
+            self.server = self.config.ssh.server
+            self.db_server_port = self.ssh_tunnel_local_port
             self.ssh_server = None
-            self.host = self.config.host
+            self.host = self.config.db_host
         else:
             self.host = self.config.db_host
-
-        self._sqlalchemy_engine = None
-        self._psycopg2_connection = None
-        self._sql_alchemy_engine_str = None
 
     def is_connected(self):
         return (self._psycopg2_connection is not None) and (self._sqlalchemy_engine is not None)
@@ -72,12 +80,16 @@ class __Database:
 
     def set_ssh_to_db_server_and_set_port(self):
         ssh_kwargs = dict(
-            ssh_pkey=self.config.private_key_path,
-            ssh_username=self.config.server_username,
-            ssh_private_key_password=self.config.private_key_phrase,
-            remote_bind_address=('localhost', self.db_server_port),
-            local_bind_address=('localhost', self.ssh_tunnel_local_port)
+            ssh_pkey=self.config.ssh.private_key_path,
+            ssh_username=self.config.ssh.server_username,
+
+            remote_bind_address=('localhost', self.config.db_server_port),
+            local_bind_address=('localhost', self.config.ssh.tunnel_port),
         )
+
+        if hasattr(self.config.ssh, 'private_key_passphrase'):
+            ssh_kwargs['private_key_passphrase'] = self.config.ssh.private_key_passphrase
+
         try:
             self.ssh_server = sshtunnel.open_tunnel(self.server, **ssh_kwargs)
         except sshtunnel.paramiko.SSHException as e:
@@ -99,7 +111,7 @@ class __Database:
         """
         Set up or reset ssh tunnel.
         """
-        if self.config.private_key_path is not None:
+        if hasattr(self.config, 'ssh'):
             if self.ssh_server is None:
                 # INITIALIZATION
                 logging.info("Connecting to ssh server")
@@ -136,11 +148,20 @@ class __Database:
             return psycopg2_connection
         except psycopg2.OperationalError as er:
             logging.error(str(er))
-            logging.info("Tunnel status: %s", str(self.ssh_server.tunnel_is_up))
-            return None
+            if hasattr(self, 'ssh_server'):
+                logging.info("Tunnel status: %s", str(self.ssh_server.tunnel_is_up))
+            raise
 
     @connect_db_if_required
-    def execute_sql(self, query, *args, schema='public', use_transactions=True) -> None:
+    def get_new_cursor(self):
+        return self._psycopg2_connection.cursor()
+
+    @connect_db_if_required
+    def commit(self):
+        self._psycopg2_connection.commit()
+
+    @connect_db_if_required
+    def execute_sql(self, query, *args, schema='public', use_transactions=True) -> sqlalchemy.engine.Result:
         """
         Execute SQL that doesn't return any value.
         """
@@ -149,19 +170,20 @@ class __Database:
                 connection.execution_options(isolation_level="AUTOCOMMIT")
             with connection.begin():
                 connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
-                connection.execute(sqlalchemy.text(query), *args)
+                result = connection.execute(sqlalchemy.text(query), *args)
                 connection.execute(sqlalchemy.text(f"SET search_path TO public;"))
+                return result
 
     @connect_db_if_required
     def execute_sql_and_fetch_all_rows(self, query, *args) -> list[Row]:
-        with self._sqlalchemy_engine.connect() as conn:
+        with self._sqlalchemy_engine.begin() as conn:
             result = conn.execute(sqlalchemy.text(query), *args).all()
             return result
 
     @connect_db_if_required
-    def execute_script(self, script_path: Path):
+    def execute_script(self, script_path: Path, schema: str = 'public'):
         with open(script_path) as f:
-            script = f.read()
+            script = f.read().replace('{schema}', schema)
             cursor = self._psycopg2_connection.cursor()
             try:
                 cursor.execute(script)
@@ -286,4 +308,8 @@ class __Database:
 
 
 # db singleton
-db = __Database()
+db = Database()
+
+def init_db(config):
+    global db
+    db.set_config(config.db)

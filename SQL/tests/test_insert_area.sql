@@ -1,6 +1,8 @@
 CREATE OR REPLACE FUNCTION startup_insert_area() RETURNS VOID AS
 $$
 BEGIN
+    RAISE NOTICE 'Executing startup_insert_area()';
+
   -- create temp table containing data for each case
   CREATE TEMP TABLE test_insert_area_data(
     name VARCHAR,
@@ -110,14 +112,5 @@ BEGIN
   RETURN NEXT diag('Expecting an error due to invalid geom type');
   RETURN NEXT throws_ok('SELECT insert_area(test_data.name, test_data.geom, test_data.id, test_data.description)' ||
                         ' FROM test_insert_area_data test_data WHERE name = ''test4'';', '22023');
-END;
-$$ LANGUAGE plpgsql;
-
--- run all tests of the function
-CREATE OR REPLACE FUNCTION run_all_insert_area_tests() RETURNS SETOF TEXT AS
-$$
-BEGIN
-  -- runtests
-  RETURN QUERY SELECT * FROM mob_group_runtests('_insert_area_.*');
 END;
 $$ LANGUAGE plpgsql;

@@ -17,56 +17,77 @@ To run the tool, you need access to a local or remote PostgreSQL database with t
 - [PgRouting](https://pgrouting.org/), and
 - hstore (available by default).
 
-Refer to the [Prerequisities](#prerequisities) section for details on installing the required dependencies for importing data into the database.
+Also, you need the [osm2pgsql](https://osm2pgsql.org/) tool installed for importing OSM data into the database.
+
 
 # Quick Start Guide
-After setting up the configuration file, your next step is to edit the `main.py` file to execute only the steps you need. Currently, the content of `main.py` includes Python wrappers for the provided SQL functions in the `SQL/` directory, an example of an argument parser, and a main execution pipeline, which may be of interest to you.
-
 To execute the configured pipeline, follow these steps:
 
 1. Install the Road Graph Tool Python package: `pip install -e <clone dir>/Python`.
-1. Configure the database in the `config.ini` file (see the [config-EXAMPLE.ini](./config-EXAMPLE.ini) file for an example configuration). The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
-1. In the `python/` directory, run `py scripts/install_sql.py`. If some of the necessary extensions are not available in your database, the execution will fail with a corresponding logging message. Additionally, this script will initialize the needed tables, procedures, functions, etc., in your database.
+1. Create a YAML configuration file for the project. For details about this file, refer to the [Configuration](#configuration) section.
+    1. Configure the database. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
+1. In the `python/` directory, run the `scripts/install_sql.py`. This script will initialize the needed tables, procedures, functions, etc., in your database.
+1. Run the `main.py` script with with the path to the configuration file as the first argument. The script will execute the pipeline according to the configuration file.
 
-2. Import data into database and then postprocess the data in the database. There are two methods to achieve this:
-    1. Execute `process_osm.py u COUNTRY.osm.pbf`. This triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
-        > **_DATABASE and SSH CONFIGURATION:_** Tool _osm2pgsql_ connects to database using credentials specified in `config.ini` file, so make sure to check that the connection details are correct and that the database server is running.
-        Some databases require a password, so either you are prompted to enter a password or use `-P` flag to have `pgpass.conf` file set-up in root folder of the project - use `CREDENTIALS.setup_pgpass()` and `CREDENTIALS.remove_pgpass()` when connecting to database.
 
-        > **_SSH TUNNEL:_** To ensure the SSH tunnel is correctly set up for a remote database, provide `ssh` details in `config.ini`. SSH tunnel setup is handled with [set_ssh_to_db_server_and_set_port()](python/roadgraphtool/db.py).
+# Configuration
+For configuring the Road Graph Tool, we use the [YAML](https://yaml.org/) format. The path to the configuration file should be specified as a first argument when running the main script.
 
-    2. Run the `main.py` script with with `-i` or `--import`flag which also calls the [import_osm_to_db()](#function-import_osm_to_db) function along with other SQL queries.
+All the relative paths specified in the configuration file are relative to the configuration file itself, unless specified otherwise.
 
-3. Your database is now ready. You can execute [main.py](./python/scripts/main.py) in the `python/` directory.
+The main configuration affecting the whole tool is in the root of the configuration file. Other parameters are in following sections:
 
-So in the end execution order may look like this:
-```sh
-alias py=python3
-echo 'Pre-processing database...'
-py python/scripts/install_sql.py
-echo "Importing OSM data to database"
-py scripts/process_osm.py u COUNTRY.osm.pbf
-echo 'Executing main.py...'
-py main.py -a 1 -s 4326 -f False
-```
+- `db`: database configuration
+- `importer`: configuration for the import component
+- `export`: configuration for the export component
+- `contraction`: configuration for the contraction component
+- `strong_components`: configuration for the strong component which filters out the isolated vertices from the graph
+
+Each component configuration has a property `activated` that activates the component if set to `true` and deactivates it if set to `false`.
+
+In the root of the project, there is an example configuration file named `config-example.yml`.
+
+## Password configuration
+Additionaly, it is necessary to store some sensitive information like passwords. These are stored in the `secrets.yml` file, that should be stored in the same directory as the configuration file. The structure of the file is the same as the structure of the main configuration file. The example file is stored in the root of the project and is named `secrets-example.yml`.
+
 
 # Testing
-For testing the PostgreSQL procedures that are the core of the Road Graph Tool, we use the [pgTAP testing framework](https://github.com/theory/pgtap). To learn how to use pgTAP, see the [pgTAP manual](./doc/pgtap.md).
+For testing the PostgreSQL procedures that are the core of the Road Graph Tool, we use the [pgTAP testing framework](https://github.com/theory/pgtap). To learn how to use pgTAP, see the [pgTAP manual](https://f-i-d-o.github.io/Manuals/Programming/Database/PostgreSQL%20Manual/#testing-with-pgtap).
 
 
 To run the tests, follow these steps:
-1. Install the `pgTAP` extension for your PostgreSQL database cluster according to the [pgTAP manual](./doc/pgtap.md).
+
+1. Install the `pgTAP` extension for your PostgreSQL database cluster according to the [pgTAP manual](https://f-i-d-o.github.io/Manuals/Programming/Database/PostgreSQL%20Manual/#installation).
 1. If you haven't already, create and initialize the database
-    1. create new database using `CREATE DATABASE <database_name>;`
-    1. copy the `config-EXAMPLE.ini` file to `config.ini` and fill in the necessary information
-    1. inititalize new database using the script `<rgt root>/python/scripts/install_db.py`. 
-        - this script will install all necessary extensions and create all necessary tables, procedures, and functions.
-        - the configuration for the database is loaded from the `config.ini` file.
-4. Execute the tests by running the following query in your PostgreSQL console:
+1. Install the `pgTAP` extension in the database by running the following command in your PostgreSQL console:
+    ```sql
+    CREATE EXTENSION pgtap WITH SCHEMA public;
+    ```
+1. Execute the tests by running the following query in your PostgreSQL console:
     ```sql
     SELECT * FROM run_all_tests();
     ```
     - This query will return a result set containing the execution status of each test.
+
+To run just a selection of tests, use the following query:
+```sql
+SELECT * FROM mob_group_runtests('_insert_area_.*');
+```
+This query will run all tests that match the regular expression `_insert_area_.*`, and also the fixtures that match the same regular expression.
+
+
+# Filtration of the input data
+Because the map processing with Road Graph Tool can be time-consuming, it is recommended to filter the input data before processing. Most importantly, the data should be filtered to include
+
+- only the area of interest, and
+- only the objects of interest.
+
+The following tools are available for filtering the input data:
+
+- [Osmium](https://osmcode.org/osmium-tool/manual.html)
+- [Osmfilter](https://wiki.openstreetmap.org/wiki/Osmfilter)
+
+
 
 # Components
 The road graph tool consists of a set of components that are responsible for individual processing steps, importing data, or exporting data. Each component is implemented as an PostgreSQL procedure or Python script, possibly calling other procedures or functions. Additionally, each component has its own Python wrapper script that connects to the database and calls the procedure. Currently, the following components are implemented:
@@ -74,6 +95,8 @@ The road graph tool consists of a set of components that are responsible for ind
 - **Graph Contraction**: simplifies the road graph by contracting nodes and creating edges between the contracted nodes.
 
 ## OSM file processing and importing
+This component processes the data in an [Open Street Map (OSM) XML file format](https://wiki.openstreetmap.org/wiki/OSM_XML) and imports it into a PostgreSQL database. 
+
 ### Prerequisities
 Before processing and loading data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to install several libraries: 
 * [psql](https://www.postgresql.org/) for PostgreSQL
@@ -108,12 +131,12 @@ The primary function of  `process_osm.py` script is to import OSM data to the da
 
 The `u` flag triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
 
-#### Function [import_osm_to_db()](python/scripts/process_osm.py):
-- **Imports** the data into the database (default schema is `public, but a different schema can be specified) with provided Lua *style file* - if omitted, the default style file [pipeline.lua](resources/lua_styles/pipeline.lua) is used. To customize the style file, set a new path for the [DEFAULT_STYLE_FILE](python/scripts/process_osm.py).
-- **Postprocesses** the data in database if specified in [POSTPROCESS_DICT](python/scripts/process_osm.py), which can be configured based on the *style file* used during importing
+#### Function [import_osm_to_db()](python/roadgraphtool/process_osm.py):
+- **Imports** the data into the database (default schema is `public, but a different schema can be specified) with provided Lua *style file* - if omitted, the default style file [pipeline.lua](lua_styles/pipeline.lua) is used. To customize the style file, set a new path for the [DEFAULT_STYLE_FILE](python/roadgraphtool/process_osm.py).
+- **Postprocesses** the data in database if specified in [POSTPROCESS_DICT](python/roadgraphtool/process_osm.py), which can be configured based on the *style file* used during importing
 
 ```bash
-python3 process_osm.py u [input_file] [-l style_file]
+python3 process_osm.py u [input_file] [-sf style_file]
 ```
 > **_WARNING:_** Running this command **will overwrite** existing data in the relevant table (these tables are specified in [schema.py](python/roadgraphtool/schema.py)). If you wish to proceed, use `--force` flag to overwrite or create new schema for new data.
 
@@ -122,7 +145,7 @@ E.g. this command (described bellow) processes OSM file of Lithuania using Flex 
 # runs with pipeline.lua
 python3 process_osm.py u lithuania-latest.osm.pbf
 # runs with simple.lua script
-python3 process_osm.py u lithuania-latest.osm.pbf -l resources/lua_styles/simple.lua
+python3 process_osm.py u lithuania-latest.osm.pbf -sf resources/lua_styles/simple.lua
 ```
 
 **Nodes in Lithuania:**
@@ -265,6 +288,47 @@ The SQL procedure `contract_graph_in_area` processes the graph in the following 
 
 ![procedure_contract_graph_in_area](https://github.com/user-attachments/assets/6a4b7c8d-6a95-4c75-836c-2e1a4622575a)
 
+## Exporter
+The exporter component is responsible for exporting the processed data from the database. Currently, the following formats are supported:
+
+- **CSV**: exports the data to two CSV files: one for nodes and one for edges. The columns are separated by a tabulator.
+- **Shapefile**: exports the data to two [shapefiles](https://en.wikipedia.org/wiki/Shapefile): one for nodes and one for edges.
+
+The output files contain the following fields:
+
+The **nodes** file contains
+
+- `id`: the unique identifier of the node. The id goes from 0 to the number of exported nodes - 1, so it can be used as an index.
+- `db_id`: the unique identifier of the node in the database.
+- `x`: the x-coordinate of the node.
+- `y`: the y-coordinate of the node.
+
+The **edges** file contains:
+
+- `u`: the `id` of the starting node of the edge.
+- `v`: the `id` of the ending node of the edge.
+- `db_id_from`: the unique identifier of the starting node in the database.
+- `db_id_to`: the unique identifier of the ending node in the database.
+- `length`: the length of the edge in meters.
+- `speed`: the speed on the edge in km/h.
 
 
+# Development Guide
 
+## PostgreSQL Tests
+For testing the PostgreSQL, we use the [pgTAP](https://pgtap.org/) framework. You can find more information about the framework in the [pgTAP manual](https://f-i-d-o.github.io/Manuals/Programming/Database/PostgreSQL%20Manual).
+
+
+### Custom test executer
+Because pgTAP provides only a basic function for executing tests, that for example, executes every single fixture even if a test filter is used, we created a custom test executer `mob_group_runtests` that can be used to run tests. The source code for this execution machinery can be found in the `SQL/tests/test_extensions.sql` file. The main difference compared to the default test runner:
+
+- filter is applied to the test fixtures as well, not only to the tests
+- tests are executed in a separate schema (`test_env` by default)
+
+
+### Creating new tests
+To create a new test, just create a test function in the appropriate test file in the `tests` directory. Tests have to be named `test_<function_name>_<test_description>`.
+
+You can also create [*fixtures*](https://f-i-d-o.github.io/Manuals/Programming/Database/PostgreSQL%20Manual/#fixtures). To be compatible with the custom test executer you have to follow the naming convention `<fixture_type>_<function_name>_<test_description>`. Note that unlike other programming languages, here all fixtures of a certain type are executed at once, not just the onec with the name that matches the test name.
+
+If you need to crete a test for a function or procedure that is not covered by the existing test files, create a new test file in the `tests` directory. The test file should be named `test_<function_name>.sql`.

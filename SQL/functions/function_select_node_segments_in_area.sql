@@ -1,13 +1,13 @@
 CREATE OR REPLACE FUNCTION select_node_segments_in_area(IN target_area_id smallint, IN target_area_srid integer)
 RETURNS TABLE
 (
-	from_id   integer,
-	to_id     integer,
-	from_node integer,
-	to_node   integer,
+	from_id   bigint,
+	to_id     bigint,
+	from_node bigint,
+	to_node   bigint,
 	from_position smallint,
 	to_position smallint,
-	way_id    integer,
+	way_id    bigint,
 	geom      geometry
 )
 LANGUAGE plpgsql
@@ -18,15 +18,17 @@ CREATE TEMPORARY TABLE target_ways AS
 CREATE INDEX target_ways_id_idx ON target_ways(id);
 CREATE INDEX target_ways_oneway_idx ON target_ways(oneway);
 
+RAISE NOTICE '% ways in target area', (SELECT count(*) FROM target_ways);
+
 RETURN QUERY
 SELECT
-	from_nodes_ways.id AS from_id,
-	to_node_ways.id AS to_id,
-	from_nodes.id AS from_node,
-	to_nodes.id AS to_node,
+	from_nodes_ways.id::bigint AS from_id,
+    to_node_ways.id::bigint AS to_id,
+    from_nodes.id::bigint AS from_node,
+    to_nodes.id::bigint AS to_node,
 	from_nodes_ways.position AS from_position,
 	to_node_ways.position AS to_position,
-	to_node_ways.way_id AS way_id,
+	to_node_ways.way_id::bigint AS way_id,
 	st_transform(st_makeline(from_nodes.geom, to_nodes.geom), target_area_srid) AS geom
 	FROM
 		nodes_ways from_nodes_ways

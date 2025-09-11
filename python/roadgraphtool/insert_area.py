@@ -1,11 +1,20 @@
 import argparse
-import json
+import geojson
+from pathlib import Path
 import sys
+import logging
+from typing import Optional, Union
 
-from .db import db
+from roadgraphtool import db
+from roadgraphtool.config import parse_config_file
 
 
-def insert_area(id: int | None, name: str, description: str | None, geom: dict):
+def insert_area(
+    name: str,
+    id: Optional[int] = None,
+    description: Optional[str] = None,
+    geom: Optional[Union[geojson.Feature, geojson.FeatureCollection]] = None
+) -> int:
     """
     Insert a new area into the areas table.
 
@@ -18,20 +27,38 @@ def insert_area(id: int | None, name: str, description: str | None, geom: dict):
     Returns:
     None
     """
+
+    # set defaults
+    if id is None:
+        id = "NULL"
+
     if description is None:
         description = ""
-    # result ignored as the pgsql function returns void
-    if id is None:
-        db.execute_sql(
-            f"SELECT insert_area('{name}', '{json.dumps(geom)}', NULL, '{description}')"
-        )
+
+    if geom is None:
+        geom = "NULL"
+    elif isinstance(geom, geojson.Feature):
+        geom = f"'{geojson.dumps(geom.geometry)}'"
+    elif not isinstance(geom, str):
+        geom = f"'{geojson.dumps(geom[0].geometry)}'"
+
+    logging.info("Inserting area '%s' into the database.", name)
+
+    sql = f"SELECT insert_area('{name}', {geom}, {id}, '{description}')"
+
+    if geom is not None:
+        # would not log the geom if it is too long
+        logging.info(f"Executing SQL query: SELECT insert_area('{name}', geom was provided, {id}, '{description}')")
+        # TODO: if logging.DEBUG:
+        # logging.debug(f"Executing SQL query: SELECT insert_area('{name}', {geom}, {id}, '{description}')")
     else:
-        db.execute_sql(
-            f"SELECT insert_area('{name}', '{json.dumps(geom)}', {id}, '{description}')"
-        )
+        logging.info(f"Executing SQL query: {sql}")
+
+    ret = db.db.execute_sql_and_fetch_all_rows(sql)
+    return ret[0][0]
 
 
-def read_json_file(file_path: str) -> dict:
+def read_geojson_file(file_path: str) -> Union[geojson.Feature, geojson.FeatureCollection]:
     """
     Read a JSON file and return its contents as a dictionary.
 
@@ -43,10 +70,7 @@ def read_json_file(file_path: str) -> dict:
     """
     try:
         with open(file_path, "r") as file:
-            return json.load(file)
-    except json.JSONDecodeError:
-        print(f"Error: The file {file_path} is not a valid JSON file.")
-        sys.exit(1)
+            return geojson.load(file)
     except FileNotFoundError:
         print(f"Error: The file {file_path} was not found.")
         sys.exit(1)
@@ -68,12 +92,9 @@ def parse_arguments() -> argparse.Namespace:
         "-i", "--id", type=int, required=False, default=None, help="The id of the area"
     )
     parser.add_argument(
-        "-d",
-        "--description",
-        required=False,
-        default=None,
-        help="The description of the area",
-    )
+        "-d", "--description", required=False, default=None, help="The description of the area", )
+    parser.add_argument(
+        "-c", "--config", required=False, default=None, help="Config", )
     return parser.parse_args()
 
 
@@ -81,16 +102,13 @@ if __name__ == "__main__":
     args = parse_arguments()
 
     # Read the GeoJSON file
-    geojson = read_json_file(args.file)
-
+    area_geojson = read_geojson_file(args.file)
+    
+    config = parse_config_file(Path(args.config))
+    db.init_db(config)
     # inserting area to db
     try:
-        insert_area(
-            id=args.id,
-            name=args.name,
-            description=args.description,
-            geom=geojson,
-        )
+        insert_area(name=args.name, id=args.id, description=args.description, geom=area_geojson)
         print(f"Area '{args.name}' inserted successfully.")
     except Exception as e:
         print(f"Error inserting area: {e}")

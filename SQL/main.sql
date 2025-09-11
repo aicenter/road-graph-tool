@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS public.demand (
 
 CREATE TABLE IF NOT EXISTS public.nodes (
     id bigint NOT NULL,
+    tags hstore,
     geom public.geometry(Point,4326) NOT NULL,
     area integer,
     contracted boolean DEFAULT false NOT NULL
@@ -380,17 +381,12 @@ ALTER TABLE ONLY public.relation_members ALTER COLUMN sequence_id SET (n_distinc
 CREATE TABLE IF NOT EXISTS public.relations (
     id bigint NOT NULL,
     tags public.hstore,
-    members jsonb
+    members jsonb,
+    area int
 );
 
 
---
--- Name: schema_info; Type: TABLE; Schema: public
---
-
-CREATE TABLE IF NOT EXISTS public.schema_info (
-    version integer NOT NULL
-);
+COMMENT ON COLUMN public.relations.area IS 'Area with which was the node imported to the database';
 
 
 --
@@ -751,14 +747,6 @@ ALTER TABLE ONLY public.relations
 
 
 --
--- Name: schema_info pk_schema_info; Type: CONSTRAINT; Schema: public
---
-
-ALTER TABLE ONLY public.schema_info
-    ADD CONSTRAINT pk_schema_info PRIMARY KEY (version);
-
-
---
 -- Name: ways pk_ways; Type: CONSTRAINT; Schema: public
 --
 
@@ -919,7 +907,7 @@ CREATE INDEX edges_to_index ON public.edges USING btree ("to");
 -- Name: geom__index; Type: INDEX; Schema: public
 --
 
-CREATE INDEX geom__index ON public.ways USING gist (geom);
+-- CREATE INDEX geom__index ON public.ways USING gist (geom);
 
 
 --
@@ -933,7 +921,7 @@ CREATE INDEX nodes_area_index ON public.nodes USING btree (area);
 -- Name: nodes_geom_index; Type: INDEX; Schema: public
 --
 
-CREATE INDEX nodes_geom_index ON public.nodes USING gist (geom);
+-- CREATE INDEX nodes_geom_index ON public.nodes USING gist (geom);
 
 
 --
@@ -1019,6 +1007,8 @@ CREATE INDEX ways_from_index ON public.ways USING btree ("from");
 
 CREATE INDEX ways_to_index ON public.ways USING btree ("to");
 
+CREATE INDEX relations_area_index ON public.relations USING btree (area);
+
 
 --
 -- Name: zone level_id_uindex; Type: INDEX; Schema: public
@@ -1073,6 +1063,10 @@ ALTER TABLE ONLY public.demand
 
 ALTER TABLE ONLY public.nodes
     ADD CONSTRAINT fk_nodes_areas_1 FOREIGN KEY (area) REFERENCES public.areas(id);
+
+
+ALTER TABLE ONLY public.relations
+    ADD CONSTRAINT fk_relations_areas_1 FOREIGN KEY (area) REFERENCES public.areas(id);
 
 
 --

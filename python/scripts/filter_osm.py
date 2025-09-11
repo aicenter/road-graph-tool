@@ -8,30 +8,40 @@ from typing import Any
 import requests
 import logging
 
+import roadgraphtool.exec
+
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError
-from roadgraphtool.log import LOGGER
 
-RESOURCES_DIR = Path(__file__).parent.parent.parent / "resources"
+RESOURCES_DIR = Path(__file__).parent.parent / "roadgraphtool/resources"
 
-logger = LOGGER.get_logger('filter_osm')
+def setup_logger(logger_name: str) -> logging.Logger:
+    log = logging.getLogger(logger_name)
+    log.setLevel(logging.DEBUG)
+    # setup formatting
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(formatter)
+    log.addHandler(handler)
+    # stop logger from emitting messages
+    log.propagate = False
+    return log
 
-def is_valid_extension(file: str) -> bool:
+logger = setup_logger('filter_osm')
+
+def is_valid_extension(file: Path) -> bool:
     """Return True if the file has a valid extension.
     
     Valid extensions: osm, osm.pbf, osm.bz2
     """
-    valid_extensions = ["osm", "osm.pbf", "osm.bz2"]
-    return any(file.endswith(f".{ext}") for ext in valid_extensions)
+    valid_extensions = {".osm", ".osm.pbf", ".bz2"}
+    return "".join(file.suffixes) in valid_extensions
 
 def check_strategy(strategy: str | None):
     """Raise InvalidInputError if strategy type is not valid."""
     valid_strategies = ["simple", "complete_ways", "smart"]
-    try:
-        if strategy and strategy not in valid_strategies:
-            raise InvalidInputError(f"Invalid strategy type. Call {os.path.basename(__file__)} -h/--help to display help.")
-    except InvalidInputError as e:
-        logger.error(e)
-        raise
+    if strategy and strategy not in valid_strategies:
+        raise InvalidInputError(f"Invalid strategy type. Call {os.path.basename(__file__)} -h/--help to display help.")
     logger.debug("Strategy validity checked.")
 
 def load_multipolygon_by_id(relation_id: str) -> bytes | Any:
@@ -42,7 +52,7 @@ def load_multipolygon_by_id(relation_id: str) -> bytes | Any:
     logger.debug("Multipolygon content loaded.")
     return response.content
 
-def extract_id(input_file: str, relation_id: str, strategy: str = None):
+def extract_id(input_file: Path, output_file: Path, relation_id: str, strategy: str = None):
     """Filter out data based on relation ID."""
     logger.debug("Extracting multipolygon with relation ID %s...")
     content = load_multipolygon_by_id(relation_id)
@@ -50,29 +60,25 @@ def extract_id(input_file: str, relation_id: str, strategy: str = None):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".osm") as tmp_file:
         tmp_file.write(content)
         tmp_file_path = tmp_file.name
-        cmd = ["osmium", "extract", "-p", tmp_file_path, input_file, "-o", RESOURCES_DIR / "id_extract.osm"]
+        cmd = ["osmium", "extract", "-p", tmp_file_path, str(input_file), "-o", str(output_file)]
         if strategy:
             cmd.extend(["-s", strategy])
-        res = subprocess.run(cmd)
-        if not res.returncode:
-            logger.info("ID extraction completed.")
+        res = roadgraphtool.exec.call_executable(cmd)
+        if res:
+            logger.debug("ID extraction completed.")
     
 def extract_bbox(input_file: str, coords: str, strategy: str = None):
     """Extract data based on bounding box with osmium."""
     float_regex = r'[0-9]+(.[0-9]+)?' # should match four floats
     coords_regex = f'{float_regex},{float_regex},{float_regex},{float_regex}'
-    try:
-        if re.match(coords_regex, coords):
-            logger.debug("Extracting bounding box with coords %s...", coords)
-            cmd = ["osmium", "extract", "-b", coords, input_file, "-o", "extracted-bbox.osm.pbf"]
-        elif os.path.isfile(coords) and coords.endswith((".json", ".geojson")):
-            logger.debug("Extracting bounding box with coords in file %s...", coords)
-            cmd = ["osmium", "extract", "-c", coords, input_file]
-        else:
-            raise InvalidInputError("Invalid coordinates or config file.")
-    except InvalidInputError as e:
-        logger.error(e)
-        raise
+    if re.match(coords_regex, coords):
+        logger.debug("Extracting bounding box with coords %s...", coords)
+        cmd = ["osmium", "extract", "-b", coords, input_file, "-o", "extracted-bbox.osm.pbf"]
+    elif os.path.isfile(coords) and coords.endswith((".json", ".geojson")):
+        logger.debug("Extracting bounding box with coords in file %s...", coords)
+        cmd = ["osmium", "extract", "-c", coords, input_file]
+    else:
+        raise InvalidInputError("Invalid coordinates or config file.")
 
     if strategy:
         cmd.extend(["-s", strategy])
@@ -138,54 +144,42 @@ h  : Filter objects based on highway tag
 def main(arg_list: list[str] | None = None):
     args = parse_args(arg_list)
 
-    try:
-        if not os.path.exists(args.input_file):
-            raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
-        elif not is_valid_extension(args.input_file):
-            raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
-    except (FileNotFoundError, InvalidInputError) as e:
-        logger.error(e)
-        raise
+    input_file_path = Path(args.input_file)
 
+    if not input_file_path.exists():
+        raise FileNotFoundError(f"File '{args.input_file}' does not exist.")
+    elif not is_valid_extension(input_file_path):
+        raise InvalidInputError("File must have one of the following extensions: osm, osm.pbf, osm.bz2")
+    
     match args.flag:
         case "id":
             # Filter geographic objects based on relation ID
-            try:
-                if not args.relation_id:
-                    raise MissingInputError("Existing relation ID must be specified.")
-                
-                check_strategy(args.strategy)
-                
-                extract_id(args.input_file, args.relation_id, args.strategy)
-            except MissingInputError as e:
-                logger.error(e)
-                raise
+            if not args.relation_id:
+                raise MissingInputError("Existing relation ID must be specified.")
+            
+            check_strategy(args.strategy)
+
+            output_file_path = input_file_path.parent / "id_extract.osm"
+
+            extract_id(input_file_path, output_file_path, args.relation_id, args.strategy)
 
         case "b":
             # Filter geographic objects based on bounding box (with osmium)
-            try:
-                if not args.coords:
-                    raise MissingInputError("Coordinates or config file need to be specified with the 'b' flag.")
-                
-                check_strategy(args.strategy)
-                
-                extract_bbox(args.input_file, args.coords, args.strategy)
-            except MissingInputError as e:
-                logger.error(e)
-                raise
+            if not args.coords:
+                raise MissingInputError("Coordinates or config file need to be specified with the 'b' flag.")
+            
+            check_strategy(args.strategy)
+            
+            extract_bbox(args.input_file, args.coords, args.strategy)
 
         case "f":
             # Filter objects based on tags in expression_file
-            try:
-                if not args.expression_file:
-                    raise MissingInputError("Expression file needs to be specified.")
-                elif not os.path.exists(args.expression_file):
-                    raise FileNotFoundError(f"File '{args.expression_file}' does not exist.")
+            if not args.expression_file:
+                raise MissingInputError("Expression file needs to be specified.")
+            elif not os.path.exists(args.expression_file):
+                raise FileNotFoundError(f"File '{args.expression_file}' does not exist.")
 
-                run_osmium_filter(args.input_file, args.expression_file, args.omit_referenced)
-            except (MissingInputError, FileNotFoundError) as e:
-                logger.error(e)
-                raise
+            run_osmium_filter(args.input_file, args.expression_file, args.omit_referenced)
 
         case "h":
             # Filter objects based on highway tag

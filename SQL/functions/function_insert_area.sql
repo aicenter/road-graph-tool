@@ -6,35 +6,46 @@
 --      - name: varchar
 --      - description: varchar
 --      - geom: json
--- Returns: -
+-- Returns: ID of the newly inserted area: integer
 -- Required tables: None
 -- Affected tables: areas
--- Author: Vladyslav Zlochevskyi
+-- Author: Vladyslav Zlochevskyi, David Fiedler
 -- Date: 2024
 ------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION insert_area(
     name VARCHAR,
-    geom JSON,
-    id INTEGER DEFAULT NULL,
+    geom_json JSON DEFAULT NULL,
+    area_id INTEGER DEFAULT NULL,
     description VARCHAR DEFAULT NULL
-) RETURNS VOID AS
+) RETURNS INTEGER AS
 $$
+DECLARE
+    geom GEOMETRY;
 BEGIN
-    IF id IS NULL THEN
+    IF geom_json IS NULL THEN
+        geom = NULL;
+    ELSE
+        geom = st_geomfromgeojson(geom_json);
+    END IF;
+    IF area_id IS NULL THEN
         INSERT INTO areas(name, description, geom)
         VALUES (
             name,
             description,
-            st_geomfromgeojson(geom)
-        );
+            geom
+        )
+        RETURNING id INTO area_id;
     ELSE
         INSERT INTO areas(id, name, description, geom)
         VALUES (
-            id,
+           area_id,
             name,
             description,
-            st_geomfromgeojson(geom)
-        );
+            geom
+        )
+        RETURNING id INTO area_id;
     END IF;
+
+    RETURN area_id;
 END;
 $$ LANGUAGE plpgsql;

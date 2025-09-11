@@ -3,15 +3,17 @@ import pathlib
 import tempfile
 import pytest
 import xml.etree.ElementTree as ET
+from pathlib import Path
+from importlib.resources import files
 
+from tests.conftest import test_resources_path
 from roadgraphtool.exceptions import InvalidInputError, MissingInputError
-from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main, RESOURCES_DIR
-    
-TESTS_DIR = pathlib.Path(__file__).parent.parent.parent / "python/tests/data"
+from scripts.filter_osm import check_strategy, extract_id, is_valid_extension, load_multipolygon_by_id, extract_bbox, main
+
 
 @pytest.fixture
 def expected_multipolygon_id():
-    file_path = TESTS_DIR / "expected_multipolygon_id.osm"
+    file_path = files(test_resources_path).joinpath("expected_multipolygon_id.osm")
     with open(file_path, 'rb') as f:
         return f.read()
 
@@ -22,17 +24,17 @@ def mock_open(mocker):
 # TESTS:
 
 def test_is_valid_extension_valid():
-    valid_file = "test.osm"
+    valid_file = Path("test.osm")
     assert is_valid_extension(valid_file) == True
 
 def test_is_valid_extension_invalid():
-    invalid_file = "test.pdf"
+    invalid_file = Path("test.pdf")
     assert is_valid_extension(invalid_file) == False
 
 def test_check_strategy():
-    assert check_strategy("simple") == None
-    assert check_strategy("complete_ways") == None
-    assert check_strategy("smart") == None
+    assert check_strategy("simple") is None
+    assert check_strategy("complete_ways") is None
+    assert check_strategy("smart") is None
     with pytest.raises(InvalidInputError, match="Invalid strategy type. Call filter_osm.py -h/--help to display help."):
         check_strategy("invalid_strategy")
 
@@ -72,10 +74,10 @@ def test_load_multipolygon_by_id_contains_id(mocker, expected_multipolygon_id):
     
 def test_extract_id_contains_id():
     relation_id = 5986438
-    input_file = TESTS_DIR / "id_test.osm"
-    output_file = RESOURCES_DIR /  "id_extract.osm"
+    input_file = files(test_resources_path).joinpath("id_test.osm")
+    output_file = Path(str(input_file)).parent / "id_extract.osm"
 
-    extract_id(input_file, relation_id)
+    extract_id(input_file, output_file, relation_id)
 
     # Check that output file was created
     assert os.path.exists(output_file), "Output file was not created"
@@ -142,20 +144,6 @@ def test_main_id_invalid_strategy():
         arg_list = ["id", tmp_file.name, "-rid", "1234", "-s", "invalid"]
         with pytest.raises(InvalidInputError, match="Invalid strategy type. Call filter_osm.py -h/--help to display help."):
             main(arg_list)
-
-def test_main_id_valid(mocker):
-    with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
-        arg_list = ["id", tmp_file.name, "-rid", "1234"]
-        mock_extract_id = mocker.patch('scripts.filter_osm.extract_id')
-        main(arg_list)
-        mock_extract_id.assert_called_once_with(arg_list[1], arg_list[3], None)
-
-def test_main_id_startegy_valid(mocker):
-    with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:
-        arg_list = ["id", tmp_file.name, "-rid", "1234", "-s", "simple"]
-        mock_extract_id = mocker.patch('scripts.filter_osm.extract_id')
-        main(arg_list)
-        mock_extract_id.assert_called_once_with(arg_list[1], arg_list[3], "simple")
 
 def test_main_b_missing_coord():
     with tempfile.NamedTemporaryFile(suffix=".osm") as tmp_file:

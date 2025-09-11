@@ -1,7 +1,36 @@
-ahoj:
-  jak:
-    to:
-      je: "Ahoj, jak se máš?"
-jde:
-  to:
-    na: 1
+password_config_file: ./secrets.yaml
+schema: public
+srid: 32631
+area_id: 2
+log_level: DEBUG
+
+db: {
+    username: postgres,
+    db_host: localhost,
+    db_name: rgt,
+    db_server_port: 5432,
+}
+
+importer: {
+    activated: false,
+    input_file: ./andorra-latest-filtered.osm,
+    force: true,
+    schema: importer,
+    style_file: pipeline,
+    pgpass: true,
+    pgpass_file: "~/pgpass.conf",
+    area_name: Andorra
+}
+
+contraction: {
+    activated: false
+}
+
+strong_components: {
+    activated: false
+}
+
+export: {
+    activated: true,
+    dir: ./
+}

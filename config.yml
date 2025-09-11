@@ -1,0 +1,42 @@
+password_config_file: ./secrets.yml
+
+schema: public
+
+srid: 3301
+
+log_level: DEBUG
+
+db:
+  username: cuchy
+  db_host: localhost
+  db_name: rgt_testing
+  db_server_port: 5432
+  ssh:
+    host: localhost
+    server: its.fel.cvut.cz
+    server_username: cuchy
+    tunnel_port: 1113
+    private_key_path: C:\Users\cuchymar\.ssh\its_id
+
+
+importer:
+  activated: true
+  input_file: ./estonia-20241031-highways-relations.osm.pbf
+  force: true
+  schema: estonia
+  style_file: lua_styles/pipeline.lua
+  area_name: estonia
+  boundary_source:
+#    geojson_file:
+    overpass:
+#    convex_hull:
+#      buffer_in_m: 1000
+
+
+
+  # if true, a `pgpass.conf` file will be automatically created in root folder of the project. Otherwise, the user
+  # will be prompted to enter the password each time the importer is run.
+  pgpass: true
+  pgpass_file: "~/pgpass.conf"
+
+
