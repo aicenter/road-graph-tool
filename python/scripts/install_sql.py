@@ -73,7 +73,7 @@ if not db.execute_sql_and_fetch_all_rows(sql)[0][0]:
 sql = """SELECT * FROM pg_extension WHERE extname = 'pgtap'"""
 if extensions["pgtap"] and not db.execute_sql_and_fetch_all_rows(sql):
     logging.info("Enabling pgtap")
-    execute_sql_file(sql_dir / "testing_extension.sql", SCHEMA, multistatement=True)
+    execute_sql_file(sql_dir / "tests/testing_extension.sql", SCHEMA, multistatement=True)
 else:
     if not extensions["pgtap"]:
         logging.warning("pgtap extension is not available")

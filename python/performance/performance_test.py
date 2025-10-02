@@ -12,13 +12,17 @@ import os
 import re
 import subprocess
 import time
+from pathlib import Path
+
 import psutil
 import psycopg2
 import platform
 import json
 
-from roadgraphtool.schema import get_connection
-from scripts.process_osm import import_osm_to_db
+import roadgraphtool
+from roadgraphtool.config import parse_config_file, set_logging
+from roadgraphtool.process_osm import import_osm_to_db
+# from roadgraphtool.schema import get_connection
 from scripts.main import main as pipeline_main
 
 MARKDOWN_FILE = "python/performance/perf_report.md"
@@ -135,7 +139,7 @@ def get_db_table_sizes(schema: str) -> dict:
     """Return dictionary containing the sizes of all tables 
     in the **schema** of the database."""
     try:
-        with get_connection() as conn:
+        with roadgraphtool.db.db.get_new_psycopg2_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(f"""
                     SELECT table_name, size
@@ -152,19 +156,20 @@ def get_db_table_sizes(schema: str) -> dict:
     except (psycopg2.DatabaseError, Exception) as error:
         raise error
 
-def monitor_performance(input_file: str, schema: str, style_file: str, importing: bool) -> dict:
+def monitor_performance(config) -> dict:
     """Return dictionary of monitored time, file size, date of import and table sizes
     after running the **import_osm_to_db()** function."""
-    file_size = os.path.getsize(input_file)
+    file_size = os.path.getsize(config.importer.input_file)
 
     start_time = time.time()
 
-    if importing:
-        import_osm_to_db(input_file, True, False, style_file, schema=schema)
+    if config.importer.activated:
+        import_osm_to_db(config)
+        # import_osm_to_db(input_file, True, False, style_file, schema=schema)
     else:
         # TODO:
         area_id = 1 # placeholder - area id based on data
-        pipeline_main(['a', area_id, '-i', '-sf', style_file])
+        # pipeline_main(['a', area_id, '-i', '-sf', style_file])
 
     elapsed_time = time.time() - start_time
 
@@ -172,20 +177,20 @@ def monitor_performance(input_file: str, schema: str, style_file: str, importing
             "performance_metrics": {"total_time": elapsed_time, "test_runs": 1},
             "file_size": convert_to_readable_size(file_size),
             "date_import": datetime.today().strftime('%d.%m.%Y'),
-            "db_table_sizes": get_db_table_sizes(schema)
+            "db_table_sizes": get_db_table_sizes(config.schema)
         }
 
 def get_db_version() -> str:
     """Return version of database."""
     try:
-        with get_connection() as conn:
+        with roadgraphtool.db.db.get_new_psycopg2_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT split_part(version(), ' ', 1) || ' ' || current_setting('server_version') as db_info;")
                 return cur.fetchone()[0]
     except (psycopg2.DatabaseError, Exception) as error:
         return str(error)
 
-def monitor(input_file: str, location: str, mode: str, network_conn: str, schema: str, style_file: str, importing: bool) -> dict:
+def monitor(config, location: str, mode: str, network_conn: str) -> dict:
     """Monitors HW metrics, time, memory and DB table sizes."""
     # Get hardware info
     hw_metrics = get_hw_config()
@@ -194,7 +199,7 @@ def monitor(input_file: str, location: str, mode: str, network_conn: str, schema
     hw_metrics["data_info"] = {
         mode_conn: {
             "db_info": get_db_version(),
-            location: monitor_performance(input_file, schema, style_file, importing)
+            location: monitor_performance(config)
         }
     }
     return hw_metrics
@@ -236,10 +241,10 @@ def get_network_config() -> str:
     net_info = psutil.net_if_stats()
     for key in net_info.keys():
         if key.startswith('wl'):
-            connection = 'wireless'
-        elif key.startswith('en'):
-            connection = 'ethernet'
-    return connection
+            return 'wireless'
+        elif key.startswith('en') or key.startswith('Ethernet'):
+            return 'ethernet'
+    return 'unknown'
 
 def update_performance(current: dict, old: dict, location: str, mode: str, connection: str):
     """Update JSON file with new data based on location, connection and mode."""
@@ -267,6 +272,7 @@ def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
     
     loc_parser = subparsers.add_parser('l', help="Specify the name of location to include in statistics.")
     loc_parser.add_argument('location', help="Specify the location name.")
+    loc_parser.add_argument('-cf', dest='config_file', required=True, help="Specify the location of the config file")
     loc_parser.add_argument('-i', '--input-file', dest='input_file', type=str, help="Specify the path to the input file.")
     loc_parser.add_argument('-I', dest='importing', action="store_true", help="Enable performance test of importing only.")
     loc_parser.add_argument('-m', dest='mode', required=True, help="Specify the database mode (local/remote) for '-i' flag.")
@@ -286,20 +292,26 @@ def main(arg_list: list[str] | None = None):
             header = f"of {args.header}" if args.header else args.header
             write_markdown(json_data, header)
         case 'l':
-            location, mode, schema = args.location, args.mode, args.schema
+            config = parse_config_file(Path(args.config_file))
+            location, mode = args.location, args.mode
+            set_logging(config)
+
             conn = get_network_config()
+            roadgraphtool.db.init_db(config)
+            roadgraphtool.db.db.start_or_restart_ssh_connection_if_needed()
             if file_exists(JSON_FILE):
                 metrics = read_json()
-                new_metrics = monitor_performance(args.input_file, schema, args.style_file, args.importing)
+                new_metrics = monitor_performance(config)
                 update_performance(new_metrics, metrics, location, mode, conn)
                 write_json(metrics)
             else:
-                metrics = monitor(args.input_file, location, mode, conn, schema, args.style_file, args.importing)
+                metrics = monitor(config, location, mode, conn)
                 write_json(metrics)
 
 
 if __name__ == '__main__':
     # main()
-    main(['md', '-mh', 'importing from local machine'])
+    # main(['md', '-mh', 'importing from local machine'])
     # main(['l', 'monaco', '-i', '-m','local', '-s', 'osm_testing', '-sf', 'resources/lua_styles/pipeline.lua'])
-    # main(['l', 'monaco', '-m','local', '-s', 'osm_testing', '-i', '-sf', 'resources/lua_styles/pipeline.lua'])
+    main(['l', 'czechia', '-cf','config.yml','-m','local', '-s', 'osm_testing', '-i', 'czech-republic-241128-highways-relations.osm.pbf','-sf',
+          'resources/lua_styles/pipeline.lua'])
