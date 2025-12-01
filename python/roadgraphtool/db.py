@@ -246,7 +246,33 @@ class Database(object):
 
         https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_sql.html
         """
+        if type(df) is gpd.GeoDataFrame:
+            raise ValueError("dataframe_to_db_table function does not support GeoDataFrames. Use geodataframe_to_db_table instead.")
+
         df.to_sql(table_name, con=self._sqlalchemy_engine, if_exists='append', index=False)
+
+    @connect_db_if_required
+    def geodataframe_to_db_table(
+        self,
+        gdf: gpd.GeoDataFrame,
+        table_name: str,
+        store_index: bool = True,
+        data_types: dict = None,
+        **kwargs
+    ) -> None:
+        # if srid is None:
+        #     srid = self.config.srid
+        #
+        # # set dataframe srid
+        # gdf.set_crs(epsg=srid, inplace=True)
+
+        if gdf.active_geometry_name is None or gdf.active_geometry_name not in gdf.columns:
+            raise ValueError("the geodataframe_to_db_table function requires a the GeoDataFrame to have an active geometry column")
+
+        if data_types is None:
+            data_types = {}
+
+        gdf.to_postgis(table_name, con=self._sqlalchemy_engine, if_exists='append', index=store_index, dtype=data_types)
 
     @connect_db_if_required
     def db_table_to_pandas(self, table_name: str, **kwargs) -> pd.DataFrame:

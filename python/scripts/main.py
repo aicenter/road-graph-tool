@@ -8,6 +8,7 @@ from roadgraphtool.config import parse_config_file, set_logging
 import roadgraphtool.db
 from roadgraphtool.db import db
 from roadgraphtool.process_osm import import_osm_to_db
+import roadgraphtool.overpass_import
 import roadgraphtool.export
 
 
@@ -193,6 +194,9 @@ def main():
 
     if config.importer.activated:
         area_id = import_osm_to_db(config)
+
+    if config.overpass_importer.activated:
+        roadgraphtool.overpass_import.run_overpass_import(config)
 
     if not area_id:
         area_id = config.area_id
