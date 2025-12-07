@@ -196,7 +196,7 @@ def main():
         area_id = import_osm_to_db(config)
 
     if config.overpass_importer.activated:
-        roadgraphtool.overpass_import.run_overpass_import(config)
+        area_id = roadgraphtool.overpass_import.run_overpass_import(config)
 
     if not area_id:
         area_id = config.area_id

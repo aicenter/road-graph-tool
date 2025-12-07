@@ -65,7 +65,7 @@ To run the tests, follow these steps:
     ```
 1. Execute the tests by running the following query in your PostgreSQL console:
     ```sql
-    SELECT * FROM run_all_tests();
+    SELECT * FROM mob_group_runtests('*_.*');
     ```
     - This query will return a result set containing the execution status of each test.
 

@@ -1,43 +1,75 @@
 
-import osmnx as ox
+import overpy
 import pandas as pd
-import networkx as nx
 import geopandas as gpd
+import logging
 
-from typing import Dict
+from shapely import geometry
 
 from roadgraphtool.db import db
+import roadgraphtool.insert_area
 
 
 def run_overpass_import(config):
-    graph = ox.graph_from_place(config.overpass_importer.area_name, network_type='drive')
+    area = config.area.name
 
-    # upload nodes to database
-    nodes_df = pd.DataFrame.from_dict(dict(graph.nodes(data=True)), orient='index')
-    nodes_gdf = gpd.GeoDataFrame(nodes_df, geometry=gpd.points_from_xy(nodes_df.x, nodes_df.y), crs="EPSG:4326")
-    nodes_gdf.drop(columns=['x', 'y', 'street_count'], inplace=True)
-    nodes_gdf.rename(columns={'geometry': 'geom'}, inplace=True)
-    nodes_gdf.set_geometry('geom', inplace=True)
-    nodes_gdf.index.rename('id', inplace=True)
-    db.geodataframe_to_db_table(nodes_gdf, "nodes", srid=4326)
+    area_id = roadgraphtool.insert_area.genereate_area(config, f'{area} - overpass_import')
 
+    logging.info(f"Downloading area {area} from Overpass API")
 
-    # upload edges to database
-    edges_df = pd.DataFrame.from_dict(graph.edges(data=True))
-    node_ways_list = []
-    for from_node_id, to_node_id, way_id in zip(edges_df['source'], edges_df['target'], edges_df['way_id']):
-        node_ways_list.append({
-            'node_id': from_node_id,
-            'way_id': way_id,
-            'position': 0
-        })
-        node_ways_list.append({
-            'node_id': to_node_id,
-            'way_id': way_id,
-            'position': 1
-        })
-    node_ways_df = pd.DataFrame(node_ways_list)
-    db.dataframe_to_db_table(node_ways_df, 'nodes_ways')
-    ways_df = edges_df.groupby('way_id').agg({'length': 'sum'}).reset_index()
-    db.dataframe_to_db_table(ways_df, 'ways')
-   
+    filter = """
+    highway~"(motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|unclassified_link|residential|residential_link|living_street)"
+    """
+    query = f"""
+    area[name="{area}"];
+    (
+        (way(area)[{filter}];)->.edges;.edges>->.nodes;
+    );
+    out;
+    """
+    api = overpy.Overpass()
+    result = api.query(query)
+
+    # nodes
+    logging.info(f"Importing {len(result.nodes)} nodes")
+    node_list = [{'id': node.id, 'lat': node.lat, 'lon': node.lon} for node in result.nodes]
+    node_df = pd.DataFrame(node_list)
+    node_gdf = gpd.GeoDataFrame(node_df, geometry=gpd.points_from_xy(node_df.lon, node_df.lat), crs="EPSG:4326")
+    node_gdf.drop(columns=['lon', 'lat'], inplace=True)
+    node_gdf.rename(columns={'geometry': 'geom'}, inplace=True)
+    node_gdf.set_geometry('geom', inplace=True)
+    node_gdf.set_index('id', inplace=True)
+    db.geodataframe_to_db_table(node_gdf, "nodes", srid=4326)
+
+    # ways and nodes_ways
+    nodes_ways_list = []
+    ways_list = []
+
+    logging.info(f"Importing {len(result.ways)} ways")
+    for way in result.ways:
+
+        # add nodes to nodeways list
+        for position, node_id in enumerate(way.nodes):
+            nodes_ways_list.append(
+                {'node_id': node_id.id, 'way_id': way.id, 'position': position}
+            )
+
+        # add the way
+        ways_list.append(
+            {
+                'id': way.id,
+                'geom': geometry.LineString([node.lon, node.lat] for node in way.nodes),
+                'area': area_id,
+                'from': way.nodes[0].id,
+                'to': way.nodes[-1].id,
+                'oneway': False}
+        )
+
+    ways_gdf = gpd.GeoDataFrame(ways_list, geometry='geom', crs="EPSG:4326")
+    ways_gdf.set_index('id', inplace=True)
+    db.geodataframe_to_db_table(ways_gdf, "ways")
+
+    nodes_ways_df = pd.DataFrame(nodes_ways_list)
+    db.dataframe_to_db_table(nodes_ways_df, "nodes_ways", stored_index=False)
+
+    return area_id
