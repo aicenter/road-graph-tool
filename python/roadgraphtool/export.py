@@ -1,7 +1,7 @@
 import logging
 from os import path, makedirs
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import geopandas as gpd
 import pandas as pd
@@ -39,6 +39,8 @@ def get_map_nodes_from_db(area_id: int, schema='public') -> gpd.GeoDataFrame:
 
 def get_map_edges_from_db(config: dict, schema='public') -> gpd.GeoDataFrame:
     logging.info("Fetching edges from db")
+    speeds = """,
+        speed""" if hasattr(config, 'speeds') and config.speeds else """"""
     sql = f"""
         DROP TABLE IF EXISTS demand_nodes;
         CREATE TEMP TABLE demand_nodes(
@@ -58,8 +60,7 @@ def get_map_edges_from_db(config: dict, schema='public') -> gpd.GeoDataFrame:
             "from" AS db_id_from,
             "to" AS db_id_to,
             edges.geom as geom,
-            st_length(st_transform(edges.geom, {config.srid})) as length,
-            speed
+            st_length(st_transform(edges.geom, {config.srid})) as length{speeds}
         FROM edges
             JOIN demand_nodes from_nodes ON edges."from" = from_nodes.db_id
             JOIN demand_nodes to_nodes ON edges."to" = to_nodes.db_id
@@ -123,7 +124,7 @@ def _save_graph_shapefile(nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, shap
     edges.to_file(str(filepath_edges), driver="ESRI Shapefile", index=False, encoding="utf-8")
 
 
-def export(config: Dict):
+def export(config: Dict) -> Optional[Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]]:
     """
     Loads filtered map nodes geodataframe. If th dataframe is not generated yet, then the map is downloaded
     and processed to obtain the filtered nodes dataframe
@@ -138,7 +139,7 @@ def export(config: Dict):
     # map already generated -> load
     if path.exists(nodes_file_path):
         logging.warning("Nodes already exists %s", nodes_file_path.absolute())
-        logging.warning("Exiting")
+        logging.warning("Skipping map export")
 
     # download and process map
     else:
@@ -152,3 +153,4 @@ def export(config: Dict):
         makedirs(area_dir, exist_ok=True)
         _save_map_csv(map_dir, nodes, edges)
 
+    return nodes, edges

@@ -2,7 +2,7 @@ import yaml
 import os.path
 import logging
 import pandas as pd
-from typing import Dict
+from typing import Dict, Optional
 import geopandas as gpd
 from pathlib import Path
 
@@ -27,18 +27,10 @@ def load_instance_config(config_file_path: Path) -> Dict:
 
             defaults = {
                 'instance_dir': os.path.dirname(config_file_path),
-                'map': {
-                    'path': config_file_path.parent / 'map'
+                'map': {'path': config_file_path.parent / 'map'},
+                'demand': {'type': 'generate', 'min_time': 0, 'max_time': 86_400  # 24:00
                 },
-                'demand': {
-                    'type': 'generate',
-                    'min_time': 0,
-                    'max_time': 86_400  # 24:00
-                },
-                'vehicles': {
-                    'start_time': config['demand']['min_time']
-                }
-            }
+                'vehicles': {'start_time': config['demand']['min_time']}}
 
             _set_config_defaults(config, defaults)
             return config
@@ -46,11 +38,26 @@ def load_instance_config(config_file_path: Path) -> Dict:
             logging.error(er)
 
 
-def generate_dm(config: Dict, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, allow_zero_length_edges: bool = True):
-    if 'dm_filepath' in config:
-        dm_file_path = config['dm_filepath']
+def generate_dm(
+    config: Dict,
+    nodes: Optional[gpd.GeoDataFrame],
+    edges: Optional[gpd.GeoDataFrame],
+    allow_zero_length_edges: bool = True
+):
+    area_dir = Path(config.export.dir)
+    map_dir = area_dir / 'map'
+
+    # load nodes and edges if not provided
+    if nodes is None:
+        nodes_file_path = map_dir / 'nodes.csv'
+        nodes = gpd.read_file(nodes_file_path)
+        edges_file_path = map_dir / 'edges.csv'
+        edges = gpd.read_file(edges_file_path)
+
+    if hasattr(config, 'dm_filepath'):
+        dm_file_path = config.dm_filepath
     else:
-        dm_file_path = os.path.join(config['area_dir'], 'dm')
+        dm_file_path = os.path.join(area_dir, 'dm')
 
     abs_path = os.path.abspath(dm_file_path)
     abs_path_with_extension = abs_path + '.csv'
@@ -58,7 +65,6 @@ def generate_dm(config: Dict, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, 
         logging.info('Skipping DM generation, the file is already generated.')
     else:
         logging.info(f"Generating distance matrix in {abs_path}")
-        map_dir = config['map']['path']
         xeng_file_path = os.path.join(map_dir, 'map.xeng')
         xeng_file_path = os.path.abspath(xeng_file_path)
 

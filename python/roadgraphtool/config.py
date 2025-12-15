@@ -1,5 +1,5 @@
 from contextlib import AbstractContextManager
-from importlib.abc import Traversable
+from importlib.resources.abc import Traversable
 from typing import Union
 import logging
 

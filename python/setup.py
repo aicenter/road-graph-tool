@@ -13,13 +13,13 @@ setup(
 		'numpy',
 		'pandas',
 		'tqdm',
-		'typing',
 		'pyyaml',
 		'psycopg2-binary',
 		'sqlalchemy',
 		'sshtunnel',
 		'geopandas',
 		'osmnx',
+        'overpy',
 		'networkx'
 	],
 	python_requires='>=3.8'

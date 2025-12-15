@@ -9,6 +9,7 @@ import roadgraphtool.db
 from roadgraphtool.db import db
 from roadgraphtool.process_osm import import_osm_to_db
 import roadgraphtool.export
+import roadgraphtool.distance_matrix_generator
 
 
 def get_area_for_demand(
@@ -203,8 +204,13 @@ def main():
     if config.strong_components.activated:
         compute_strong_components(area_id)
 
+    nodes = None
+    edges = None
     if config.export.activated:
-        roadgraphtool.export.export(config)
+        nodes, edges = roadgraphtool.export.export(config)
+
+    if config.dm_generator.activated:
+        roadgraphtool.distance_matrix_generator.generate_dm(config, nodes, edges)
     
     # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
     # try:
