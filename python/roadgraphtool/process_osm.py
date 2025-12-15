@@ -4,9 +4,6 @@ import stat
 import subprocess
 from pathlib import Path
 
-from roadgraphtool.insert_area import insert_area, read_geojson_file
-from shapely.ops import linemerge, unary_union, polygonize
-
 from sqlalchemy.sql.coercions import schema
 
 import roadgraphtool.exec
@@ -232,34 +229,6 @@ def check_and_print_warning(overlaps: dict[str, int]):
     pass
 
 
-def get_boundary_from_overpass(area_name: str) -> geometry.MultiPolygon:
-    api = overpy.Overpass()
-
-    # try to find the area by name and english name case-insensitive
-    query = f"""[out:json][timeout:25];
-    (rel["name"~"^{area_name}$",i];rel["name:en"~"^{area_name}$",i];);
-    out body;
-    >;
-    out skel qt; """
-
-    result = api.query(query)
-
-    lss = []  # convert ways to linestrings
-
-    for ii_w, way in enumerate(result.ways):
-        ls_coords = []
-
-        for node in way.nodes:
-            ls_coords.append((node.lon, node.lat))  # create a list of node coordinates
-
-        lss.append(geometry.LineString(ls_coords))  # create a LineString from coords
-
-    merged = linemerge([*lss])  # merge LineStrings
-    borders = unary_union(merged)  # linestrings to a MultiLineString
-    polygons = list(polygonize(borders))
-    return geometry.MultiPolygon(polygons)
-
-
 def postprocess_osm_import(config):
     schema = config.importer.schema
     target_schema = config.schema
@@ -270,12 +239,7 @@ def postprocess_osm_import(config):
     description = f"Imported from {config.importer.input_file}"
 
     # area creation
-    boundary_geom = None
-
-    if hasattr(config.importer, "boundary_source"):
-        boundary_geom = get_boundary_geojson(config)
-
-    area_id = insert_area(name=config.importer.area_name, description=description, geom=boundary_geom)
+    area_id = roadgraphtool.insert_area.genereate_area(config, description)
 
     overlaps = {}
     overlaps['nodes'] = get_overlapping_elements_count(schema, target_schema, 'nodes')
@@ -290,23 +254,6 @@ def postprocess_osm_import(config):
     copy_nodes_ways(schema, target_schema, area_id)
 
     return area_id
-
-
-def get_boundary_geojson(config):
-    boundary_source = config.importer.boundary_source
-    if hasattr(boundary_source, "geojson_file"):
-        return read_geojson_file(config.importer.geom)
-    if hasattr(boundary_source, "overpass"):
-        return shapely.to_geojson(get_boundary_from_overpass(config.importer.area_name))
-    if hasattr(boundary_source, "convex_hull"):
-        query = (f"""
-            SELECT ST_asgeojson(st_multi(st_transform(st_buffer(st_convexhull(st_collect(st_transform(geom, {config.srid}))), 
-{boundary_source.convex_hull.buffer_in_m}), 
-            4326))) 
-            FROM {config.importer.schema}.nodes;""")
-        result = db.execute_sql_and_fetch_all_rows(query)
-
-        return result[0][0]
 
 
 def generate_area_id(connection, target_schema):

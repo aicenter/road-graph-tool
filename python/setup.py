@@ -11,6 +11,7 @@ setup(
 	packages=setuptools.find_packages(),
 	install_requires=[
 		'numpy',
+        'overpy'
 		'pandas',
 		'tqdm',
 		'pyyaml',

@@ -12,8 +12,8 @@ BEGIN
             FROM
                 pgr_contraction(
                     'SELECT row_number() OVER () AS id, "from_node" AS source, "to_node" AS target, 0 AS cost FROM road_segments',
-                    ARRAY [2],
-                    forbidden_vertices => restricted_vertices
+                    methods => ARRAY [2],
+                    forbidden => restricted_vertices
                 )
     );
     CREATE INDEX contractions_index_contracted_vertex ON contractions (contracted_vertex);
