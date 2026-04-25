@@ -15,189 +15,189 @@ Apply in order:
 
 # areas
 
-Column | Type | Description
-------- | ------ | ------------
-`id` | integer | Area identifier (default from `areas_id_seq`)
-`name` | character varying | Area name
-`description` | character varying | Optional description
-`geom` | geometry(MultiPolygon) | Area geometry (SRID not enforced here)
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`id` | integer | Yes | Area identifier (default from `areas_id_seq`)
+`name` | character varying | Yes | Area name
+`description` | character varying | No | Optional description
+`geom` | geometry(MultiPolygon) | No | Area geometry (SRID not enforced here)
 
 # component_data
 
-Column | Type | Description
-------- | ------ | ------------
-`component_id` | smallint | Component identifier (ordered from largest; starts at 0)
-`node_id` | bigint | Node identifier (`nodes.id`)
-`area` | smallint | Area id the component belongs to (`areas.id`)
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`component_id` | smallint | Yes | Component identifier (ordered from largest; starts at 0)
+`node_id` | bigint | Yes | Node identifier (`nodes.id`)
+`area` | smallint | Yes | Area id the component belongs to (`areas.id`)
 
 # edges
 
-Column | Type | Description
-------- | ------ | ------------
-`from` | bigint | Tail node id (`nodes.id`)
-`to` | bigint | Head node id (`nodes.id`)
-`id` | integer | Edge identifier (default from `edge_id_seq`)
-`geom` | geometry(MultiLineString) | Edge geometry (WGS 84, 4326)
-`area` | smallint | Area id the edge belongs to (`areas.id`)
-`speed` | double precision | Edge speed (may be null / derived depending on pipeline stage)
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`from` | bigint | No | Tail node id (`nodes.id`)
+`to` | bigint | No | Head node id (`nodes.id`)
+`id` | integer | Yes | Edge identifier (default from `edge_id_seq`)
+`geom` | geometry(MultiLineString) | Yes | Edge geometry (WGS 84, 4326)
+`area` | smallint | Yes | Area id the edge belongs to (`areas.id`)
+`speed` | double precision | No | Edge speed (may be null / derived depending on pipeline stage)
 
 # node_segment_data (view)
 
 Columns exposed by the view (not a base table). Builds segments from `nodes_ways_speeds` by joining to `nodes_ways` and `nodes`.
 
-Column | Type | Description
-------- | ------ | ------------
-`id` | bigint | Row number (generated)
-`geom` | geometry | Line geometry between node points
-`speed` | double precision | Speed assigned to the segment
-`quality` | smallint | Quality indicator for the speed value
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`id` | bigint | Yes | Row number (generated)
+`geom` | geometry | Yes | Line geometry between node points
+`speed` | double precision | Yes | Speed assigned to the segment
+`quality` | smallint | No | Quality indicator for the speed value
 
 # nodes
 
-Column | Type | Description
-------- | ------ | ------------
-`id` | bigint | Node identifier
-`tags` | hstore | OSM-like tags key/value store
-`geom` | geometry(Point, 4326) | Node geometry (WGS 84)
-`area` | integer | Area id node was imported into (`areas.id`)
-`contracted` | boolean | Whether node has been contracted (default `false`)
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`id` | bigint | Yes | Node identifier
+`tags` | hstore | No | OSM-like tags key/value store
+`geom` | geometry(Point, 4326) | Yes | Node geometry (WGS 84)
+`area` | integer | No | Area id node was imported into (`areas.id`)
+`contracted` | boolean | Yes | Whether node has been contracted (default `false`)
 
 # nodes_edges
 
-Column | Type | Description
-------- | ------ | ------------
-`node_id` | integer | Node identifier
-`edge_id` | integer | Edge identifier
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`node_id` | integer | Yes | Node identifier
+`edge_id` | integer | Yes | Edge identifier
 
 # nodes_tmp
 
-Column | Type | Description
-------- | ------ | ------------
-`id` | integer | Temporary node identifier (default from `nodes_tmp_seq`)
-`geom` | geometry(Point, 4326) | Node geometry (WGS 84)
-`osm_id` | bigint | Original OSM id
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`id` | integer | Yes | Temporary node identifier (default from `nodes_tmp_seq`)
+`geom` | geometry(Point, 4326) | No | Node geometry (WGS 84)
+`osm_id` | bigint | No | Original OSM id
 
 # nodes_ways
 
-Column | Type | Description
-------- | ------ | ------------
-`way_id` | integer | Way identifier (`ways.id`)
-`node_id` | bigint | Node identifier (`nodes.id`)
-`position` | smallint | Position of node in the way polyline
-`area` | smallint | Area id (`areas.id`)
-`id` | integer | Row identifier (default from `nodes_ways_id_seq`)
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`way_id` | integer | Yes | Way identifier (`ways.id`)
+`node_id` | bigint | Yes | Node identifier (`nodes.id`)
+`position` | smallint | Yes | Position of node in the way polyline
+`area` | smallint | No | Area id (`areas.id`)
+`id` | integer | Yes | Row identifier (default from `nodes_ways_id_seq`)
 
 # nodes_ways_speeds
 
-Column | Type | Description
-------- | ------ | ------------
-`from_node_ways_id` | integer | From endpoint in `nodes_ways.id`
-`speed` | double precision | Speed estimate for the segment
-`st_dev` | double precision | Standard deviation of speed estimate
-`to_node_ways_id` | integer | To endpoint in `nodes_ways.id`
-`quality` | smallint | Speed quality flag
-`source_records_count` | integer | Number of source records used to compute speed (optional)
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`from_node_ways_id` | integer | Yes | From endpoint in `nodes_ways.id`
+`speed` | double precision | Yes | Speed estimate for the segment
+`st_dev` | double precision | Yes | Standard deviation of speed estimate
+`to_node_ways_id` | integer | Yes | To endpoint in `nodes_ways.id`
+`quality` | smallint | No | Speed quality flag
+`source_records_count` | integer | No | Number of source records used to compute speed (optional)
 
 # nodes_ways_tmp
 
-Column | Type | Description
-------- | ------ | ------------
-`way_id` | integer | Way identifier
-`node_id` | integer | Node identifier
-`position` | smallint | Position of node in the way polyline
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`way_id` | integer | Yes | Way identifier
+`node_id` | integer | Yes | Node identifier
+`position` | smallint | Yes | Position of node in the way polyline
 
 # relation_members
 
-Column | Type | Description
-------- | ------ | ------------
-`relation_id` | bigint | Relation identifier (`relations.id`)
-`member_id` | integer | Member id (node/way/relation id depending on `member_type`)
-`member_type` | text | Member type (e.g. node/way/relation)
-`member_role` | text | Role string from OSM relation
-`sequence_id` | integer | Position/order of the member within the relation
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`relation_id` | bigint | Yes | Relation identifier (`relations.id`)
+`member_id` | integer | Yes | Member id (node/way/relation id depending on `member_type`)
+`member_type` | text | Yes | Member type (e.g. node/way/relation)
+`member_role` | text | Yes | Role string from OSM relation
+`sequence_id` | integer | Yes | Position/order of the member within the relation
 
 # relations
 
-Column | Type | Description
-------- | ------ | ------------
-`id` | bigint | Relation identifier
-`tags` | hstore | OSM-like tags key/value store
-`members` | jsonb | Member list payload (if present)
-`area` | int | Area id relation was imported into (`areas.id`)
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`id` | bigint | Yes | Relation identifier
+`tags` | hstore | No | OSM-like tags key/value store
+`members` | jsonb | No | Member list payload (if present)
+`area` | int | No | Area id relation was imported into (`areas.id`)
 
 # speed_datasets
 
-Column | Type | Description
-------- | ------ | ------------
-`id` | integer | Speed dataset identifier
-`name` | character varying | Dataset name
-`description` | character varying | Dataset description
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`id` | integer | Yes | Speed dataset identifier
+`name` | character varying | Yes | Dataset name
+`description` | character varying | No | Dataset description
 
 # speed_record_datasets
 
-Column | Type | Description
-------- | ------ | ------------
-`id` | smallint | Speed-record dataset identifier
-`name` | character varying | Dataset name
-`description` | character varying | Dataset description
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`id` | smallint | No | Speed-record dataset identifier
+`name` | character varying | No | Dataset name
+`description` | character varying | No | Dataset description
 
 # speed_records
 
-Column | Type | Description
-------- | ------ | ------------
-`datetime` | timestamp without time zone | Timestamp of record
-`from_osm_id` | bigint | From OSM node id
-`to_osm_id` | bigint | To OSM node id
-`speed` | real | Speed value
-`st_dev` | real | Standard deviation of speed value
-`dataset` | smallint | Dataset id for the record
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`datetime` | timestamp without time zone | Yes | Timestamp of record
+`from_osm_id` | bigint | Yes | From OSM node id
+`to_osm_id` | bigint | Yes | To OSM node id
+`speed` | real | Yes | Speed value
+`st_dev` | real | No | Standard deviation of speed value
+`dataset` | smallint | No | Dataset id for the record
 
 # speed_records_quarterly
 
-Column | Type | Description
-------- | ------ | ------------
-`year` | smallint | Year
-`quarter` | smallint | Quarter (1-4)
-`hour` | smallint | Hour of day (0-23)
-`from_osm_id` | bigint | From OSM node id
-`to_osm_id` | bigint | To OSM node id
-`speed_mean` | double precision | Mean speed
-`st_dev` | double precision | Standard deviation
-`speed_p50` | double precision | Median speed
-`speed_p85` | double precision | 85th percentile speed
-`dataset` | smallint | Dataset id for the record
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`year` | smallint | No | Year
+`quarter` | smallint | No | Quarter (1-4)
+`hour` | smallint | No | Hour of day (0-23)
+`from_osm_id` | bigint | No | From OSM node id
+`to_osm_id` | bigint | No | To OSM node id
+`speed_mean` | double precision | No | Mean speed
+`st_dev` | double precision | No | Standard deviation
+`speed_p50` | double precision | No | Median speed
+`speed_p85` | double precision | No | 85th percentile speed
+`dataset` | smallint | No | Dataset id for the record
 
 # speeds
 
-Column | Type | Description
-------- | ------ | ------------
-`way_id` | bigint | Way identifier (`ways.id`)
-`speed_dataset` | smallint | Foreign key to `speed_datasets.id`
-`speed` | real | Speed value
-`way_area` | integer | Area id the way belongs to (`areas.id`)
-`speed_source` | smallint | Indicates source/derivation of speed value
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`way_id` | bigint | Yes | Way identifier (`ways.id`)
+`speed_dataset` | smallint | Yes | Foreign key to `speed_datasets.id`
+`speed` | real | Yes | Speed value
+`way_area` | integer | Yes | Area id the way belongs to (`areas.id`)
+`speed_source` | smallint | Yes | Indicates source/derivation of speed value
 
 # ways
 
-Column | Type | Description
-------- | ------ | ------------
-`id` | bigint | Way identifier
-`tags` | hstore | OSM-like tags key/value store
-`geom` | geometry(Geometry, 4326) | Way geometry (WGS 84)
-`area` | integer | Area id the way belongs to (`areas.id`)
-`from` | bigint | From node id (`nodes.id`)
-`to` | bigint | To node id (`nodes.id`)
-`oneway` | boolean | Directionality flag
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`id` | bigint | Yes | Way identifier
+`tags` | hstore | No | OSM-like tags key/value store
+`geom` | geometry(Geometry, 4326) | Yes | Way geometry (WGS 84)
+`area` | integer | No | Area id the way belongs to (`areas.id`)
+`from` | bigint | Yes | From node id (`nodes.id`)
+`to` | bigint | Yes | To node id (`nodes.id`)
+`oneway` | boolean | Yes | Directionality flag
 
 # ways_tmp
 
-Column | Type | Description
-------- | ------ | ------------
-`id` | bigint | Temporary way identifier
-`tags` | hstore | OSM-like tags key/value store
-`geom` | geometry(Geometry, 4326) | Way geometry (WGS 84)
-`from` | integer | From node id (temporary / contracted pipeline stage)
-`to` | integer | To node id (temporary / contracted pipeline stage)
-`osm_id` | bigint | Original OSM way id
-`oneway` | boolean | Directionality flag
+Column | Type | Required | Description
+------- | ------ | ------ | ------------
+`id` | bigint | Yes | Temporary way identifier
+`tags` | hstore | No | OSM-like tags key/value store
+`geom` | geometry(Geometry, 4326) | Yes | Way geometry (WGS 84)
+`from` | integer | Yes | From node id (temporary / contracted pipeline stage)
+`to` | integer | Yes | To node id (temporary / contracted pipeline stage)
+`osm_id` | bigint | Yes | Original OSM way id
+`oneway` | boolean | Yes | Directionality flag
 
