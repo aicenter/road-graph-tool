@@ -65,9 +65,10 @@ sql = f"""SELECT EXISTS (
         );
         """
 if not db.execute_sql_and_fetch_all_rows(sql)[0][0]:
-    main_sql_path = sql_dir / "main.sql"
     logging.info("Initializing the database")
-    execute_sql_file(main_sql_path, SCHEMA, multistatement=True)
+    execute_sql_file(sql_dir / "schema_preamble.sql", SCHEMA, multistatement=True)
+    for table_sql_path in sorted((sql_dir / "tables").glob("*.sql")):
+        execute_sql_file(table_sql_path, SCHEMA, multistatement=True)
 
 # enable pgtap if it's not enabled
 sql = """SELECT * FROM pg_extension WHERE extname = 'pgtap'"""

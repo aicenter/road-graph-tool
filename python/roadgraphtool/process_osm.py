@@ -20,7 +20,7 @@ import overpy
 import shapely
 import shapely.geometry as geometry
 
-AREA_ID_SEQUENCE = "dataset_id_seq"
+AREA_ID_SEQUENCE = "areas_id_seq"
 
 SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
 

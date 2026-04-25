@@ -13,44 +13,6 @@ import roadgraphtool.export
 import roadgraphtool.distance_matrix_generator
 
 
-def get_area_for_demand(
-        srid_plain: int,
-        dataset_ids: list,
-        zone_types: list,
-        buffer_meters: int,
-        min_requests_in_zone: int,
-        datetime_min: str,
-        datetime_max: str,
-        center_point: tuple,
-        max_distance_from_center_point_meters: int,
-) -> list:
-    sql_query = """
-            select * from get_area_for_demand(
-                    srid_plain := :srid_plain,
-                    dataset_ids := (:dataset_ids)::smallint[],
-                    zone_types := (:zone_types)::smallint[],
-                    buffer_meters := (:buffer_meters)::smallint,
-                    min_requests_in_zone := (:min_requests_in_zone)::smallint,
-                    datetime_min := :datetime_min,
-                    datetime_max := :datetime_max,
-                    center_point := st_makepoint(:center_x, :center_y),
-                    max_distance_from_center_point_meters := (:max_distance_from_center_point_meters)::smallint
-            );"""
-    params = {
-        "srid_plain": srid_plain,
-        "dataset_ids": dataset_ids,
-        "zone_types": zone_types,
-        "buffer_meters": buffer_meters,
-        "min_requests_in_zone": min_requests_in_zone,
-        "datetime_min": datetime_min,
-        "datetime_max": datetime_max,
-        "center_x": center_point[0],
-        "center_y": center_point[1],
-        "max_distance_from_center_point_meters": max_distance_from_center_point_meters,
-    }
-    return db.execute_sql_and_fetch_all_rows(sql_query, params)
-
-
 def insert_area(name: str, coordinates: list):
     geom_json = {"type": "MultiPolygon", "coordinates": coordinates}
     params = {"name": name, "json_data": json.dumps(geom_json)}

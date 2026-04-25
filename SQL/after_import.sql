@@ -47,12 +47,6 @@ ALTER TABLE nodes ADD CONSTRAINT fk_nodes_area FOREIGN KEY (area) REFERENCES are
 ALTER TABLE edges ADD CONSTRAINT fk_edges_from FOREIGN KEY ("from") REFERENCES nodes(id);
 ALTER TABLE edges ADD CONSTRAINT fk_edges_to FOREIGN KEY ("to") REFERENCES nodes(id);
 
--- trip_locations table foreign keys
-\echo 'Adding FOREIGN KEY constraints to table trip_location...'
-
-ALTER TABLE trip_locations ADD CONSTRAINT fk_trip_locations_destination FOREIGN KEY (destination) REFERENCES nodes(id);
-ALTER TABLE trip_locations ADD CONSTRAINT fk_trip_locations_origin FOREIGN KEY (origin) REFERENCES nodes(id);
-
 -- nodes_ways table foreign key
 \echo 'Adding FOREIGN KEY constraints to table nodes_ways...'
 
