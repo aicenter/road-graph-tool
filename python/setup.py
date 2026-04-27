@@ -10,18 +10,17 @@ setup(
 	license='GNU GPLv3',
 	packages=setuptools.find_packages(),
 	install_requires=[
+        'geopandas',
+        'networkx',
 		'numpy',
-        'overpy'
-		'pandas',
-		'tqdm',
-		'pyyaml',
-		'psycopg2-binary',
-		'sqlalchemy',
-		'sshtunnel',
-		'geopandas',
-		'osmnx',
+        'osmnx',
         'overpy',
-		'networkx'
+		'pandas',
+        'psycopg2-binary',
+        'pyyaml',
+        'sqlalchemy',
+		'sshtunnel',
+		'tqdm'
 	],
 	python_requires='>=3.8'
 )
