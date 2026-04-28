@@ -54,9 +54,15 @@ def parse_config_file(config_file: Union[Path, Traversable]):
 
         # merge in the secrets file
         secrets_file_path = Path(config_dict['password_config_file'])
+
+        # first expand user home directory
+        secrets_file_path = secrets_file_path.expanduser()
+
         # expand path if relative
-        if not secrets_file_path.is_absolute():
+        if secrets_file_path.is_absolute():
             secrets_file_path = config_file.parent / secrets_file_path
+
+        secrets_file_path = secrets_file_path.resolve()
         with open(secrets_file_path, 'r',encoding="UTF-8") as secrets_file:
             secrets_dict = yaml.safe_load(secrets_file)
             config_dict = merge_dicts(config_dict, secrets_dict)
