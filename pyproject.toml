@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name='roadgraphtool'
+version='0.0.0'
+dependencies=[
+    'geopandas',
+    'networkx',
+    'numpy',
+    'osmnx',
+    'overpy',
+    'pandas',
+    'psycopg2-binary',
+    'pyyaml',
+    'sqlalchemy',
+    'sshtunnel',
+    'tqdm'
+]
+requires-python='>=3.8'
+authors=[
+    { name="David Fiedler", email="david.fido.fiedler@gmail.com" },
+    { name="Dominika Šídlová", email="domisidlova@gmail.com" },
+    { name="Vladyslav Zlochevskyi", email="zlochina.work@gmail.com" },
+    { name="Viacheslav Larionov", email="sha0006@yandex.ru" },
+    { name="Marek Cuchý", email="marek.cuchy@agents.fel.cvut.cz" }
+]
+description='Tool for generating road network graphs from open street map data.'
+license='GPL-3.0-or-later'
