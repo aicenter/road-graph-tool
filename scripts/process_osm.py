@@ -64,7 +64,7 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
 def setup_ssh_tunnel() -> int:
     """Set up SSH tunnel if needed and returns port number."""
     if hasattr(CREDENTIALS, "server") and CREDENTIALS.server is not None:  # remote connection
-        db.start_or_restart_ssh_connection_if_needed()
+        db._start_or_restart_ssh_connection_if_needed()
         CREDENTIALS.db_server_port = db.ssh_tunnel_local_port
         return db.ssh_tunnel_local_port
     # local connection

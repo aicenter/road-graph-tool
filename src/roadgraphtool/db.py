@@ -19,10 +19,12 @@ def connect_db_if_required(db_function):
 
     def wrapper(*args, **kwargs):
         db = args[0]
-        if hasattr(db, 'server'):
-            db.start_or_restart_ssh_connection_if_needed()
+        if not db.initialized:
+            raise RuntimeError("Database is not initialized. Call roadgraphtool.db.init_db(config) first.")
+        if hasattr(db, 'ssh_server_address'):
+            db._start_or_restart_ssh_connection_if_needed()
         if not db.is_connected():
-            db.set_up_db_connections()
+            db._set_up_db_connections()
         return db_function(*args, **kwargs)
 
     return wrapper
@@ -50,46 +52,46 @@ class Database(object):
         ssh_tunnel_local_port: port on the local machine where the ssh tunnel is established.
     """
 
-    def __init__(self):
-        self._sqlalchemy_engine: Optional[sqlalchemy.engine.Engine] = None
-        self._psycopg2_connection = None
-        self._ssh_server_connection = None
-        self.db_server_address = None
-        self.db_name = None
-        self.db_server_port = None 
-        self.ssh_server_address = None
-        self.ssh_tunnel_local_port = None
-        self.config = None
+    config: dict
 
-    def set_config(self, config):
+    db_server_address: str
+    db_name: str
+    db_server_port: int
+
+    ssh_server_address: str
+    ssh_tunnel_local_port: int
+
+    _initialized: bool
+    _sqlalchemy_engine: sqlalchemy.engine.Engine
+    _psycopg2_connection: psycopg2.connection.Connection
+    _ssh_server_connection: sshtunnel.SSHTunnelForwarder
+
+
+    def initialize(self, config):
         self.config = config
-        # If private key specified, assume ssh connection and try to set it up
+        
         self.db_server_port = self.config.db_server_port
         self.db_name = self.config.db_name
-        # self.ssh_tunnel_local_port = 1113
+        self.db_server_address = self.config.db_host
+
         if hasattr(self.config, 'ssh'):
             self.ssh_tunnel_local_port = self.config.ssh.tunnel_port
             self.ssh_server_address = self.config.ssh.server
             self.db_server_port = self.ssh_tunnel_local_port
-            self._ssh_server_connection = None
-            self.db_server_address = self.config.db_host
-        else:
-            self.db_server_address = self.config.db_host
+            
+        self._initialized = True
 
-    def is_connected(self):
-        return (self._psycopg2_connection is not None) and (self._sqlalchemy_engine is not None)
-
-    def set_up_db_connections(self):
+    def _set_up_db_connections(self):
         # psycopg2 connection object
         logging.info("Starting _psycopg2 connection")
-        self._psycopg2_connection = self.get_new_psycopg2_connection()
+        self._psycopg2_connection = self._get_new_psycopg2_connection()
 
         # SQLAlchemy init. SQLAlchemy is used by pandas and geopandas
         logging.info("Starting sql_alchemy connection")
-        sql_alchemy_engine_str = self.get_sql_alchemy_engine_str()
+        sql_alchemy_engine_str = self._get_sql_alchemy_engine_str()
         self._sqlalchemy_engine = sqlalchemy.create_engine(sql_alchemy_engine_str)
 
-    def set_ssh_to_db_server_and_set_port(self):
+    def _start_ssh_connection(self):
         ssh_kwargs = dict(
             ssh_pkey=self.config.ssh.private_key_path,
             ssh_username=self.config.ssh.server_username,
@@ -118,21 +120,21 @@ class Database(object):
 
         self.db_server_port = self._ssh_server_connection.local_bind_port
 
-    def start_or_restart_ssh_connection_if_needed(self):
+    def _start_or_restart_ssh_connection_if_needed(self):
         """
         Set up or reset ssh tunnel.
         """
-        if hasattr(self.config, 'ssh'):
-            if self._ssh_server_connection is None:
-                # INITIALIZATION
-                logging.info("Connecting to ssh server")
-                self.set_ssh_to_db_server_and_set_port()
-            else:
-                # RESET
-                if not self._ssh_server_connection.is_alive or not self._ssh_server_connection.is_active:
-                    self._ssh_server_connection.restart()
 
-    def get_sql_alchemy_engine_str(self):
+        if not hasattr(self, '_ssh_server_connection'):
+            # INITIALIZATION
+            logging.info("Connecting to ssh server")
+            self._start_ssh_connection()
+        else:
+            # RESET
+            if not self._ssh_server_connection.is_alive or not self._ssh_server_connection.is_active:
+                self._ssh_server_connection.restart()
+
+    def _get_sql_alchemy_engine_str(self):
         sql_alchemy_engine_str = 'postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}'.format(
             user=self.config.username,
             password=self.config.db_password,
@@ -142,7 +144,7 @@ class Database(object):
 
         return sql_alchemy_engine_str
 
-    def get_new_psycopg2_connection(self):
+    def _get_new_psycopg2_connection(self):
         """
         Handles creation of db connection.
         """
@@ -349,4 +351,4 @@ db = Database()
 
 def init_db(config):
     global db
-    db.set_config(config.db)
+    db.initialize(config.db)

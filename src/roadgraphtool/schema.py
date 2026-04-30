@@ -30,7 +30,7 @@ def create_schema(schema: str):
     db = roadgraphtool.db.db
 
     try:
-        with db.get_new_psycopg2_connection() as conn:
+        with db._get_new_psycopg2_connection() as conn:
             with conn.cursor() as cur:
                 query = f'CREATE SCHEMA if not exists "{schema}";'
                 cur.execute(query)
@@ -40,7 +40,7 @@ def create_schema(schema: str):
 def add_postgis_extension(schema: str):
     """Adds the PostGIS extension to the specified schema."""
     try:
-        with roadgraphtool.db.db.get_new_psycopg2_connection() as conn:
+        with roadgraphtool.db.db._get_new_psycopg2_connection() as conn:
             with conn.cursor() as cur:
                 query = f'CREATE EXTENSION if not exists postgis SCHEMA "{schema}";'
                 cur.execute(query)
@@ -50,7 +50,7 @@ def add_postgis_extension(schema: str):
 def check_empty_or_nonexistent_tables(schema: str, tables: list = TABLES) -> bool:
     """Returns True, if all tables from TABLES are non-existent or empty. 
     Returns False if at least one isn't empty."""
-    with roadgraphtool.db.db.get_new_psycopg2_connection() as conn:
+    with roadgraphtool.db.db._get_new_psycopg2_connection() as conn:
         with conn.cursor() as cur:
             for t in tables:
                 query =  f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '{schema}' AND table_name = '{t}');"
