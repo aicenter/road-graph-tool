@@ -30,11 +30,12 @@ def connect_db_if_required(db_function):
 
 class Database(object):
     """
-    To be used as singleton instance db.
+    Singleton for database connection.
 
     Connection only happens when it is required.
 
     Import as:
+    
     from db import db
     """
 
