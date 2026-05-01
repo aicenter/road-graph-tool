@@ -22,11 +22,26 @@ def dict2obj(data):
 
 
 def expand_relative_paths(config_object: types.SimpleNamespace, root_dir: Path):
+    """Turn path-like config strings into pathlib.Path.
+
+    - ``./...`` paths are resolved under *root_dir* (each segment after ``expanduser``).
+    - User home is expanded (``~`` / ``~user``) on those tails and on other strings.
+    - Plain absolute paths (e.g. ``/var/key``, ``C:\\...``) become ``Path`` objects even
+      when they did not use a ``./`` prefix.
+    Non-path strings (hostnames, usernames, etc.) stay as ``str``.
+    """
     for key, value in vars(config_object).items():
         if isinstance(value, str):
-            if value.startswith('./'):
-                setattr(config_object, key, root_dir / value[2:])
-        # for objects, call recursively
+            if value.startswith("./"):
+                tail = Path(value[2:]).expanduser()
+                if tail.is_absolute():
+                    setattr(config_object, key, tail)
+                else:
+                    setattr(config_object, key, root_dir / tail)
+            else:
+                p = Path(value).expanduser()
+                if p.is_absolute():
+                    setattr(config_object, key, p)
         elif isinstance(value, types.SimpleNamespace):
             expand_relative_paths(value, root_dir)
 
