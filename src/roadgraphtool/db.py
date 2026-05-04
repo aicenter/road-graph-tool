@@ -13,6 +13,7 @@ import psycopg2
 import psycopg2.errors
 import sqlalchemy
 from sqlalchemy.engine import Row
+from tqdm import tqdm
 
 
 def _parse_ssh_server(server: str) -> Tuple[str, int]:
@@ -113,45 +114,46 @@ class ParamikoTunnelForwarder:
                     break
                 dst.sendall(data)
         except (OSError, EOFError):
-            pass
+            logging.exception("Error in _pump when sending/receiving data")
         finally:
             for s in (src, dst):
                 try:
                     if hasattr(s, "shutdown"):
                         s.shutdown(socket.SHUT_RDWR)
                 except OSError:
-                    pass
+                    logging.exception("Error in _pump when shutting down socket")
                 try:
                     s.close()
                 except OSError:
-                    pass
+                    logging.exception("Error in _pump when closing socket")
 
     def _handle_client(self, client_sock: socket.socket) -> None:
         try:
             transport = self._ssh_client.get_transport()
             if transport is None or not transport.is_active():
                 return
-            chan = transport.open_channel(
+            channel = transport.open_channel(
                 "direct-tcpip",
                 self._remote_bind_address,
                 client_sock.getpeername(),
             )
+            channel.settimeout(180)
         except Exception as e:
             logging.warning("SSH tunnel channel open failed: %s", e)
             try:
                 client_sock.close()
             except OSError:
-                pass
+                logging.exception("Error in _handle_client when closing client socket")
             return
 
         t_up = threading.Thread(
             target=self._pump,
-            args=(client_sock, chan),
+            args=(client_sock, channel),
             daemon=True,
         )
         t_down = threading.Thread(
             target=self._pump,
-            args=(chan, client_sock),
+            args=(channel, client_sock),
             daemon=True,
         )
         t_up.start()
@@ -200,7 +202,7 @@ class ParamikoTunnelForwarder:
                 try:
                     self._listener.close()
                 except OSError:
-                    pass
+                    logging.exception("Error in stop when closing listener socket")
                 self._listener = None
             if self._accept_thread is not None:
                 self._accept_thread.join(timeout=5.0)
@@ -209,7 +211,7 @@ class ParamikoTunnelForwarder:
                 try:
                     self._ssh_client.close()
                 except Exception:
-                    pass
+                    logging.exception("Error in stop when closing ssh client")
                 self._ssh_client = None
             self._stop_event.clear()
 
@@ -453,7 +455,14 @@ class Database(object):
         return data
 
     @connect_db_if_required
-    def dataframe_to_db_table(self, df: pd.DataFrame, table_name: str, **kwargs) -> None:
+    def dataframe_to_db_table(
+        self,
+        df: pd.DataFrame,
+        table_name: str,
+        chunk: bool = True,
+        chunk_size: int = 10_000,
+        **kwargs
+    ) -> None:
         """
         Save DataFrame to a new table in the database
 
@@ -465,7 +474,30 @@ class Database(object):
         if type(df) is gpd.GeoDataFrame:
             raise ValueError("dataframe_to_db_table function does not support GeoDataFrames. Use geodataframe_to_db_table instead.")
 
-        df.to_sql(table_name, con=self._sqlalchemy_engine, if_exists='append', index=False)
+        if not chunk:
+            df.to_sql(
+                table_name,
+                con=self._sqlalchemy_engine,
+                if_exists='append',
+                index=False,
+                **kwargs,
+            )
+            return
+
+        if chunk_size < 1:
+            raise ValueError("chunk_size must be at least 1 when chunk=True")
+
+        n = len(df)
+        for start in tqdm(range(0, n, chunk_size), desc=f"to_sql {table_name}"):
+            part = df.iloc[start : start + chunk_size]
+            part.to_sql(
+                table_name,
+                con=self._sqlalchemy_engine,
+                # chunksize=chunk_size,
+                if_exists='append',
+                index=False,
+                **kwargs,
+            )
 
     @connect_db_if_required
     def geodataframe_to_db_table(
@@ -474,6 +506,8 @@ class Database(object):
         table_name: str,
         store_index: bool = True,
         data_types: dict = None,
+        chunk: bool = True,
+        chunk_size: int = 5_000,
         **kwargs
     ) -> None:
         # if srid is None:
@@ -488,7 +522,31 @@ class Database(object):
         if data_types is None:
             data_types = {}
 
-        gdf.to_postgis(table_name, con=self._sqlalchemy_engine, if_exists='append', index=store_index, dtype=data_types)
+        if not chunk:
+            gdf.to_postgis(
+                table_name,
+                con=self._sqlalchemy_engine,
+                if_exists='append',
+                index=store_index,
+                dtype=data_types,
+                **kwargs,
+            )
+            return
+
+        if chunk_size < 1:
+            raise ValueError("chunk_size must be at least 1 when chunk=True")
+
+        n = len(gdf)
+        for start in tqdm(range(0, n, chunk_size), desc=f"to_postgis {table_name}"):
+            part = gdf.iloc[start : start + chunk_size]
+            part.to_postgis(
+                table_name,
+                con=self._sqlalchemy_engine,
+                if_exists='append',
+                index=store_index,
+                dtype=data_types,
+                **kwargs,
+            )
 
     @connect_db_if_required
     def db_table_to_pandas(self, table_name: str, **kwargs) -> pd.DataFrame:
