@@ -3,7 +3,7 @@ import geojson
 from pathlib import Path
 import sys
 import logging
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 import overpy
 import shapely
 import shapely.geometry as geometry
@@ -103,7 +103,12 @@ def parse_arguments() -> argparse.Namespace:
         "-c", "--config", required=False, default=None, help="Config", )
     return parser.parse_args()
 
-def get_boundary_from_overpass(area_name: str) -> geometry.MultiPolygon:
+def get_boundary_from_overpass(config: Dict[str, Any]) -> geometry.MultiPolygon:
+    if not hasattr(config.area_insert.boundary_source, "admin_boundary_name"):
+        raise ValueError("""
+        Admin boundary name not specified in config. Should be in config.area_insert.boundary_source.admin_boundary_name.
+        """)
+    admin_boundary_name = config.area_insert.boundary_source.admin_boundary_name
     api = overpy.Overpass()
 
     # try to find the area by name and english name case-insensitive
@@ -113,7 +118,7 @@ def get_boundary_from_overpass(area_name: str) -> geometry.MultiPolygon:
     # >;
     # out skel qt; """
     query = f"""[out:json][timeout:25];
-area["name"="{area_name}"];
+area["name"="{admin_boundary_name}"];
 node(pivot);
 out geom;
 """
@@ -122,10 +127,10 @@ out geom;
 
     relations = result.relations
     if len(relations) == 0:
-        logging.error(f"The area '{area_name}' was not found in Overpass.")
-        raise Exception(f"The area '{area_name}' was not found in Overpass.")
+        logging.error(f"The area '{admin_boundary_name}' was not found in Overpass.")
+        raise Exception(f"The area '{admin_boundary_name}' was not found in Overpass.")
     elif len(relations) > 1:
-        logging.warning(f"More than one area with the name '{area_name}' was found in Overpass. Using the first one.")
+        logging.warning(f"More than one area with the name '{admin_boundary_name}' was found in Overpass. Using the first one.")
     area_relation = relations[0]
 
     lss = []  # convert ways to linestrings
@@ -143,15 +148,37 @@ out geom;
     return geometry.MultiPolygon(polygons)
 
 def get_boundary_geojson(config):
-    boundary_source = config.area.boundary_source
-    if boundary_source == "geojson_file":
-        return read_geojson_file(config.importer.geom)
-    if boundary_source == "overpass":
-        return geojson.loads(shapely.to_geojson(get_boundary_from_overpass(config.area.name)))
-    if hasattr(boundary_source, "convex_hull"):
+    if not hasattr(config.area_insert, "boundary_source"):
+        raise ValueError("""
+        Boundary source not specified in config. Should be in config.area_insert.boundary_source. 
+        """)
+    boundary_source = config.area_insert.boundary_source
+
+    if not hasattr(boundary_source, "type"):
+        raise ValueError("""
+        Boundary source type not specified in config. Should be in config.area_insert.boundary_source.type. Has to be
+        one of: "geojson_file", "overpass", "inline"
+        """)
+
+    if boundary_source.type == "geojson_file":
+
+        if not hasattr(boundary_source, "file_path"):
+            raise ValueError("""
+            File path not specified in config. Should be in config.area_insert.boundary_source.file_path.
+            """)
+        file_path = boundary_source.file_path
+        return read_geojson_file(file_path)
+    if boundary_source.type == "overpass":
+        return geojson.loads(shapely.to_geojson(get_boundary_from_overpass(config)))
+    if boundary_source.type == "convex_hull":
+        if not hasattr(boundary_source, "buffer_in_m"):
+            raise ValueError("""
+            Buffer in meters not specified in config. Should be in config.area_insert.boundary_source.buffer_in_m.
+            """)
+        buffer_in_m = boundary_source.buffer_in_m
         query = (f"""
             SELECT ST_asgeojson(st_multi(st_transform(st_buffer(st_convexhull(st_collect(st_transform(geom, {config.srid}))), 
-{boundary_source.convex_hull.buffer_in_m}), 
+{buffer_in_m}), 
             4326))) 
             FROM {config.importer.schema}.nodes;""")
         result = db.execute_sql_and_fetch_all_rows(query)
@@ -159,10 +186,7 @@ def get_boundary_geojson(config):
         return result[0][0]
 
 def genereate_area(config, description: str = None) -> int:
-    boundary_geom = None
-
-    if hasattr(config.area, "boundary_source"):
-        boundary_geom = get_boundary_geojson(config)
+    boundary_geom = get_boundary_geojson(config)
 
     area_id = insert_area(name=config.area.name, description=description, geom=boundary_geom)
 

@@ -13,8 +13,8 @@ from roadgraphtool.exceptions import InvalidInputError, TableNotEmptyError, Subp
 from roadgraphtool.insert_area import insert_area
 from roadgraphtool.insert_area import read_geojson_file
 from roadgraphtool.schema import *
-from scripts.filter_osm import load_multipolygon_by_id, is_valid_extension
-from scripts.find_bbox import find_min_max
+from roadgraphtool.filter_osm import load_multipolygon_by_id, is_valid_extension
+from roadgraphtool.find_bbox import find_min_max
 
 import overpy
 import shapely

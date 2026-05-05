@@ -7,13 +7,10 @@ import logging
 from shapely import geometry
 
 from roadgraphtool.db import db
-import roadgraphtool.insert_area
 
 
-def run_overpass_import(config):
+def run_overpass_import(config, area_id: int):
     area = config.area.name
-
-    area_id = roadgraphtool.insert_area.genereate_area(config, f'{area} - overpass_import')
 
     logging.info(f"Downloading area {area} from Overpass API")
 
