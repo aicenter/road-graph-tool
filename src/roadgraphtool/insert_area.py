@@ -109,14 +109,51 @@ def get_boundary_from_overpass(config: Dict[str, Any]) -> geometry.MultiPolygon:
         Admin boundary name not specified in config. Should be in config.area_insert.boundary_source.admin_boundary_name.
         """)
     admin_boundary_name = config.area_insert.boundary_source.admin_boundary_name
+
+    # Optional: restrict the search to one or more enclosing administrative areas (outer -> inner).
+    # Config shape:
+    # area_insert:
+    #   boundary_source:
+    #     enclosing_areas: ["Country", "State", "County"]
+    enclosing_areas = []
+    if hasattr(config.area_insert.boundary_source, "enclosing_areas"):
+        enclosing_areas = config.area_insert.boundary_source.enclosing_areas or []
+        if not isinstance(enclosing_areas, list):
+            raise ValueError("""
+            enclosing_areas must be a list of area names (strings). Example:
+            config.area_insert.boundary_source.enclosing_areas: ["France", "Occitanie"]
+            """)
+        for a in enclosing_areas:
+            if not isinstance(a, str):
+                raise ValueError("Each enclosing_areas entry must be a string area name.")
     # Query administrative boundary relation ways with geometry.
     # We avoid relying on client-side XML parsing and instead parse Overpass JSON.
-    query = f"""
-    [out:json][timeout:25];
-    rel["boundary"="administrative"]["name"="{admin_boundary_name}"]->.r;
-    way(r.r);
-    out geom;
-    """
+    #
+    # If enclosing_areas is provided, we progressively narrow the search by:
+    # - selecting the outermost enclosing area as an Overpass "area"
+    # - then selecting each next enclosing boundary relation within that area
+    # - converting that relation into an area (map_to_area) for further narrowing
+    # - finally selecting the target admin boundary relation within the final area
+    if enclosing_areas:
+        parts = [
+            "[out:json][timeout:25];",
+            f'area["boundary"="administrative"]["name"="{enclosing_areas[0]}"];',
+        ]
+        # Narrow further, if more than one enclosing area name is provided
+        for enclosing_name in enclosing_areas[1:]:
+            parts.append(f'area["boundary"="administrative"]["name"="{enclosing_name}"];')
+
+        parts.append(f'rel(area)["boundary"="administrative"]["name"="{admin_boundary_name}"]->.r;')
+        parts.append("way(r.r);")
+        parts.append("out geom;")
+        query = "\n".join(parts)
+    else:
+        query = f"""
+        [out:json][timeout:25];
+        rel["boundary"="administrative"]["name"="{admin_boundary_name}"]->.r;
+        way(r.r);
+        out geom;
+        """
     overpass_json = query_json_from_config(config, query, build=False)
     by_type = elements_by_type(overpass_json)
     ways = by_type["way"]
@@ -140,6 +177,16 @@ def get_boundary_from_overpass(config: Dict[str, Any]) -> geometry.MultiPolygon:
     merged = linemerge([*lss])  # merge LineStrings
     borders = unary_union(merged)  # linestrings to a MultiLineString
     polygons = list(polygonize(borders))
+
+    allow_multipolygon = False
+    if hasattr(config, "area_insert") and hasattr(config.area_insert, "allow_multipolygon"):
+        allow_multipolygon = bool(config.area_insert.allow_multipolygon)
+
+    if not allow_multipolygon and len(polygons) != 1:
+        raise Exception(
+            f"Overpass boundary '{admin_boundary_name}' produced {len(polygons)} polygons (multipolygon). "
+            f"Set config.area_insert.allow_multipolygon: true to allow this."
+        )
     return geometry.MultiPolygon(polygons)
 
 def get_boundary_geojson(config):

@@ -107,9 +107,43 @@ The following tools are available for filtering the input data:
 
 
 # Components
-The road graph tool consists of a set of components that are responsible for individual processing steps, importing data, or exporting data. Each component is implemented as an PostgreSQL procedure or Python script, possibly calling other procedures or functions. Additionally, each component has its own Python wrapper script that connects to the database and calls the procedure. Currently, the following components are implemented:
-- **OSM file processing for importing to PostgreSQL database**: processes data from OSM file that are to be imported into PostgreSQL database for further use
+The Road Graph Tool consists of a set of components that are responsible for individual processing steps, importing data, or exporting data. Some components may be just python functions, but most of them are implemented as an PostgreSQL procedure and the Python is just a wrapper. 
+
+Every component has its own section in the **configuration** file, containing the configuration for the component. The only key common to all components is `activated`, which is a boolean value that activates the component if set to `true` and deactivates it if set to `false`. The component is also deactivated if its section is not present in the configuration file.
+
+Currently, the following components are implemented:
+
+- **Area Insertion**: inserts an area into the database.
+- **Road Graph Import**: processes data from OSM file that are to be imported into PostgreSQL database for further use
 - **Graph Contraction**: simplifies the road graph by contracting nodes and creating edges between the contracted nodes.
+- **Strong Components**: computes the strong components of the road graph.
+- **Export**: exports the road graph to a file.
+- **Distance Matrix Generator**: generates a distance matrix for the road graph.
+
+Each component is described in more detail in the following sections.
+
+
+## Area Insertion
+key: `area_insert`
+
+The area insertion component inserts an area boundary into the database (table `areas`). There are two ways to specify the area boundary (specified by `boundary_source.type`):
+
+- `overpass`: the area boundary is specified by configuration parameters and downloaded from the Overpass API.
+- `geojson_file`: the area boundary is specified by a GeoJSON file.
+
+The hared configuration parameters for both types are:
+
+- `description`: the description of the area.
+- `allow_multipolygon` (boolean, default: `false`): whether to allow multipolygon area boundary. If we expect the area boundary to be a single polygon, leave it to `false`.
+
+
+### Overpass Area Boundary
+To get the area boundary from the Overpass API, the `boundary_source` must contain the `admin_boundary_name` parameter. Additionally, we may want to specify the enclosing areas to avoid getting unrelated areas with coinciding names:
+
+- `admin_boundary_name` (required): the name of the admin boundary.
+- `enclosing_areas` (array of strings): the names of the enclosing areas of the boundary we want to import. If multiple enclosing areas are specified, they are applied in order of the array, so you should specify them from the outermost to the innermost. 
+    - Example: `enclosing_areas: ["US", "New York"]`
+
 
 ## OSM file processing and importing
 This component processes the data in an [Open Street Map (OSM) XML file format](https://wiki.openstreetmap.org/wiki/OSM_XML) and imports it into a PostgreSQL database. 

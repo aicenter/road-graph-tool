@@ -12,7 +12,19 @@ db: {
 }
 
 area_insert: {
-    activated: false
+    activated: false,
+
+    # If false (default), inserting an Overpass boundary that resolves to multiple polygons
+    # (e.g. exclaves / disjoint geometries) will raise.
+    allow_multipolygon: false,
+
+    # Optional boundary source example. If you use "overpass", you can additionally restrict
+    # the search to an enclosing administrative area chain (outer -> inner).
+    # boundary_source: {
+    #     type: overpass,
+    #     admin_boundary_name: Andorra,
+    #     enclosing_areas: ["Spain", "Catalunya"]
+    # }
 }
 
 overpass_importer: {

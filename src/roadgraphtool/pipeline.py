@@ -111,7 +111,7 @@ def main(config: Dict[str, Any]):
     if config.export.activated:
         nodes, edges = roadgraphtool.export.export(config)
 
-    if config.dm_generator.activated:
+    if hasattr(config, "dm_generator") and config.dm_generator.activated:
         roadgraphtool.distance_matrix_generator.generate_dm(config, nodes, edges)
     
     # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
