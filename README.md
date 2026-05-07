@@ -38,7 +38,7 @@ All the relative paths specified in the configuration file are relative to the c
 The main configuration affecting the whole tool is in the root of the configuration file. Other parameters are in following sections:
 
 - `db`: database configuration
-- `importer`: configuration for the import component
+- `road_import`: configuration for the road network import step (OSM file or Overpass)
 - `export`: configuration for the export component
 - `contraction`: configuration for the contraction component
 - `strong_components`: configuration for the strong component which filters out the isolated vertices from the graph
@@ -114,7 +114,7 @@ Every component has its own section in the **configuration** file, containing th
 Currently, the following components are implemented:
 
 - **Area Insertion**: inserts an area into the database.
-- **Road Graph Import**: processes data from OSM file that are to be imported into PostgreSQL database for further use
+- **Road network import** (`road_import`): loads the road graph from either an OSM file (via osm2pgsql) or the Overpass API. Exactly one backend is selected with `road_import.source.type` (`osm_file` or `overpass`); they are not run in sequence.
 - **Graph Contraction**: simplifies the road graph by contracting nodes and creating edges between the contracted nodes.
 - **Strong Components**: computes the strong components of the road graph.
 - **Export**: exports the road graph to a file.
@@ -145,8 +145,36 @@ To get the area boundary from the Overpass API, the `boundary_source` must conta
     - Example: `enclosing_areas: ["US", "New York"]`
 
 
+## Road network import
+key: `road_import`
+
+This component loads road network geometry into the database. It is **mutually exclusive** by `road_import.source.type`:
+
+- `osm_file`: import from a local OSM / PBF extract using `osm2pgsql` (staging schema `road_import.schema`, then copy into the target schema).
+- `overpass`: download highways inside the polygon of an existing row in `areas` (requires a resolvable `area_id` before this step).
+
+Shared keys:
+
+- `activated` (boolean): run this step when `true`.
+- `schema` (string): staging schema name for the `osm_file` backend (also used by `area_insert.boundary_source.type: convex_hull`, which reads nodes from this schema).
+
+The `source` object must include `type`. Additional keys depend on the type:
+
+### Source type `osm_file`
+- `input_file` (required): path to the OSM / PBF file (relative paths are resolved from the config file directory).
+- `style_file`: built-in style name (e.g. `pipeline`) or path to a `.lua` flex style.
+- `force` (boolean): allow re-import into non-empty staging tables.
+- `pgpass` / `pgpass_file`: authentication for `osm2pgsql`.
+
+When an `area_id` is already known (from root `area_id`, a previous pipeline step, or `area_insert`), the importer uses the **bounding box** of that area’s polygon from `"<schema>.areas"` to clip the OSM import (`osm2pgsql -b`). If there is **no** `area_id`, a new area row is created from imported data (same behavior as before this unification).
+
+### Source type `overpass`
+- No extra source fields are required; the query uses the polygon geometry of the existing `areas` row for the current `area_id`. Configure retries and endpoint under the top-level `overpass` section.
+
+**Migrating older configs:** replace the separate `importer` and `overpass_importer` blocks with a single `road_import` section as in [config_example.yaml](config_example.yaml). Remove `importer.area_name` (Overpass now uses the DB polygon, not a name-based `area[...]` filter).
+
 ## OSM file processing and importing
-This component processes the data in an [Open Street Map (OSM) XML file format](https://wiki.openstreetmap.org/wiki/OSM_XML) and imports it into a PostgreSQL database. 
+The pipeline uses the `road_import` configuration above. The following sections still apply to **preprocessing** and standalone tooling. Data is in an [Open Street Map (OSM) XML file format](https://wiki.openstreetmap.org/wiki/OSM_XML) (or PBF) and is loaded into PostgreSQL. 
 
 ### Prerequisities
 Before processing and loading data (can be downloaded at [Geofabrik](https://download.geofabrik.de/)) into the database, we'll need to install several libraries: 
@@ -180,9 +208,10 @@ python3 process_osm.py sr [input_file] -o [output_file]
 ### 2. Importing to database using Flex output
 The primary function of  `process_osm.py` script is to import OSM data to the database using `osm2pgsql` tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we define the Flex style file (Lua script) that has all the logic for processing data in OSM file.
 
-The `u` flag triggers [import_osm_to_db()](#function-import_osm_to_db) function, which requires the OSM file path as an argument. 
+The `u` flag triggers the script’s `import_osm_to_db()` helper (legacy CLI); the **pipeline** uses `road_import` with `import_road_network()` in [src/roadgraphtool/road_import.py](src/roadgraphtool/road_import.py), which dispatches to the OSM backend in [src/roadgraphtool/process_osm.py](src/roadgraphtool/process_osm.py).
 
-#### Function [import_osm_to_db()](python/roadgraphtool/process_osm.py):
+#### Function `import_osm_to_db()` ([src/roadgraphtool/process_osm.py](src/roadgraphtool/process_osm.py))
+When called with a config that defines `road_import`, this function runs an OSM file import **without** a pre-existing area (creates the area after import). Prefer running the main pipeline with `road_import` enabled.
 - **Imports** the data into the database (default schema is `public, but a different schema can be specified) with provided Lua *style file* - if omitted, the default style file [pipeline.lua](lua_styles/pipeline.lua) is used. To customize the style file, set a new path for the [DEFAULT_STYLE_FILE](python/roadgraphtool/process_osm.py).
 - **Postprocesses** the data in database if specified in [POSTPROCESS_DICT](python/roadgraphtool/process_osm.py), which can be configured based on the *style file* used during importing
 

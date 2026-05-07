@@ -55,12 +55,12 @@ def install_sql(
 
     Requirements on config:
     - config.schema: target schema name
-    - config.importer.schema: schema used to check whether DB is initialized
+    - config.road_import.schema: schema used to check whether DB is initialized
     """
     if sql_dir is None:
         sql_dir = _default_sql_dir()
 
-    import_schema = config.importer.schema
+    import_schema = config.road_import.schema
     schema = config.schema
 
     logging.info("Checking availability of extensions in the database")

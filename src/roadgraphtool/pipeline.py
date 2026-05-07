@@ -1,20 +1,11 @@
-import argparse
-import json
 import logging
-import sys
 from typing import Optional, Dict, Any
 
-from pathlib import Path
-from roadgraphtool.config import parse_config_file, set_logging
-import roadgraphtool.db
 from roadgraphtool.db import db
-from roadgraphtool.process_osm import import_osm_to_db
-import roadgraphtool.overpass_import
+import roadgraphtool.road_import
 import roadgraphtool.insert_area
 import roadgraphtool.export
 import roadgraphtool.distance_matrix_generator
-from roadgraphtool.exceptions import MissingInputError
-
 
 
 def insert_area_if_area_insertion_activated(config) -> Optional[int]:
@@ -83,19 +74,11 @@ def compute_speeds_from_neighborhood_segments(
 
 def main(config: Dict[str, Any]):
     area_id = getattr(config, "area_id", None)
-    area_id = insert_area_if_area_insertion_activated(config)
+    area_id = insert_area_if_area_insertion_activated(config) or area_id
 
-    if config.importer.activated:
-        area_id = import_osm_to_db(config)
-
-    if hasattr(config, "overpass_importer") and config.overpass_importer.activated:
-        if area_id is None:
-            logging.error(
-                "overpass_importer requires an area id: enable area_insert, set root area_id, "
-                "or run importer first"
-            )
-            raise MissingInputError("No area id for overpass_importer")
-        area_id = roadgraphtool.overpass_import.run_overpass_import(config, area_id)
+    road_import = getattr(config, "road_import", None)
+    if road_import is not None and getattr(road_import, "activated", False):
+        area_id = roadgraphtool.road_import.import_road_network(config, area_id)
 
     if not area_id:
         area_id = config.area_id

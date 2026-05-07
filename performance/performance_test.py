@@ -20,8 +20,8 @@ import platform
 import json
 
 import roadgraphtool
-from roadgraphtool.config import parse_config_file, set_logging
-from roadgraphtool.process_osm import import_osm_to_db
+from roadgraphtool.config import get_path_from_config, parse_config_file, set_logging
+from roadgraphtool.road_import import import_road_network
 # from roadgraphtool.schema import get_connection
 from scripts.main import main as pipeline_main
 
@@ -158,14 +158,19 @@ def get_db_table_sizes(schema: str) -> dict:
 
 def monitor_performance(config) -> dict:
     """Return dictionary of monitored time, file size, date of import and table sizes
-    after running the **import_osm_to_db()** function."""
-    file_size = os.path.getsize(config.importer.input_file)
+    after running **import_road_network()** when road import is activated."""
+    road_import = getattr(config, "road_import", None)
+    input_file = getattr(getattr(road_import, "source", None), "input_file", None)
+    if input_file:
+        file_size = os.path.getsize(get_path_from_config(config, input_file))
+    else:
+        file_size = 0
 
     start_time = time.time()
 
-    if config.importer.activated:
-        import_osm_to_db(config)
-        # import_osm_to_db(input_file, True, False, style_file, schema=schema)
+    if road_import is not None and getattr(road_import, "activated", False):
+        area_id = getattr(config, "area_id", None)
+        import_road_network(config, area_id)
     else:
         # TODO:
         area_id = 1 # placeholder - area id based on data

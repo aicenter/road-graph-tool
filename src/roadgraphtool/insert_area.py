@@ -213,6 +213,10 @@ def get_boundary_geojson(config):
     if boundary_source.type == "overpass":
         return geojson.loads(shapely.to_geojson(get_boundary_from_overpass(config)))
     if boundary_source.type == "convex_hull":
+        if not hasattr(config, "road_import") or not hasattr(config.road_import, "schema"):
+            raise ValueError(
+                "convex_hull boundary requires config.road_import.schema (staging schema with nodes)."
+            )
         if not hasattr(boundary_source, "buffer_in_m"):
             raise ValueError("""
             Buffer in meters not specified in config. Should be in config.area_insert.boundary_source.buffer_in_m.
@@ -222,7 +226,7 @@ def get_boundary_geojson(config):
             SELECT ST_asgeojson(st_multi(st_transform(st_buffer(st_convexhull(st_collect(st_transform(geom, {config.srid}))), 
 {buffer_in_m}), 
             4326))) 
-            FROM {config.importer.schema}.nodes;""")
+            FROM {config.road_import.schema}.nodes;""")
         result = db.execute_sql_and_fetch_all_rows(query)
 
         return result[0][0]

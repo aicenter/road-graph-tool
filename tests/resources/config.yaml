@@ -1,0 +1,49 @@
+password_config_file: ./secrets.yaml
+schema: public
+srid: 4326
+area_id: 1
+log_level: INFO
+
+area:
+  name: TestArea
+
+db:
+  username: postgres
+  db_host: localhost
+  db_name: rgt
+  db_server_port: 5432
+
+area_insert:
+  activated: false
+  allow_multipolygon: false
+
+road_import:
+  activated: false
+  schema: importer
+  source:
+    type: osm_file
+    input_file: ./bbox_test.osm
+    style_file: pipeline
+    force: true
+    pgpass: false
+    pgpass_file: "~/pgpass.conf"
+
+overpass:
+  endpoint: "https://overpass-api.de/api/interpreter"
+  timeout_s: 25
+  user_agent: "roadgraphtool-test/0 (contact: test@example.com)"
+  from_email: "test@example.com"
+  referer: ""
+  max_retries: 3
+  retry_backoff_s: 1.0
+  retry_max_sleep_s: 60.0
+
+contraction:
+  activated: false
+
+strong_components:
+  activated: false
+
+export:
+  activated: false
+  dir: ./

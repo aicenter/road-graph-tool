@@ -3,15 +3,13 @@ import os
 import stat
 import subprocess
 from pathlib import Path
-
-from sqlalchemy.sql.coercions import schema
+from typing import Optional
 
 import roadgraphtool.exec
 from roadgraphtool.config import get_path_from_config
 from roadgraphtool.db import db
 from roadgraphtool.exceptions import InvalidInputError, TableNotEmptyError, SubprocessError
-from roadgraphtool.insert_area import insert_area
-from roadgraphtool.insert_area import read_geojson_file
+from roadgraphtool.insert_area import genereate_area
 from roadgraphtool.schema import *
 from roadgraphtool.filter_osm import load_multipolygon_by_id, is_valid_extension
 from roadgraphtool.find_bbox import find_min_max
@@ -24,6 +22,19 @@ AREA_ID_SEQUENCE = "areas_id_seq"
 SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
 
 postprocess_dict = {"pipeline": "after_import.sql"}
+
+
+def _ri_source(config):
+    return config.road_import.source
+
+
+def _ri_schema(config):
+    return config.road_import.schema
+
+
+def _bbox_string_from_geom(geom) -> str:
+    min_lon, min_lat, max_lon, max_lat = geom.bounds
+    return f"{min_lon},{min_lat},{max_lon},{max_lat}"
 
 
 def extract_bbox(relation_id: int) -> tuple[float, float, float, float]:
@@ -56,10 +67,8 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: Path = None):
         case 'sr':
             tmp_file = 'tmp.osm'
             roadgraphtool.exec.call_executable(["osmium", "sort", input_file, "-o", tmp_file])
-            # res = subprocess.run(["osmium", "sort", input_file, "-o", str(output_file)])
             logging.info("Sorting of OSM data completed.")
             roadgraphtool.exec.call_executable(["osmium", "renumber", tmp_file, "-o", str(output_file)])
-            # res = subprocess.run(["osmium", "renumber", tmp_file, "-o", str(output_file)])
             logging.info("Renumbering of OSM data completed.")
             os.remove(tmp_file)
 
@@ -70,7 +79,6 @@ def setup_ssh_tunnel(config) -> int:
         db._start_or_restart_ssh_connection_if_needed()
         config.db_server_port = db.ssh_tunnel_local_port
         return db.ssh_tunnel_local_port
-    # local connection
     return config.db.db_server_port
 
 
@@ -81,14 +89,13 @@ def setup_pgpass(config):
     and file should be removed after the connection is closed - use remove_pgpass() method.
     """
     db_config = config.db
-    pgpass_config_path = Path(config.importer.pgpass_file).expanduser().resolve()
+    pgpass_config_path = Path(_ri_source(config).pgpass_file).expanduser().resolve()
 
     if hasattr(db_config, "ssh"):
         port = db_config.ssh.tunnel_port
     else:
         port = db_config.db_server_port
 
-    # hostname:port:database:username:password
     content = f"{db_config.db_host}:{port}:{db_config.db_name}:{db_config.username}:{db_config.db_password}"
     with open(pgpass_config_path, 'w') as pgfile:
         pgfile.write(content)
@@ -99,7 +106,7 @@ def setup_pgpass(config):
 
 def remove_pgpass(config):
     """Remove pgpass file if exists."""
-    pgpass_config_path = config.importer.pgpass_file
+    pgpass_config_path = _ri_source(config).pgpass_file
 
     if os.path.exists(pgpass_config_path):
         os.remove(pgpass_config_path)
@@ -115,24 +122,29 @@ def run_osm2pgsql_cmd(
     Import data from input_file to database specified in config using osm2pgsql tool.
 
     Parameters:
-        config: configuration
+        config: configuration with ``road_import`` section
     """
-
-    importer_config = config.importer
-    schema = importer_config.schema
-    pgpass = importer_config.pgpass
+    source = _ri_source(config)
+    schema = _ri_schema(config)
+    pgpass = source.pgpass
 
     db_config = config.db
 
     port = db.db_server_port
     logging.debug(f"Port is: {port}")
 
-    if not importer_config.force and not check_empty_or_nonexistent_tables(schema):
-        raise TableNotEmptyError("Attempt to overwrite non-empty tables. Use 'force: true' in config.importer to proceed.")
+    input_path = get_path_from_config(config, source.input_file)
+
+    if not source.force and not check_empty_or_nonexistent_tables(schema):
+        raise TableNotEmptyError(
+            "Attempt to overwrite non-empty tables. Use 'force: true' in road_import.source to proceed."
+        )
 
     connection_uri = f"postgresql://{db_config.username}@{db_config.db_host}:{port}/{db_config.db_name}"
-    cmd = ["osm2pgsql", "-d", connection_uri, "--output=flex", "-S", f'{style_file_path}', f'{importer_config.input_file}', "-x",
-           f"--schema={schema}"]
+    cmd = [
+        "osm2pgsql", "-d", connection_uri, "--output=flex", "-S", f'{style_file_path}',
+        str(input_path), "-x", f"--schema={schema}"
+    ]
     if coords:
         cmd.extend(["-b", coords])
 
@@ -164,11 +176,12 @@ def postprocess_osm_import_old(config):
     """Apply postprocessing SQL associated with **style_file_path** to data in **schema** after importing.
     """
     db_config = config.db
-
-    if config.importer.style_file in postprocess_dict:
-        sql_file_path = str(SQL_DIR / postprocess_dict[config.importer.style_file])
+    staging = _ri_schema(config)
+    style_key = _ri_source(config).style_file
+    if style_key in postprocess_dict:
+        sql_file_path = str(SQL_DIR / postprocess_dict[style_key])
         cmd = ["psql", "-d", db_config.db_name, "-U", db_config.username, "-h", db_config.db_host, "-p",
-               str(db_config.db_server_port), "-c", f"SET search_path TO {schema};", "-f", sql_file_path]
+               str(db_config.db_server_port), "-c", f"SET search_path TO {staging};", "-f", sql_file_path]
 
         logging.info("Post-processing OSM data after import...")
         logging.debug(' '.join(cmd))
@@ -179,66 +192,24 @@ def postprocess_osm_import_old(config):
             raise SubprocessError(f"Error during post-processing: {res}")
         logging.info("Post-processing completed.")
     else:
-        logging.warning(f"No post-processing defined for style {config.importer.style_file}")
+        logging.warning(f"No post-processing defined for style {style_key}")
 
 
-def import_osm_to_db(config) -> int:
-    """Renumber IDs of OSM objects and sorts file by them, import the new file to database specified in config.ini file.
-    The **pipeline.lua** style file is used if not specified or set otherwise. Default schema is **public**.
-    """
-
-    importer_config = config.importer
-    input_file_path = get_path_from_config(config, importer_config.input_file)
-
-    if not input_file_path.exists() or not is_valid_extension(input_file_path):
-        raise FileNotFoundError("No valid file to import was found.")
-
-    # custom style file
-    if config.importer.style_file.endswith('.lua'):
-        style_file_path = get_path_from_config(config, importer_config.style_file)
-
-        if not style_file_path.exists():
-            raise FileNotFoundError(f"Style file {config.importer.style_file} does not exist.")
-    # predefined style file
-    else:
-        resources_path = "roadgraphtool.resources"
-        style_file_path = Path(__file__).resolve().parent.parent.parent / f"lua_styles/{config.importer.style_file}.lua"
-    try:
-        create_schema(config.importer.schema)
-        add_postgis_extension(config.importer.schema)
-
-        # importing to database
-        logging.info("Importing OSM data to database")
-        run_osm2pgsql_cmd(config, style_file_path)
-
-        # postprocessing
-        logging.info("Post-processing OSM data in database")
-        area_id = postprocess_osm_import(config)
-        return area_id
-        # postprocess_osm_import(config)
-    except SubprocessError as e:
-        logging.error(f"Error during processing.")
-        # logging.error(f"Error during processing: {e}")
+def _create_area_from_import(config) -> int:
+    description = f"Imported from {_ri_source(config).input_file}"
+    return genereate_area(config, description)
 
 
-def check_and_print_warning(overlaps: dict[str, int]):
-    for (element_type, overlap) in overlaps.items():
-        if overlap:
-            logging.warning(f"{overlap} {element_type} with the same ID are already in the database and not added.")
-    pass
-
-
-def postprocess_osm_import(config):
-    schema = config.importer.schema
+def postprocess_osm_import(config, existing_area_id: Optional[int] = None) -> int:
+    schema = _ri_schema(config)
     target_schema = config.schema
 
-    # set schema to target schema
     db.execute_sql(f"SET search_path TO {target_schema},public;")
 
-    description = f"Imported from {config.importer.input_file}"
-
-    # area creation
-    area_id = roadgraphtool.insert_area.genereate_area(config, description)
+    if existing_area_id is not None:
+        area_id = existing_area_id
+    else:
+        area_id = _create_area_from_import(config)
 
     overlaps = {}
     overlaps['nodes'] = get_overlapping_elements_count(schema, target_schema, 'nodes')
@@ -255,6 +226,59 @@ def postprocess_osm_import(config):
     return area_id
 
 
+def _run_osm_file_backend(config, area_id: Optional[int]) -> int:
+    """Import OSM via osm2pgsql; optionally clip to the bbox of *area_id*'s polygon in DB."""
+    source = _ri_source(config)
+    input_file_path = get_path_from_config(config, source.input_file)
+
+    if not input_file_path.exists() or not is_valid_extension(input_file_path):
+        raise FileNotFoundError("No valid file to import was found.")
+
+    if source.style_file.endswith('.lua'):
+        style_file_path = get_path_from_config(config, source.style_file)
+        if not style_file_path.exists():
+            raise FileNotFoundError(f"Style file {source.style_file} does not exist.")
+    else:
+        style_file_path = Path(__file__).resolve().parent.parent.parent / f"lua_styles/{source.style_file}.lua"
+
+    coords = None
+    if area_id is not None:
+        from roadgraphtool.road_import import get_area_polygon
+
+        poly = get_area_polygon(config, area_id)
+        if poly is None:
+            raise ValueError(
+                f"No geometry found for area id {area_id} in schema {config.schema}.areas "
+                "(required when road import runs with an area_id)."
+            )
+        coords = _bbox_string_from_geom(poly)
+        logging.info("Using bbox from area polygon for osm2pgsql: %s", coords)
+
+    try:
+        create_schema(_ri_schema(config))
+        add_postgis_extension(_ri_schema(config))
+
+        logging.info("Importing OSM data to database")
+        run_osm2pgsql_cmd(config, style_file_path, coords=coords)
+
+        logging.info("Post-processing OSM data in database")
+        return postprocess_osm_import(config, existing_area_id=area_id)
+    except SubprocessError:
+        logging.error("Error during processing.")
+        raise
+
+
+def import_osm_to_db(config) -> int:
+    """Import OSM file and create a new area (no pre-existing *area_id*). Same as pipeline osm_file without area."""
+    return _run_osm_file_backend(config, area_id=None)
+
+
+def check_and_print_warning(overlaps: dict[str, int]):
+    for (element_type, overlap) in overlaps.items():
+        if overlap:
+            logging.warning(f"{overlap} {element_type} with the same ID are already in the database and not added.")
+
+
 def generate_area_id(connection, target_schema):
     with connection.cursor() as cursor:
         query = f'''
@@ -265,7 +289,6 @@ def generate_area_id(connection, target_schema):
 
 
 def create_area(connection, target_schema: str, input_file: str, area_name: str, geom: shapely.Geometry):
-    # TODO: add geom
     area_id = generate_area_id(connection, target_schema)
     with connection.cursor() as cursor:
         if geom:
