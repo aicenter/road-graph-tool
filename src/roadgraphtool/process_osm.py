@@ -16,7 +16,6 @@ from roadgraphtool.schema import *
 from roadgraphtool.filter_osm import load_multipolygon_by_id, is_valid_extension
 from roadgraphtool.find_bbox import find_min_max
 
-import overpy
 import shapely
 import shapely.geometry as geometry
 

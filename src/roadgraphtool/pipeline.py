@@ -88,7 +88,7 @@ def main(config: Dict[str, Any]):
     if config.importer.activated:
         area_id = import_osm_to_db(config)
 
-    if config.overpass_importer.activated:
+    if hasattr(config, "overpass_importer") and config.overpass_importer.activated:
         if area_id is None:
             logging.error(
                 "overpass_importer requires an area id: enable area_insert, set root area_id, "

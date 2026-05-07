@@ -4,12 +4,12 @@ from pathlib import Path
 import sys
 import logging
 from typing import Optional, Union, Dict, Any
-import overpy
 import shapely
 import shapely.geometry as geometry
 from shapely.ops import linemerge, unary_union, polygonize
 from roadgraphtool import db
 from roadgraphtool.config import parse_config_file
+from roadgraphtool.overpass_client import elements_by_type, query_json_from_config
 
 
 
@@ -109,38 +109,33 @@ def get_boundary_from_overpass(config: Dict[str, Any]) -> geometry.MultiPolygon:
         Admin boundary name not specified in config. Should be in config.area_insert.boundary_source.admin_boundary_name.
         """)
     admin_boundary_name = config.area_insert.boundary_source.admin_boundary_name
-    api = overpy.Overpass()
+    # Query administrative boundary relation ways with geometry.
+    # We avoid relying on client-side XML parsing and instead parse Overpass JSON.
+    query = f"""
+    [out:json][timeout:25];
+    rel["boundary"="administrative"]["name"="{admin_boundary_name}"]->.r;
+    way(r.r);
+    out geom;
+    """
+    overpass_json = query_json_from_config(config, query, build=False)
+    by_type = elements_by_type(overpass_json)
+    ways = by_type["way"]
 
-    # try to find the area by name and english name case-insensitive
-    # query = f"""[out:json][timeout:25];
-    # (rel["name"~"^{area_name}$",i];rel["name:en"~"^{area_name}$",i];);
-    # out body;
-    # >;
-    # out skel qt; """
-    query = f"""[out:json][timeout:25];
-area["name"="{admin_boundary_name}"];
-node(pivot);
-out geom;
-"""
-
-    result = api.query(query)
-
-    relations = result.relations
-    if len(relations) == 0:
-        logging.error(f"The area '{admin_boundary_name}' was not found in Overpass.")
+    if not ways:
+        logging.error(f"The area '{admin_boundary_name}' was not found in Overpass (no boundary ways returned).")
         raise Exception(f"The area '{admin_boundary_name}' was not found in Overpass.")
-    elif len(relations) > 1:
-        logging.warning(f"More than one area with the name '{admin_boundary_name}' was found in Overpass. Using the first one.")
-    area_relation = relations[0]
 
     lss = []  # convert ways to linestrings
-    for ii_w, way in enumerate(area_relation.members):
-        ls_coords = []
+    for way in ways:
+        geom_coords = way.get("geometry", [])
+        if not geom_coords:
+            continue
+        ls_coords = [(float(c["lon"]), float(c["lat"])) for c in geom_coords if "lon" in c and "lat" in c]
+        if len(ls_coords) >= 2:
+            lss.append(geometry.LineString(ls_coords))
 
-        for coord in way.geometry:
-            ls_coords.append((coord.lon, coord.lat))  # create a list of node coordinates
-
-        lss.append(geometry.LineString(ls_coords))  # create a LineString from coords
+    if not lss:
+        raise Exception(f"The area '{admin_boundary_name}' was found but no geometry could be constructed.")
 
     merged = linemerge([*lss])  # merge LineStrings
     borders = unary_union(merged)  # linestrings to a MultiLineString

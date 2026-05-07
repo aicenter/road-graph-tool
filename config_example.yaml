@@ -19,6 +19,26 @@ overpass_importer: {
     activated: false
 }
 
+overpass: {
+    # Public instance default; point this to your own instance if you run one.
+    endpoint: "https://overpass-api.de/api/interpreter",
+    timeout_s: 25,
+
+    # REQUIRED for scripts using overpass-api.de: identify your application well.
+    user_agent: "roadgraphtool/0.0.0 (contact: you@example.com)",
+
+    # Optional but recommended contact metadata.
+    from_email: "you@example.com",
+
+    # Only required for browser calls; leave empty for scripts.
+    referer: "",
+
+    # Retry behavior for 429/504 (fair-use compliant; respects /api/status countdown when available).
+    max_retries: 6,
+    retry_backoff_s: 1.0,
+    retry_max_sleep_s: 120.0
+}
+
 importer: {
     activated: false,
     input_file: ./andorra-latest-filtered.osm,

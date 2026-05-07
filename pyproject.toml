@@ -10,7 +10,7 @@ dependencies=[
     'networkx',
     'numpy',
     'osmnx',
-    'overpy',
+    'overpass',
     'pandas',
     'psycopg2-binary',
     'pyyaml',
