@@ -474,12 +474,14 @@ class Database(object):
         if type(df) is gpd.GeoDataFrame:
             raise ValueError("dataframe_to_db_table function does not support GeoDataFrames. Use geodataframe_to_db_table instead.")
 
+        if 'index' not in kwargs:
+            kwargs['index'] = False
+
         if not chunk:
             df.to_sql(
                 table_name,
                 con=self._sqlalchemy_engine,
                 if_exists='append',
-                index=False,
                 **kwargs,
             )
             return
@@ -495,7 +497,6 @@ class Database(object):
                 con=self._sqlalchemy_engine,
                 # chunksize=chunk_size,
                 if_exists='append',
-                index=False,
                 **kwargs,
             )
 

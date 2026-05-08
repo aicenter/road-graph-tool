@@ -85,7 +85,7 @@ out body;
     node_gdf.rename(columns={'geometry': 'geom'}, inplace=True)
     node_gdf.set_geometry('geom', inplace=True)
     node_gdf.set_index('id', inplace=True)
-    db.geodataframe_to_db_table(node_gdf, "nodes", srid=4326)
+    db.geodataframe_to_db_table(node_gdf, "nodes")
 
     nodes_ways_list = []
     ways_list = []
@@ -118,10 +118,10 @@ out body;
 
     ways_gdf = gpd.GeoDataFrame(ways_list, geometry='geom', crs="EPSG:4326")
     ways_gdf.set_index('id', inplace=True)
-    db.geodataframe_to_db_table(ways_gdf, "ways")
+    db.geodataframe_to_db_table(ways_gdf, "ways", chunk_size=1000)
 
     nodes_ways_df = pd.DataFrame(nodes_ways_list)
-    db.dataframe_to_db_table(nodes_ways_df, "nodes_ways", stored_index=False)
+    db.dataframe_to_db_table(nodes_ways_df, "nodes_ways", index=False)
 
     return area_id
 

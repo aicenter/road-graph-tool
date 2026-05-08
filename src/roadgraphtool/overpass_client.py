@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 import warnings
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping
 
 import overpass
@@ -112,6 +115,8 @@ def query_json(
     query: str,
     *,
     build: bool = False,
+    cache_dir: Path | None = None,
+    refresh_cache: bool = False,
     max_retries: int = 6,
     retry_backoff_s: float = 1.0,
     retry_max_sleep_s: float = 120.0,
@@ -123,12 +128,30 @@ def query_json(
       `[out:json]`, `[timeout:...]`, and `out ...;`).
     - Retries on 429 (MultipleRequestsError) and 504 (ServerLoadError).
     """
+    cache_path: Path | None = None
+    if cache_dir is not None:
+        cache_key = hashlib.sha256(query.strip().encode("utf-8")).hexdigest()
+        cache_path = Path(cache_dir) / "query_json" / f"{cache_key}.json"
+
+        if not refresh_cache and cache_path.exists():
+            with cache_path.open("r", encoding="utf-8") as f:
+                return json.load(f)
+
     attempt = 0
     while True:
         try:
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"overpass\..*")
-                return api.get(query, responseformat="json", build=build)
+                result = api.get(query, responseformat="json", build=build)
+
+            if cache_path is not None:
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
+                with tmp_path.open("w", encoding="utf-8") as f:
+                    json.dump(result, f, ensure_ascii=False)
+                tmp_path.replace(cache_path)
+
+            return result
         except overpass.MultipleRequestsError:
             # Per Overpass docs/policy: respect reported wait time; API exposes /status parsing helpers.
             wait_s = getattr(api, "slot_available_countdown", 0) or 0
@@ -148,10 +171,19 @@ def query_json(
 def query_json_from_config(config: Any, query: str, *, build: bool = False) -> dict[str, Any]:
     policy = policy_config_from_config(config)
     api = create_api(policy)
+
+    export = getattr(config, "export", None)
+    output_dir = None
+    if export is not None and hasattr(export, "dir"):
+        output_dir = Path(export.dir)
+    elif hasattr(config, "output_dir"):
+        output_dir = Path(getattr(config, "output_dir"))
+
     return query_json(
         api,
         query,
         build=build,
+        cache_dir=output_dir,
         max_retries=policy.max_retries,
         retry_backoff_s=policy.retry_backoff_s,
         retry_max_sleep_s=policy.retry_max_sleep_s,
