@@ -116,16 +116,17 @@ class ParamikoTunnelForwarder:
         except (OSError, EOFError):
             logging.exception("Error in _pump when sending/receiving data")
         finally:
-            for s in (src, dst):
-                try:
-                    if hasattr(s, "shutdown"):
-                        s.shutdown(socket.SHUT_RDWR)
-                except OSError:
-                    logging.exception("Error in _pump when shutting down socket")
-                try:
-                    s.close()
-                except OSError:
-                    logging.exception("Error in _pump when closing socket")
+            # Only close *dst*: the other thread owns the reverse direction's dst
+            # (same as its peer's src), so each socket/channel is closed exactly once.
+            try:
+                if hasattr(dst, "shutdown"):
+                    dst.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                logging.exception("Error in _pump when shutting down destination")
+            try:
+                dst.close()
+            except OSError:
+                logging.exception("Error in _pump when closing destination")
 
     def _handle_client(self, client_sock: socket.socket) -> None:
         try:
