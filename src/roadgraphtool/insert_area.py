@@ -103,6 +103,37 @@ def parse_arguments() -> argparse.Namespace:
         "-c", "--config", required=False, default=None, help="Config", )
     return parser.parse_args()
 
+
+def _overpass_rel_admin_level_if_fragment(boundary_source: Any) -> str:
+    """
+    Build an Overpass eval filter (if: ...) for administrative relations by admin_level.
+
+    When ``min_admin_level`` and/or ``max_admin_level`` is set on ``boundary_source``,
+    relations must satisfy ``t["admin_level"] >= min`` (inclusive lower bound) and/or
+    ``t["admin_level"] <= max`` (inclusive upper bound), matching Overpass patterns such as
+    ``rel(if: t["admin_level"] > 4)[...]``. If neither key is present, returns an empty string.
+    """
+    has_min = hasattr(boundary_source, "min_admin_level") and boundary_source.min_admin_level is not None
+    has_max = hasattr(boundary_source, "max_admin_level") and boundary_source.max_admin_level is not None
+    if not has_min and not has_max:
+        return ""
+    conditions: list[str] = []
+    min_v: Optional[int] = None
+    max_v: Optional[int] = None
+    if has_min:
+        min_v = int(boundary_source.min_admin_level)
+        conditions.append(f't["admin_level"] >= {min_v}')
+    if has_max:
+        max_v = int(boundary_source.max_admin_level)
+        conditions.append(f't["admin_level"] <= {max_v}')
+    if min_v is not None and max_v is not None and max_v <= min_v:
+        raise ValueError(
+            "boundary_source.max_admin_level must be greater than min_admin_level "
+            "(need admin_level strictly greater than min and at most max)."
+        )
+    return f'(if: {" && ".join(conditions)})'
+
+
 def get_boundary_from_overpass(config: Dict[str, Any]) -> geometry.MultiPolygon:
     if not hasattr(config.area_insert.boundary_source, "admin_boundary_name"):
         raise ValueError("""
@@ -115,9 +146,14 @@ def get_boundary_from_overpass(config: Dict[str, Any]) -> geometry.MultiPolygon:
     # area_insert:
     #   boundary_source:
     #     enclosing_areas: ["Country", "State", "County"]
+    #     min_admin_level / max_admin_level: optional; add rel(if: t["admin_level"] ...) filter (see
+    #     _overpass_rel_admin_level_if_fragment).
+    boundary_source = config.area_insert.boundary_source
+    admin_if = _overpass_rel_admin_level_if_fragment(boundary_source)
+
     enclosing_areas = []
-    if hasattr(config.area_insert.boundary_source, "enclosing_areas"):
-        enclosing_areas = config.area_insert.boundary_source.enclosing_areas or []
+    if hasattr(boundary_source, "enclosing_areas"):
+        enclosing_areas = boundary_source.enclosing_areas or []
         if not isinstance(enclosing_areas, list):
             raise ValueError("""
             enclosing_areas must be a list of area names (strings). Example:
@@ -143,14 +179,16 @@ def get_boundary_from_overpass(config: Dict[str, Any]) -> geometry.MultiPolygon:
         for enclosing_name in enclosing_areas[1:]:
             parts.append(f'area["boundary"="administrative"]["name"="{enclosing_name}"];')
 
-        parts.append(f'rel(area)["boundary"="administrative"]["name"="{admin_boundary_name}"]->.r;')
+        parts.append(
+            f'rel(area){admin_if}["boundary"="administrative"]["name"="{admin_boundary_name}"]->.r;'
+        )
         parts.append("way(r.r);")
         parts.append("out geom;")
         query = "\n".join(parts)
     else:
         query = f"""
         [out:json][timeout:25];
-        rel["boundary"="administrative"]["name"="{admin_boundary_name}"]->.r;
+        rel{admin_if}["boundary"="administrative"]["name"="{admin_boundary_name}"]->.r;
         way(r.r);
         out geom;
         """
