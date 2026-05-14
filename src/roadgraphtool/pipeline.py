@@ -83,15 +83,15 @@ def main(config: Dict[str, Any]):
     if not area_id:
         area_id = config.area_id
 
-    if config.contraction.activated:
+    if hasattr(config, "contraction") and config.contraction.activated:
         contract_graph_in_area(area_id, config.srid, False)
 
-    if config.strong_components.activated:
+    if hasattr(config, "strong_components") and config.strong_components.activated:
         compute_strong_components(area_id)
 
     nodes = None
     edges = None
-    if config.export.activated:
+    if hasattr(config, "export") and config.export.activated:
         nodes, edges = roadgraphtool.export.export(config)
 
     if hasattr(config, "dm_generator") and config.dm_generator.activated:

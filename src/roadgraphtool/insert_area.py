@@ -234,7 +234,7 @@ def get_boundary_geojson(config):
 def genereate_area(config, description: str = None) -> int:
     boundary_geom = get_boundary_geojson(config)
 
-    area_id = insert_area(name=config.area.name, description=description, geom=boundary_geom)
+    area_id = insert_area(name=config.area_insert.name, description=description, geom=boundary_geom)
 
     return area_id
 
