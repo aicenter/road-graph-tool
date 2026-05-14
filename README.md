@@ -274,6 +274,13 @@ The SQL procedure `contract_graph_in_area` processes the graph in the following 
 
 <!-- ![procedure_contract_graph_in_area](https://github.com/user-attachments/assets/6a4b7c8d-6a95-4c75-836c-2e1a4622575a) -->
 
+
+## Strongly Connected Components
+key: `strong_components`
+
+This component computes the strongly connected components of the road graph, and keeps only the largest component.
+
+
 ## Exporter
 The exporter component is responsible for exporting the processed data from the database. Currently, the following formats are supported:
 

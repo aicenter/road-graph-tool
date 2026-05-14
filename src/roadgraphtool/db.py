@@ -28,11 +28,81 @@ def _parse_ssh_server(server: str) -> Tuple[str, int]:
 class _PumpEndpoint:
     """Socket-like endpoint plus a label for tunnel pump logging."""
 
-    __slots__ = ("sock", "label")
+    __slots__ = ("sock", "label", "_lock", "_write_closed", "_closed")
 
     def __init__(self, sock: Any, label: str) -> None:
         self.sock = sock
         self.label = label
+        self._lock = threading.Lock()
+        self._write_closed = False
+        self._closed = False
+
+    @property
+    def is_closed(self) -> bool:
+        with self._lock:
+            return self._closed
+
+    def recv(self, size: int) -> bytes:
+        return self.sock.recv(size)
+
+    def sendall(self, data: bytes) -> None:
+        self.sock.sendall(data)
+
+    def shutdown_write(self) -> None:
+        with self._lock:
+            if self._write_closed or self._closed:
+                return
+            self._write_closed = True
+
+        try:
+            if hasattr(self.sock, "shutdown_write"):
+                self.sock.shutdown_write()
+            elif hasattr(self.sock, "shutdown"):
+                self.sock.shutdown(socket.SHUT_WR)
+        except Exception:
+            logging.debug("Endpoint write side already shut down (endpoint=%s)", self.label, exc_info=True)
+
+    def close(self) -> None:
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            self._write_closed = True
+
+        try:
+            if hasattr(self.sock, "shutdown") and not hasattr(self.sock, "shutdown_write"):
+                self.sock.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            logging.debug("Endpoint already shut down (endpoint=%s)", self.label, exc_info=True)
+
+        try:
+            self.sock.close()
+        except Exception:
+            logging.debug("Endpoint already closed (endpoint=%s)", self.label, exc_info=True)
+
+
+class _PumpConnection:
+    """Coordinates half-close and final close for the two pump directions."""
+
+    __slots__ = ("local", "remote", "_lock", "_finished")
+
+    def __init__(self, local: _PumpEndpoint, remote: _PumpEndpoint) -> None:
+        self.local = local
+        self.remote = remote
+        self._lock = threading.Lock()
+        self._finished = 0
+
+    def finish_direction(self, dst: _PumpEndpoint) -> None:
+        dst.shutdown_write()
+
+        close_all = False
+        with self._lock:
+            self._finished += 1
+            close_all = self._finished >= 2
+
+        if close_all:
+            self.local.close()
+            self.remote.close()
 
 
 class ParamikoTunnelForwarder:
@@ -116,37 +186,29 @@ class ParamikoTunnelForwarder:
             self._ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             self._ssh_client.connect(**common, allow_agent=False)
 
-    def _pump(self, src: _PumpEndpoint, dst: _PumpEndpoint) -> None:
+    def _pump(self, src: _PumpEndpoint, dst: _PumpEndpoint, connection: _PumpConnection) -> None:
         try:
             while True:
                 try:
-                    data = src.sock.recv(65536)
+                    data = src.recv(65536)
                 except (OSError, EOFError):
-                    logging.exception("Error in _pump on recv (endpoint=%s)", src.label)
+                    if src.is_closed:
+                        logging.debug("Pump stopped after endpoint closed (endpoint=%s)", src.label)
+                    else:
+                        logging.exception("Error in _pump on recv (endpoint=%s)", src.label)
                     break
                 if not data:
                     break
                 try:
-                    dst.sock.sendall(data)
+                    dst.sendall(data)
                 except (OSError, EOFError):
-                    logging.exception("Error in _pump on sendall (endpoint=%s)", dst.label)
+                    if dst.is_closed:
+                        logging.debug("Pump stopped after destination closed (endpoint=%s)", dst.label)
+                    else:
+                        logging.exception("Error in _pump on sendall (endpoint=%s)", dst.label)
                     break
         finally:
-            # Only close *dst*: the other thread owns the reverse direction's dst
-            # (same as its peer's src), so each socket/channel is closed exactly once.
-            try:
-                if hasattr(dst.sock, "shutdown"):
-                    dst.sock.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                logging.exception(
-                    "Error in _pump when shutting down destination (endpoint=%s)", dst.label
-                )
-            try:
-                dst.sock.close()
-            except OSError:
-                logging.exception(
-                    "Error in _pump when closing destination (endpoint=%s)", dst.label
-                )
+            connection.finish_direction(dst)
 
     def _handle_client(self, client_sock: socket.socket) -> None:
         try:
@@ -167,19 +229,25 @@ class ParamikoTunnelForwarder:
                 logging.exception("Error in _handle_client when closing client socket")
             return
 
+        local_endpoint = _PumpEndpoint(client_sock, "local")
+        remote_endpoint = _PumpEndpoint(channel, "remote")
+        connection = _PumpConnection(local_endpoint, remote_endpoint)
+
         t_up = threading.Thread(
             target=self._pump,
             args=(
-                _PumpEndpoint(client_sock, "local"),
-                _PumpEndpoint(channel, "remote"),
+                local_endpoint,
+                remote_endpoint,
+                connection,
             ),
             daemon=True,
         )
         t_down = threading.Thread(
             target=self._pump,
             args=(
-                _PumpEndpoint(channel, "remote"),
-                _PumpEndpoint(client_sock, "local"),
+                remote_endpoint,
+                local_endpoint,
+                connection,
             ),
             daemon=True,
         )
