@@ -4,7 +4,7 @@ import os
 import socket
 import threading
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import geopandas as gpd
 import paramiko
@@ -23,6 +23,16 @@ def _parse_ssh_server(server: str) -> Tuple[str, int]:
         if port_s.isdigit():
             return host, int(port_s)
     return server, 22
+
+
+class _PumpEndpoint:
+    """Socket-like endpoint plus a label for tunnel pump logging."""
+
+    __slots__ = ("sock", "label")
+
+    def __init__(self, sock: Any, label: str) -> None:
+        self.sock = sock
+        self.label = label
 
 
 class ParamikoTunnelForwarder:
@@ -106,27 +116,37 @@ class ParamikoTunnelForwarder:
             self._ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             self._ssh_client.connect(**common, allow_agent=False)
 
-    def _pump(self, src, dst) -> None:
+    def _pump(self, src: _PumpEndpoint, dst: _PumpEndpoint) -> None:
         try:
             while True:
-                data = src.recv(65536)
+                try:
+                    data = src.sock.recv(65536)
+                except (OSError, EOFError):
+                    logging.exception("Error in _pump on recv (endpoint=%s)", src.label)
+                    break
                 if not data:
                     break
-                dst.sendall(data)
-        except (OSError, EOFError):
-            logging.exception("Error in _pump when sending/receiving data")
+                try:
+                    dst.sock.sendall(data)
+                except (OSError, EOFError):
+                    logging.exception("Error in _pump on sendall (endpoint=%s)", dst.label)
+                    break
         finally:
             # Only close *dst*: the other thread owns the reverse direction's dst
             # (same as its peer's src), so each socket/channel is closed exactly once.
             try:
-                if hasattr(dst, "shutdown"):
-                    dst.shutdown(socket.SHUT_RDWR)
+                if hasattr(dst.sock, "shutdown"):
+                    dst.sock.shutdown(socket.SHUT_RDWR)
             except OSError:
-                logging.exception("Error in _pump when shutting down destination")
+                logging.exception(
+                    "Error in _pump when shutting down destination (endpoint=%s)", dst.label
+                )
             try:
-                dst.close()
+                dst.sock.close()
             except OSError:
-                logging.exception("Error in _pump when closing destination")
+                logging.exception(
+                    "Error in _pump when closing destination (endpoint=%s)", dst.label
+                )
 
     def _handle_client(self, client_sock: socket.socket) -> None:
         try:
@@ -149,12 +169,18 @@ class ParamikoTunnelForwarder:
 
         t_up = threading.Thread(
             target=self._pump,
-            args=(client_sock, channel),
+            args=(
+                _PumpEndpoint(client_sock, "local"),
+                _PumpEndpoint(channel, "remote"),
+            ),
             daemon=True,
         )
         t_down = threading.Thread(
             target=self._pump,
-            args=(channel, client_sock),
+            args=(
+                _PumpEndpoint(channel, "remote"),
+                _PumpEndpoint(client_sock, "local"),
+            ),
             daemon=True,
         )
         t_up.start()
