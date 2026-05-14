@@ -250,20 +250,20 @@ Call `python3 process_osm.py -h` or `python3 process_osm.py --help` for more inf
 The `osm_file` mode uses the`osm2pgsql` tool configured by [Flex output](https://osm2pgsql.org/doc/manual.html#the-flex-output). Flex output allows more flexible configuration such as filtering logic and creating additional types (e.g. areas, boundary, multipolygons) and tables for various POIs (e.g. restaurants, themeparks) to get the desired output. To use it, we define the Flex style file (Lua script) that has all the logic for processing data in OSM file.
 
 
-## Graph Contraction 
-This script contracts the road graph within a specified area. 
+## Graph Contraction
+key: `contraction`
+
+This script contracts the road graph within a specified area. Only intersections nodes are preserved.
+
+
+### Implementation details
 
 - function: `contract_graph_in_area`
 - SQL procedure: `contract_graph_in_area`
-- location: `python/main.py`
-- required tables:
-    - `nodes`
-    - `edges`
-    - `road_segments`
 
 
 ### Processing details
-The SQL procedure `contract_graph_in_area` processes the graph in the following steps, visualized in the diagram below:
+The SQL procedure `contract_graph_in_area` processes the graph in the following steps:
 
 1. **Road Segments Table Creation**: Generates a temporary table containing road segments within a target area. A road segment is a line between two subsequent nodes from the OSM data.
 1. **Graph Contraction**: Contracts the graph by creating a temporary table that holds the contraction information for each node.
@@ -273,6 +273,13 @@ The SQL procedure `contract_graph_in_area` processes the graph in the following 
 
 
 <!-- ![procedure_contract_graph_in_area](https://github.com/user-attachments/assets/6a4b7c8d-6a95-4c75-836c-2e1a4622575a) -->
+
+
+## Strongly Connected Components
+key: `strong_components`
+
+This component computes the strongly connected components of the road graph, and keeps only the largest component.
+
 
 ## Exporter
 The exporter component is responsible for exporting the processed data from the database. Currently, the following formats are supported:
