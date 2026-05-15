@@ -1,6 +1,7 @@
 import atexit
 import logging
 import os
+import select
 import socket
 import threading
 from pathlib import Path
@@ -199,6 +200,11 @@ class ParamikoTunnelForwarder:
             while True:
                 try:
                     data = src.recv(65536)
+                except socket.timeout:
+                    if src.is_closed:
+                        logging.debug("Pump stopped after endpoint closed (endpoint=%s)", src.label)
+                        break
+                    continue
                 except (OSError, EOFError):
                     if src.is_closed:
                         logging.debug("Pump stopped after endpoint closed (endpoint=%s)", src.label)
@@ -426,6 +432,7 @@ class Database(object):
             self.config.db_server_port,
         )
 
+        self.db_server_address = self._ssh_server_connection.local_bind_address[0]
         self.db_server_port = self._ssh_server_connection.local_bind_port
 
     def _start_or_restart_ssh_connection_if_needed(self):
@@ -460,7 +467,7 @@ class Database(object):
             psycopg2_connection = psycopg2.connect(
                 user=self.config.username,
                 password=self.config.db_password,
-                host=self.config.db_host,
+                host=self.db_server_address,
                 port=self.db_server_port,
                 dbname=self.db_name
             )
@@ -472,6 +479,36 @@ class Database(object):
             if getattr(self, "_ssh_server_connection", None) is not None:
                 logging.info("Tunnel status: %s", str(self._ssh_server_connection.tunnel_is_up))
             raise
+
+    def _get_new_async_psycopg2_connection(self):
+        try:
+            return psycopg2.connect(
+                user=self.config.username,
+                password=self.config.db_password,
+                host=self.db_server_address,
+                port=self.db_server_port,
+                dbname=self.db_name,
+                async_=True,
+            )
+        except psycopg2.OperationalError as er:
+            logging.error(str(er))
+            if getattr(self, "_ssh_server_connection", None) is not None:
+                logging.info("Tunnel status: %s", str(self._ssh_server_connection.tunnel_is_up))
+            raise
+
+    @staticmethod
+    def _wait_for_async_psycopg2_connection(connection) -> None:
+        while True:
+            state = connection.poll()
+            if state == psycopg2.extensions.POLL_OK:
+                return
+            if state == psycopg2.extensions.POLL_READ:
+                select.select([connection.fileno()], [], [])
+                continue
+            if state == psycopg2.extensions.POLL_WRITE:
+                select.select([], [connection.fileno()], [])
+                continue
+            raise psycopg2.OperationalError(f"Unexpected psycopg2 poll state: {state}")
 
     @connect_db_if_required
     def get_new_cursor(self):
@@ -506,26 +543,54 @@ class Database(object):
         """
         Execute a procedure call with psycopg2 so PostgreSQL notices are logged as they arrive.
         """
-        old_notices = self._psycopg2_connection.notices
-        self._psycopg2_connection.notices = PostgresNoticeLogger()
+        connection = self._get_new_async_psycopg2_connection()
+        transaction_started = False
+
         try:
-            with self._psycopg2_connection.cursor() as cursor:
+            self._wait_for_async_psycopg2_connection(connection)
+            old_notices = connection.notices
+            connection.notices = PostgresNoticeLogger()
+
+            cursor = connection.cursor()
+            try:
+                cursor.execute("BEGIN;")
+                self._wait_for_async_psycopg2_connection(connection)
+                transaction_started = True
+
                 cursor.execute(
                     psycopg2.sql.SQL("SET search_path TO {}, public;").format(
                         psycopg2.sql.Identifier(schema)
                     )
                 )
+                self._wait_for_async_psycopg2_connection(connection)
+
                 if params is None:
                     cursor.execute(query)
                 else:
                     cursor.execute(query, params)
+                self._wait_for_async_psycopg2_connection(connection)
+
                 cursor.execute("SET search_path TO public;")
-            self._psycopg2_connection.commit()
+                self._wait_for_async_psycopg2_connection(connection)
+
+                cursor.execute("COMMIT;")
+                self._wait_for_async_psycopg2_connection(connection)
+                transaction_started = False
+            except Exception:
+                if transaction_started:
+                    try:
+                        cursor.execute("ROLLBACK;")
+                        self._wait_for_async_psycopg2_connection(connection)
+                    except Exception:
+                        logging.exception("Failed to roll back async procedure transaction")
+                raise
+            finally:
+                cursor.close()
+                connection.notices = old_notices
         except Exception:
-            self._psycopg2_connection.rollback()
             raise
         finally:
-            self._psycopg2_connection.notices = old_notices
+            connection.close()
 
     @connect_db_if_required
     def execute_script(self, script_path: Path, schema: str = 'public'):
