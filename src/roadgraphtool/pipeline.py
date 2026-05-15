@@ -23,8 +23,19 @@ def contract_graph_in_area(
     target_area_id: int, target_area_srid: int, fill_speed: bool = True
 ):
     logging.info("Contracting graph")
-    sql_query = f'call public.contract_graph_in_area({target_area_id}::smallint, {target_area_srid}::int{", FALSE" if not fill_speed else ""})'
-    result = db.execute_sql(sql_query)
+    if fill_speed:
+        db.execute_procedure(
+            "contract_graph_in_area",
+            (target_area_id, "smallint"),
+            (target_area_srid, "int"),
+        )
+    else:
+        db.execute_procedure(
+            "contract_graph_in_area",
+            (target_area_id, "smallint"),
+            (target_area_srid, "int"),
+            (False, "boolean"),
+        )
     logging.info("Graph Contracted")
 
 
@@ -38,38 +49,42 @@ def select_network_nodes_in_area(target_area_id: int) -> list:
 def assign_average_speed_to_all_segments_in_area(
         target_area_id: int, target_area_srid: int
 ):
-    sql_query = (
-        f"call public.assign_average_speed_to_all_segments_in_area({target_area_id}::smallint, "
-        f"{target_area_srid}::int)"
+    db.execute_procedure(
+        "assign_average_speed_to_all_segments_in_area",
+        (target_area_id, "smallint"),
+        (target_area_srid, "int"),
     )
-    db.execute_sql(sql_query)
 
 
 def compute_strong_components(target_area_id: int):
     logging.info("computing strong components for area_id = {}".format(target_area_id))
-    sql_query = f"call public.compute_strong_components({target_area_id}::smallint)"
-    db.execute_sql(sql_query)
+    db.execute_procedure(
+        "compute_strong_components",
+        (target_area_id, "smallint"),
+    )
     logging.info("storing the results in the component_data table")
 
 
 def compute_speeds_for_segments(
         target_area_id: int, speed_records_dataset: int, hour: int, day_of_week: int
 ):
-    sql_query = (
-        f"call public.compute_speeds_for_segments({target_area_id}::smallint, "
-        f"{speed_records_dataset}::smallint, {hour}::smallint, {day_of_week}::smallint)"
+    db.execute_procedure(
+        "compute_speeds_for_segments",
+        (target_area_id, "smallint"),
+        (speed_records_dataset, "smallint"),
+        (hour, "smallint"),
+        (day_of_week, "smallint"),
     )
-    db.execute_sql(sql_query)
 
 
 def compute_speeds_from_neighborhood_segments(
         target_area_id: int, target_area_srid: int
 ):
-    sql_query = (
-        f"call public.compute_speeds_from_neighborhood_segments({target_area_id}::smallint, "
-        f"{target_area_srid}::int)"
+    db.execute_procedure(
+        "compute_speeds_from_neighborhood_segments",
+        (target_area_id, "smallint"),
+        (target_area_srid, "int"),
     )
-    db.execute_sql(sql_query)
 
 
 def main(config: Dict[str, Any]):

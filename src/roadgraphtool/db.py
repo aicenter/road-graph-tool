@@ -5,7 +5,7 @@ import select
 import socket
 import threading
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Mapping, Optional, Tuple
 
 import geopandas as gpd
 import paramiko
@@ -538,11 +538,101 @@ class Database(object):
             result = conn.execute(sqlalchemy.text(query), *args).all()
             return result
 
+    @staticmethod
+    def _call_arg_value_and_cast(spec: Any) -> Tuple[Optional[str], Any]:
+        """
+        Each argument is either a plain value (no cast, ``%s``), or ``(value, postgres_type)`` where
+        *postgres_type* is a trusted SQL type fragment. A 2-tuple is treated as typed only when the
+        second element is a string (to avoid breaking when a real tuple value is passed as a scalar).
+        """
+        if (
+            isinstance(spec, tuple)
+            and len(spec) == 2
+            and isinstance(spec[1], str)
+        ):
+            return spec[1], spec[0]
+        return None, spec
+
+    @staticmethod
+    def _compose_call_sql(
+        procedure_name: str,
+        arguments: tuple[Any, ...],
+        *,
+        named_arguments: Optional[Mapping[str, Any]],
+    ) -> Tuple[Any, tuple[Any, ...]]:
+        """
+        Build CALL ... for psycopg2. Returns (sql_composable, params_tuple).
+        *named_arguments* values follow the same rules as positional specs in *_call_arg_value_and_cast*.
+        """
+        if named_arguments is not None and len(arguments) > 0:
+            raise ValueError("Pass either positional arguments or named_arguments, not both.")
+        params: list[Any] = []
+        arg_parts: list[Any] = []
+
+        if named_arguments is not None:
+            for pname, spec in named_arguments.items():
+                cast, val = Database._call_arg_value_and_cast(spec)
+                if cast:
+                    arg_parts.append(
+                        psycopg2.sql.Composed(
+                            [
+                                psycopg2.sql.Identifier(pname),
+                                psycopg2.sql.SQL(" => CAST(%s AS "),
+                                psycopg2.sql.SQL(cast),
+                                psycopg2.sql.SQL(")"),
+                            ]
+                        )
+                    )
+                else:
+                    arg_parts.append(
+                        psycopg2.sql.Composed(
+                            [
+                                psycopg2.sql.Identifier(pname),
+                                psycopg2.sql.SQL(" => %s"),
+                            ]
+                        )
+                    )
+                params.append(val)
+        else:
+            for spec in arguments:
+                cast, val = Database._call_arg_value_and_cast(spec)
+                if cast:
+                    arg_parts.append(
+                        psycopg2.sql.SQL("CAST(%s AS {})").format(psycopg2.sql.SQL(cast))
+                    )
+                else:
+                    arg_parts.append(psycopg2.sql.SQL("%s"))
+                params.append(val)
+
+        inner = psycopg2.sql.SQL(", ").join(arg_parts)
+        stmt = psycopg2.sql.SQL("CALL {} ({})").format(
+            psycopg2.sql.Identifier(procedure_name),
+            inner,
+        )
+        return stmt, tuple(params)
+
     @connect_db_if_required
-    def execute_procedure(self, query: str, params=None, schema: str = 'public') -> None:
+    def execute_procedure(
+        self,
+        procedure_name: str,
+        *arguments: Any,
+        named_arguments: Optional[Mapping[str, Any]] = None,
+        schema: str = "public",
+    ) -> None:
         """
-        Execute a procedure call with psycopg2 so PostgreSQL notices are logged as they arrive.
+        Execute a stored procedure (CALL) with psycopg2 so PostgreSQL notices are logged as they arrive.
+
+        Pass positional procedure arguments as varargs. Each argument is either a plain value (bound as
+        ``%s`` with no cast), or ``(value, postgres_type)`` for ``CAST(%s AS type)``.
+
+        Alternatively pass only ``named_arguments=``: a mapping from parameter name to the same kinds of
+        values (plain or ``(value, postgres_type)``). Do not combine varargs with ``named_arguments``.
         """
+        query, params = self._compose_call_sql(
+            procedure_name,
+            arguments,
+            named_arguments=named_arguments,
+        )
         connection = self._get_new_async_psycopg2_connection()
         transaction_started = False
 
@@ -564,10 +654,7 @@ class Database(object):
                 )
                 self._wait_for_async_psycopg2_connection(connection)
 
-                if params is None:
-                    cursor.execute(query)
-                else:
-                    cursor.execute(query, params)
+                cursor.execute(query, params)
                 self._wait_for_async_psycopg2_connection(connection)
 
                 cursor.execute("SET search_path TO public;")
