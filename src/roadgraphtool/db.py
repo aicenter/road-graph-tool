@@ -11,9 +11,17 @@ import paramiko
 import pandas as pd
 import psycopg2
 import psycopg2.errors
+import psycopg2.sql
 import sqlalchemy
 from sqlalchemy.engine import Row
 from tqdm import tqdm
+
+
+class PostgresNoticeLogger:
+    def append(self, notice):
+        message = notice.strip()
+        if message:
+            logging.info("[postgres] %s", message)
 
 
 def _parse_ssh_server(server: str) -> Tuple[str, int]:
@@ -492,6 +500,32 @@ class Database(object):
         with self._sqlalchemy_engine.begin() as conn:
             result = conn.execute(sqlalchemy.text(query), *args).all()
             return result
+
+    @connect_db_if_required
+    def execute_procedure(self, query: str, params=None, schema: str = 'public') -> None:
+        """
+        Execute a procedure call with psycopg2 so PostgreSQL notices are logged as they arrive.
+        """
+        old_notices = self._psycopg2_connection.notices
+        self._psycopg2_connection.notices = PostgresNoticeLogger()
+        try:
+            with self._psycopg2_connection.cursor() as cursor:
+                cursor.execute(
+                    psycopg2.sql.SQL("SET search_path TO {}, public;").format(
+                        psycopg2.sql.Identifier(schema)
+                    )
+                )
+                if params is None:
+                    cursor.execute(query)
+                else:
+                    cursor.execute(query, params)
+                cursor.execute("SET search_path TO public;")
+            self._psycopg2_connection.commit()
+        except Exception:
+            self._psycopg2_connection.rollback()
+            raise
+        finally:
+            self._psycopg2_connection.notices = old_notices
 
     @connect_db_if_required
     def execute_script(self, script_path: Path, schema: str = 'public'):
