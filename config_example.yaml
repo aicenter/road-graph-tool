@@ -55,6 +55,7 @@ overpass: {
 road_import: {
     activated: false,
     schema: importer,
+    tags: [],
     source: {
         # "osm_file" | "overpass"
         type: osm_file,

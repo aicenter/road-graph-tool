@@ -4,7 +4,6 @@
 
 CREATE TABLE IF NOT EXISTS public.ways (
     id bigint NOT NULL,
-    tags public.hstore,
     geom public.geometry(Geometry,4326) NOT NULL,
     area integer,
     "from" bigint NOT NULL,

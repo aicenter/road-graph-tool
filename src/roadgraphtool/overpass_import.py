@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import Dict, Iterable, List, Sequence, Set
 
 import geopandas as gpd
 import pandas as pd
@@ -45,6 +45,89 @@ def _overpass_timeout_s(config) -> int:
     return 25
 
 
+def _configured_tag_keys(config) -> List[str]:
+    road_import = getattr(config, "road_import", None)
+    tag_keys = getattr(road_import, "tags", []) if road_import is not None else []
+    if tag_keys is None:
+        return []
+    if isinstance(tag_keys, str):
+        tag_keys = [tag_keys]
+
+    keys = []
+    seen = set()
+    for key in tag_keys:
+        if key is None:
+            continue
+        key = str(key)
+        if key and key not in seen:
+            keys.append(key)
+            seen.add(key)
+    return keys
+
+
+def _ensure_tag_ids(tag_keys: Sequence[str]) -> Dict[str, int]:
+    tag_ids = {}
+    for key in tag_keys:
+        db.execute_sql(
+            'INSERT INTO tags ("key") VALUES (:key) ON CONFLICT ("key") DO NOTHING',
+            {"key": key},
+        )
+        rows = db.execute_sql_and_fetch_all_rows(
+            'SELECT id FROM tags WHERE "key" = :key',
+            {"key": key},
+        )
+        if rows:
+            tag_ids[key] = int(rows[0][0])
+    return tag_ids
+
+
+def _tag_rows(
+    elements: Iterable[dict],
+    id_column: str,
+    tag_ids: Dict[str, int],
+    allowed_ids: Set[int],
+) -> List[dict]:
+    rows = []
+    for element in elements:
+        element_id = element.get("id")
+        element_tags = element.get("tags") or {}
+        if element_id is None or int(element_id) not in allowed_ids or not isinstance(element_tags, dict):
+            continue
+
+        for key, tag_id in tag_ids.items():
+            if key in element_tags and element_tags[key] is not None:
+                rows.append(
+                    {
+                        id_column: int(element_id),
+                        "tag_id": tag_id,
+                        "tag_value": str(element_tags[key]),
+                    }
+                )
+    return rows
+
+
+def _import_configured_tags(
+    nodes: Iterable[dict],
+    ways: Iterable[dict],
+    tag_keys: Sequence[str],
+    inserted_node_ids: Set[int],
+    inserted_way_ids: Set[int],
+) -> None:
+    if not tag_keys:
+        return
+
+    logging.info("Importing configured Overpass tags: %s", ", ".join(tag_keys))
+    tag_ids = _ensure_tag_ids(tag_keys)
+
+    node_tag_rows = _tag_rows(nodes, "node_id", tag_ids, inserted_node_ids)
+    if node_tag_rows:
+        db.dataframe_to_db_table(pd.DataFrame(node_tag_rows), "nodes_tags", index=False)
+
+    way_tag_rows = _tag_rows(ways, "way_id", tag_ids, inserted_way_ids)
+    if way_tag_rows:
+        db.dataframe_to_db_table(pd.DataFrame(way_tag_rows), "ways_tags", index=False)
+
+
 def _run_overpass_backend(config, area_id: int, area_poly: geometry.base.BaseGeometry) -> int:
     """Download highway ways inside *area_poly* from Overpass and insert into DB for *area_id*."""
     logging.info("Downloading road network from Overpass API for area_id=%s", area_id)
@@ -68,11 +151,13 @@ out body;
 
     nodes = by_type["node"]
     ways = by_type["way"]
+    tag_keys = _configured_tag_keys(config)
 
     node_coord = {}
     for n in nodes:
         if "id" in n and "lat" in n and "lon" in n:
             node_coord[int(n["id"])] = (float(n["lon"]), float(n["lat"]))
+    inserted_node_ids = set(node_coord)
 
     logging.info("Importing %s nodes", len(node_coord))
     node_list = [
@@ -89,6 +174,7 @@ out body;
 
     nodes_ways_list = []
     ways_list = []
+    inserted_way_ids = set()
 
     logging.info("Importing %s ways", len(ways))
     for way in ways:
@@ -106,6 +192,7 @@ out body;
         coords = [c for c in coords if c is not None]
         if len(coords) < 2:
             continue
+        inserted_way_ids.add(way_id)
         ways_list.append(
             {
                 'id': way_id,
@@ -122,6 +209,8 @@ out body;
 
     nodes_ways_df = pd.DataFrame(nodes_ways_list)
     db.dataframe_to_db_table(nodes_ways_df, "nodes_ways", index=False)
+
+    _import_configured_tags(nodes, ways, tag_keys, inserted_node_ids, inserted_way_ids)
 
     return area_id
 

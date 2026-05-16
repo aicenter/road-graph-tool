@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Wipe Road Network Data",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/wipe_road_network.py",
+            "console": "integratedTerminal",
+            "args": [
+                "C:/Google Drive AIC/My Drive/AIC Experiment Data/Line Planning/Instances/LODES/config.yaml"
+            ]
+        }
+    ]
+}

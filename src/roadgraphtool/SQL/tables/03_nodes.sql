@@ -4,7 +4,6 @@
 
 CREATE TABLE IF NOT EXISTS public.nodes (
     id bigint NOT NULL,
-    tags hstore,
     geom public.geometry(Point,4326) NOT NULL,
     area integer,
     contracted boolean DEFAULT false NOT NULL
