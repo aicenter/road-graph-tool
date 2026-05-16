@@ -32,6 +32,25 @@ def _ri_schema(config):
     return config.road_import.schema
 
 
+def _ri_tags(config) -> list[str]:
+    tags = getattr(config.road_import, "tags", [])
+    if tags is None:
+        return []
+    if isinstance(tags, str):
+        tags = [tags]
+
+    result = []
+    seen = set()
+    for tag in tags:
+        if tag is None:
+            continue
+        tag = str(tag)
+        if tag and tag not in seen:
+            result.append(tag)
+            seen.add(tag)
+    return result
+
+
 def _bbox_string_from_geom(geom) -> str:
     min_lon, min_lat, max_lon, max_lat = geom.bounds
     return f"{min_lon},{min_lat},{max_lon},{max_lat}"
@@ -220,6 +239,7 @@ def postprocess_osm_import(config, existing_area_id: Optional[int] = None) -> in
 
     copy_nodes(schema, target_schema, area_id)
     copy_ways(schema, target_schema, area_id)
+    copy_tags(schema, target_schema, _ri_tags(config))
     copy_relations(schema, target_schema, area_id)
     copy_nodes_ways(schema, target_schema, area_id)
 
@@ -312,8 +332,8 @@ def copy_nodes(import_schema: str, target_schema: str, area_id: int):
 
     logging.debug("Copying nodes")
     query = f'''
-        INSERT INTO "{target_schema}".nodes (id,tags,geom, area)
-        SELECT id, tags, geom, {area_id}
+        INSERT INTO "{target_schema}".nodes (id, geom, area)
+        SELECT id, geom, {area_id}
         FROM "{import_schema}".nodes i
         WHERE NOT EXISTS
             (SELECT id
@@ -343,8 +363,8 @@ def copy_nodes_ways(import_schema: str, target_schema: str, area_id: int):
 def copy_ways(import_schema: str, target_schema: str, area_id: int):
     logging.debug("Copying ways")
     query = f'''
-            INSERT INTO "{target_schema}".ways (id, tags, geom,"from","to", oneway, area)
-            SELECT id, tags, geom,"from","to", oneway, {area_id}
+            INSERT INTO "{target_schema}".ways (id, geom,"from","to", oneway, area)
+            SELECT id, geom,"from","to", oneway, {area_id}
             FROM "{import_schema}".ways i
             WHERE NOT EXISTS
                 (SELECT id
@@ -353,6 +373,65 @@ def copy_ways(import_schema: str, target_schema: str, area_id: int):
     logging.debug(f'Executing following SQL: {query}')
     result = db.execute_sql(query)
     logging.debug(f'Inserted rows: {result.rowcount}')
+
+
+def _tags_column_kind(schema: str, table_name: str) -> Optional[str]:
+    rows = db.execute_sql_and_fetch_all_rows(
+        """
+        SELECT udt_name
+        FROM information_schema.columns
+        WHERE table_schema = :schema_name
+            AND table_name = :table_name
+            AND column_name = 'tags'
+        """,
+        {"schema_name": schema, "table_name": table_name},
+    )
+    if not rows:
+        return None
+    return str(rows[0][0])
+
+
+def _tag_sql_fragments(tag_column_kind: Optional[str]) -> tuple[str, str]:
+    if tag_column_kind == "jsonb":
+        return "jsonb_exists(i.tags, :tag_key)", "i.tags ->> :tag_key"
+    if tag_column_kind == "hstore":
+        return "exist(i.tags, :tag_key)", "i.tags -> :tag_key"
+    raise ValueError(f"Unsupported tags column type: {tag_column_kind!r}")
+
+
+def copy_tags(import_schema: str, target_schema: str, tag_keys: list[str]):
+    if not tag_keys:
+        return
+
+    logging.debug("Copying configured tags")
+    for key in tag_keys:
+        db.execute_sql(
+            f'''
+            INSERT INTO "{target_schema}".tags ("key")
+            VALUES (:tag_key)
+            ON CONFLICT ("key") DO NOTHING
+            ''',
+            {"tag_key": key},
+        )
+
+    for source_table, relation_table, id_column in (
+        ("nodes", "nodes_tags", "node_id"),
+        ("ways", "ways_tags", "way_id"),
+    ):
+        exists_sql, value_sql = _tag_sql_fragments(_tags_column_kind(import_schema, source_table))
+        for key in tag_keys:
+            query = f'''
+                INSERT INTO "{target_schema}".{relation_table} ({id_column}, tag_id, tag_value)
+                SELECT i.id, tags.id, {value_sql}
+                FROM "{import_schema}".{source_table} i
+                    JOIN "{target_schema}".tags tags ON tags."key" = :tag_key
+                    JOIN "{target_schema}".{source_table} target_element ON target_element.id = i.id
+                WHERE {exists_sql}
+                ON CONFLICT ({id_column}, tag_id) DO UPDATE
+                    SET tag_value = EXCLUDED.tag_value
+            '''
+            result = db.execute_sql(query, {"tag_key": key})
+            logging.debug("Copied %s %s rows for tag %s", result.rowcount, relation_table, key)
 
 
 def copy_relations(import_schema: str, target_schema: str, area_id: int):

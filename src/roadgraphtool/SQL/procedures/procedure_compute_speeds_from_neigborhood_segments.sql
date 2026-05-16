@@ -25,7 +25,9 @@ BEGIN
 	-- 1.1 Create view target_ways
 	EXECUTE format($target_ways_view$
 	CREATE MATERIALIZED VIEW target_ways AS
-	SELECT ways.* FROM ways JOIN areas ON areas.id = %L AND st_intersects(areas.geom, ways.geom)
+	SELECT ways.id, ways.geom, ways.area, ways."from", ways."to", ways.oneway
+	FROM ways
+		JOIN areas ON areas.id = %L AND st_intersects(areas.geom, ways.geom)
 	$target_ways_view$, target_area_id);
 
 	-- 1.2 Add index on target_ways(id)

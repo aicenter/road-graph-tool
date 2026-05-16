@@ -11,7 +11,9 @@ BEGIN
 RAISE NOTICE 'Selecting ways in area: "%"', (SELECT name FROM areas WHERE id = target_area_id);
 CREATE TEMPORARY TABLE target_ways AS
 	(
-		SELECT ways.* FROM ways JOIN areas ON areas.id = target_area_id AND st_intersects(areas.geom, ways.geom)
+		SELECT ways.id, ways.geom, ways.area, ways."from", ways."to", ways.oneway
+		FROM ways
+			JOIN areas ON areas.id = target_area_id AND st_intersects(areas.geom, ways.geom)
 	);
 CREATE INDEX target_ways_id_idx ON target_ways(id);
 RAISE NOTICE '% ways selected', (SELECT count(1) FROM target_ways);

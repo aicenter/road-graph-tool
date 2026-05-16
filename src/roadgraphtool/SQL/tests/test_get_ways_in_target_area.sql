@@ -19,10 +19,10 @@ BEGIN
     (2, 1652, ST_GeomFromText('POINT(1 1)', 4326));
 
     -- add ways, which do not intersect with the area
-    INSERT INTO ways(id, tags, geom, area, "from", "to", oneway) VALUES
-    (1, 'tiger:zip_left => 08330', ST_GeomFromText('LINESTRING(2 2, 2 3)', 4326), 1652, 1, 2, false),
-    (2, 'tiger:zip_left => 08330', ST_GeomFromText('LINESTRING(2 3, 4 5)', 4326), 1652, 1, 2, false),
-    (3, 'tiger:zip_left => 08330', ST_GeomFromText('LINESTRING(4 5, 4 6)', 4326), 1652, 1, 2, false);
+    INSERT INTO ways(id, geom, area, "from", "to", oneway) VALUES
+    (1, ST_GeomFromText('LINESTRING(2 2, 2 3)', 4326), 1652, 1, 2, false),
+    (2, ST_GeomFromText('LINESTRING(2 3, 4 5)', 4326), 1652, 1, 2, false),
+    (3, ST_GeomFromText('LINESTRING(4 5, 4 6)', 4326), 1652, 1, 2, false);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -88,10 +88,10 @@ BEGIN
     (2, 1652, ST_GeomFromText('POINT(1 1)', 4326));
 
     -- add ways, which intersect with the area
-    INSERT INTO ways(id, tags, geom, area, "from", "to", oneway) VALUES
-    (4, 'tiger:zip_left => 08330', ST_GeomFromText('LINESTRING(0.5 0.5, 1 1)', 4326), 1652, 1, 2, false),
-    (5, 'tiger:zip_left => 08330', ST_GeomFromText('LINESTRING(0.5 0.5, 0.5 1)', 4326), 1652, 1, 2, false),
-    (6, 'tiger:zip_left => 08330', ST_GeomFromText('LINESTRING(0.5 0.5, 0 0)', 4326), 1652, 1, 2, false);
+    INSERT INTO ways(id, geom, area, "from", "to", oneway) VALUES
+    (4, ST_GeomFromText('LINESTRING(0.5 0.5, 1 1)', 4326), 1652, 1, 2, false),
+    (5, ST_GeomFromText('LINESTRING(0.5 0.5, 0.5 1)', 4326), 1652, 1, 2, false),
+    (6, ST_GeomFromText('LINESTRING(0.5 0.5, 0 0)', 4326), 1652, 1, 2, false);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -102,7 +102,9 @@ BEGIN
     -- Setup test data
     PERFORM prepare_test_area_with_intersecting_ways();
 
-    RETURN NEXT set_eq('SELECT * FROM get_ways_in_target_area(1652::smallint)', 'SELECT * FROM ways WHERE id IN (4, 5, 6)',
+    RETURN NEXT set_eq(
+        'SELECT id, geom, area, "from", "to", oneway FROM get_ways_in_target_area(1652::smallint)',
+        'SELECT id, geom, area, "from", "to", oneway FROM ways WHERE id IN (4, 5, 6)',
         'function get_ways_in_target_area() returned correct records');
 END
 $$ LANGUAGE plpgsql;

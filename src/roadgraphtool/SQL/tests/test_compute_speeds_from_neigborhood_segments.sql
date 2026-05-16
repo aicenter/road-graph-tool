@@ -27,10 +27,10 @@ RETURNS VOID AS $$
 												  (13, ST_GeomFromText('POINT(100 -250)', 4326), 1);
 
 		-- insert ways
-		INSERT INTO ways (id, tags, geom, area, "from", "to", oneway) VALUES
-			(6, '{example_tag => example_2}', ST_GeomFromText('LINESTRING(1 1, 20 -5, 50 -5, 100 -5)', 4326), 1, 1, 8, false),
-			(7, '{example_tag => example_2}', ST_GeomFromText('LINESTRING(1 1, -20 5, -50 5, -100 5)', 4326), 1, 1, 11, false),
-			(8, '{example_tag => example_2}', ST_GeomFromText('LINESTRING(-100 -250, 100 -250)', 4326), 1, 12, 13, false);
+		INSERT INTO ways (id, geom, area, "from", "to", oneway) VALUES
+			(6, ST_GeomFromText('LINESTRING(1 1, 20 -5, 50 -5, 100 -5)', 4326), 1, 1, 8, false),
+			(7, ST_GeomFromText('LINESTRING(1 1, -20 5, -50 5, -100 5)', 4326), 1, 1, 11, false),
+			(8, ST_GeomFromText('LINESTRING(-100 -250, 100 -250)', 4326), 1, 12, 13, false);
 
 		INSERT INTO nodes_ways (way_id, node_id, position, area, id) VALUES
 			(6, 1, 1, 1, 9),

@@ -1,5 +1,5 @@
 create OR REPLACE function get_ways_in_target_area(target_area_id smallint)
-    returns TABLE(id bigint, tags hstore, geom geometry, area integer, "from" bigint, "to" bigint, oneway boolean)
+    returns TABLE(id bigint, geom geometry, area integer, "from" bigint, "to" bigint, oneway boolean)
     language plpgsql
 as
 $$
@@ -14,7 +14,7 @@ BEGIN
         RAISE EXCEPTION 'The target area with id % has a NULL geometry', target_area_id;
     END IF;
 
-	RETURN QUERY SELECT ways.*
+	RETURN QUERY SELECT ways.id, ways.geom, ways.area, ways."from", ways."to", ways.oneway
 	        FROM ways
 	            JOIN areas ON areas.id = target_area_id AND st_intersects(areas.geom, ways.geom);
 END;

@@ -24,14 +24,14 @@ BEGIN
 
     -- insert 2 ways within the test area
     RAISE NOTICE 'Inserting into ways';
-    INSERT INTO ways(id, tags, geom, area, "from", "to", oneway) VALUES (1, '{example_tag => example}', ST_GeomFromText('LINESTRING(1 1, 1 5, 5 5)', 4326), 1, 1, 3, false),
-    (2, '{example_tag => example_2}', ST_GeomFromText('LINESTRING(5 5, 5 1, 9 1)', 4326), 1, 3, 5, false);
+    INSERT INTO ways(id, geom, area, "from", "to", oneway) VALUES (1, ST_GeomFromText('LINESTRING(1 1, 1 5, 5 5)', 4326), 1, 1, 3, false),
+    (2, ST_GeomFromText('LINESTRING(5 5, 5 1, 9 1)', 4326), 1, 3, 5, false);
 
     -- insert 1 way outside the test area
-    INSERT INTO ways(id, tags, geom, area, "from", "to", oneway) VALUES (3, '{example_tag => example_3}', ST_GeomFromText('LINESTRING(11 1, 11 5, 11 11)', 4326), 1, 6, 8, false);
+    INSERT INTO ways(id, geom, area, "from", "to", oneway) VALUES (3, ST_GeomFromText('LINESTRING(11 1, 11 5, 11 11)', 4326), 1, 6, 8, false);
 
     -- insert 1 way with a segment outside the test area
-    INSERT INTO ways(id, tags, geom, area, "from", "to", oneway) VALUES (4, '{example_tag => example_4}', ST_GeomFromText('LINESTRING(1 1, 1 5, 11 5)', 4326), 1, 1, 7, false);
+    INSERT INTO ways(id, geom, area, "from", "to", oneway) VALUES (4, ST_GeomFromText('LINESTRING(1 1, 1 5, 11 5)', 4326), 1, 1, 7, false);
 
     -- insert nodes_ways
     RAISE NOTICE 'Inserting into nodes_ways';

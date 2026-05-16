@@ -37,7 +37,7 @@ WITH average_speed AS (
 
 -- Get all the ways in the target area.
 target_ways AS (
-    SELECT * FROM get_ways_in_target_area(target_area_id::smallint)
+    SELECT id, geom, area, "from", "to", oneway FROM get_ways_in_target_area(target_area_id::smallint)
 ),
 
 -- Create segments from nodes in the target ways.
