@@ -281,8 +281,10 @@ key: `strong_components`
 This component computes the strongly connected components of the road graph, and keeps only the largest component.
 
 
-## Exporter
-The exporter component is responsible for exporting the processed data from the database. Currently, the following formats are supported:
+## Export
+key: `export`
+
+The exporter component is responsible for exporting the processed data from the database. It exports the files to `<export.dir>/map/`. Currently, the following formats are supported:
 
 - **CSV**: exports the data to two CSV files: one for nodes and one for edges. The columns are separated by a tabulator.
 - **Shapefile**: exports the data to two [shapefiles](https://en.wikipedia.org/wiki/Shapefile): one for nodes and one for edges.
@@ -304,6 +306,15 @@ The **edges** file contains:
 - `db_id_to`: the unique identifier of the ending node in the database.
 - `length`: the length of the edge in meters.
 - `speed`: the speed on the edge in km/h.
+
+
+## Distance Matrix Generator
+key: `dm_generator`
+
+This component generates a distance matrix for the road graph (requires `shortestPathsPreprocessor` from [shortest-distances](https://github.com/aicenter/shortest-distances)). Parameters:
+
+- `output_format` (`csv` | `hdf`, default: `csv`): passed to `--output-format` parameter of `shortestPathsPreprocessor`.
+- `dm_filepath` (optional): output path. Default is `<export.dir>/dm.csv` for `csv` format and `<export.dir>/dm.h5` for `hdf` format.
 
 
 # Development Guide

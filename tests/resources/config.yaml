@@ -47,3 +47,7 @@ strong_components:
 export:
   activated: false
   dir: ./
+
+dm_generator:
+  activated: false
+  output_format: csv

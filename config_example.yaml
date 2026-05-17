@@ -79,3 +79,9 @@ export: {
     activated: true,
     dir: ./
 }
+
+dm_generator: {
+    activated: false,
+    # Distance matrix file format for shortestPathsPreprocessor: csv or hdf
+    output_format: csv,
+}

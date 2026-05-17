@@ -126,13 +126,12 @@ def _save_graph_shapefile(nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, shap
 
 def export(config: Dict) -> Optional[Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]]:
     """
-    Loads filtered map nodes geodataframe. If th dataframe is not generated yet, then the map is downloaded
-    and processed to obtain the filtered nodes dataframe
+    Downloads the nodes and edges from the database and saves them to a shapefile and a CSV file.
+    If the map already exists, it does nothing
     :param config: instance configuration
     :return: geodataframe containing filtered nodes that are intended for demand generation
     """
-    export_dir = config.export
-    area_dir = Path(export_dir.dir)
+    area_dir = Path(config.export.dir)
     map_dir = area_dir / 'map'
     nodes_file_path = map_dir / 'nodes.csv'
 

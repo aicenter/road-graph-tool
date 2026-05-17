@@ -56,9 +56,10 @@ This procedure generates a distance matrix for a given set of nodes and edges, w
 #### Parameters
 
 - `config` (Dict): A configuration dictionary containing necessary paths and settings.
-  - dm_filepath: (Optional) The file path where the distance matrix will be saved.
-  - area_dir: Directory path for storing the distance matrix if dm_filepath is not provided.
-  - map['path']: Directory path where the map files are located.
+  - `export.dir` or `area_dir`: Directory for the distance matrix and map export.
+  - `dm_generator.output_format` (`csv` | `hdf`, default: `csv`): output format for `shortestPathsPreprocessor`.
+  - `dm_filepath` / `dm_generator.dm_filepath` (optional): output path; default is `dm` (csv) or `dm.h5` (hdf) under the export directory.
+  - `map['path']`: Directory path where the map files are located (instance configs).
 - `nodes` (gpd.GeoDataFrame): A GeoDataFrame containing the nodes of the network.
 - `edges` (gpd.GeoDataFrame): A GeoDataFrame containing the edges of the network, with optional speed data.
 - `allow_zero_length_edges` (bool, default=True): A flag to allow or disallow zero-length edges in the network.
