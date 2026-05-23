@@ -35,7 +35,16 @@ For configuring the Road Graph Tool, we use the [YAML](https://yaml.org/) format
 
 All the relative paths specified in the configuration file are relative to the configuration file itself, unless specified otherwise.
 
-The main configuration affecting the whole tool is in the root of the configuration file. Other parameters are in following sections:
+The main configuration affecting the whole tool is in the root of the configuration file. Root scalar parameters are:
+
+- `area_id`: the id of the area to process.
+- `dm_filepath` (optional): root-level output path for the distance matrix. Default is `<export.dir>/dm.csv` for `csv` format and `<export.dir>/dm.h5` for `hdf` format.
+- `log_level`: the level of the logging.
+- `password_config_file` (optional): path to the file containing the secrets for the database.
+- `schema`: the schema of the database.
+- `srid`: the SRID of the map.
+
+Other parameters are in following sections:
 
 - `db`: database configuration
 - `road_import`: configuration for the road network import step (OSM file or Overpass)
@@ -314,7 +323,6 @@ key: `dm_generator`
 This component generates a distance matrix for the road graph (requires `shortestPathsPreprocessor` from [shortest-distances](https://github.com/aicenter/shortest-distances)). Parameters:
 
 - `output_format` (`csv` | `hdf`, default: `csv`): passed to `--output-format` parameter of `shortestPathsPreprocessor`.
-- `dm_filepath` (optional): output path. Default is `<export.dir>/dm.csv` for `csv` format and `<export.dir>/dm.h5` for `hdf` format.
 
 
 # Development Guide

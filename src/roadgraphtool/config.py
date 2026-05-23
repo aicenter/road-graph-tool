@@ -83,6 +83,7 @@ def parse_config_file(config_file: Union[Path, Traversable]):
             config_dict = merge_dicts(config_dict, secrets_dict)
 
         config_object = dict2obj(config_dict)
+        config_object.config_dir = config_file.parent
         expand_relative_paths(config_object, config_file.parent)
         return config_object
 

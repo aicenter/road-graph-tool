@@ -2,7 +2,7 @@ import yaml
 import os.path
 import logging
 import pandas as pd
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 import geopandas as gpd
 from pathlib import Path
 
@@ -56,38 +56,41 @@ def _get_dm_output_format(config: Any) -> str:
     return _normalize_dm_output_format(output_format)
 
 
-def _get_area_dir(config: Any) -> Path:
+def _get_config_dir(config: Any) -> Path:
+    config_dir = _read_nested(config, "config_dir")
+    if config_dir is not None:
+        return Path(config_dir)
+    return Path.cwd()
+
+
+def _resolve_config_path(config: Any, path_value: Any) -> Path:
+    path = Path(path_value)
+    if path.is_absolute():
+        return path
+    return _get_config_dir(config) / path
+
+
+def resolve_export_dir(config: Any) -> Path:
     export_dir = _read_nested(config, "export.dir")
-    if export_dir is not None:
-        return Path(export_dir)
-    area_dir = _read_nested(config, "area_dir")
-    if area_dir is not None:
-        return Path(area_dir)
-    raise ValueError("config must specify export.dir or area_dir")
+    if export_dir is None:
+        raise ValueError("config must specify export.dir")
+    return _resolve_config_path(config, export_dir)
 
 
-def _get_dm_filepath(config: Any, area_dir: Path, output_format: str) -> Path:
+def resolve_dm_filepath(config: Any) -> Path:
+    """Resolve the distance matrix path according to the RGT README.
+
+    Relative paths are resolved from the configuration file directory. The only
+    supported explicit distance-matrix path is root-level ``dm_filepath``. When
+    it is omitted, the default is ``<export.dir>/dm.csv`` for csv output and
+    ``<export.dir>/dm.h5`` for hdf output.
+    """
+    output_format = _get_dm_output_format(config)
     dm_filepath = _read_nested(config, "dm_filepath")
     if dm_filepath is None:
-        dm_filepath = _read_nested(config, "dm_generator.dm_filepath")
-    if dm_filepath is None:
-        dm_filepath = area_dir / "dm"
-    return Path(dm_filepath)
-
-
-def _dm_output_candidate_paths(dm_filepath: Union[str, Path], output_format: str) -> List[Path]:
-    base = Path(dm_filepath)
-    if output_format == "hdf":
-        if base.suffix.lower() in {".h5", ".hdf5"}:
-            return [base]
-        return [base, base.with_suffix(".h5"), Path(str(base) + ".h5")]
-    if base.suffix.lower() == ".csv":
-        return [base]
-    return [base, Path(str(base) + ".csv")]
-
-
-def _dm_output_exists(dm_filepath: Union[str, Path], output_format: str) -> bool:
-    return any(path.exists() for path in _dm_output_candidate_paths(dm_filepath, output_format))
+        extension = "h5" if output_format == "hdf" else "csv"
+        return resolve_export_dir(config) / f"dm.{extension}"
+    return _resolve_config_path(config, dm_filepath)
 
 
 def generate_dm(
@@ -97,8 +100,8 @@ def generate_dm(
     allow_zero_length_edges: bool = True
 ):
     output_format = _get_dm_output_format(config)
-    area_dir = _get_area_dir(config)
-    map_dir = area_dir / 'map'
+    export_dir = resolve_export_dir(config)
+    map_dir = export_dir / 'map'
 
     # load nodes and edges if not provided
     if nodes is None:
@@ -107,9 +110,9 @@ def generate_dm(
         edges_file_path = map_dir / 'edges.csv'
         edges = gpd.read_file(edges_file_path)
 
-    dm_file_path = _get_dm_filepath(config, area_dir, output_format)
+    dm_file_path = resolve_dm_filepath(config)
     abs_path = os.path.abspath(dm_file_path)
-    if _dm_output_exists(abs_path, output_format):
+    if Path(abs_path).exists():
         logging.info('Skipping DM generation, the file is already generated.')
     else:
         logging.info(f"Generating distance matrix ({output_format}) in {abs_path}")
