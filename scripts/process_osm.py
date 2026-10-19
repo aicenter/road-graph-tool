@@ -63,12 +63,8 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: str = None):
 
 def setup_ssh_tunnel() -> int:
     """Set up SSH tunnel if needed and returns port number."""
-    if hasattr(CREDENTIALS, "server") and CREDENTIALS.server is not None:  # remote connection
-        db._start_or_restart_ssh_connection_if_needed()
-        CREDENTIALS.db_server_port = db.ssh_tunnel_local_port
-        return db.ssh_tunnel_local_port
-    # local connection
-    return CREDENTIALS.db_server_port
+    # init_db already opened the tunnel when configured; db.db_server_port is the port to use
+    return db.db_server_port
 
 def run_osm2pgsql_cmd(input_file: str, style_file_path: str, schema: str, force: bool, pgpass: bool, coords: str| list[int] = None):
     """Import data from input_file to database specified in *config.ini* using osm2pgsql tool."""

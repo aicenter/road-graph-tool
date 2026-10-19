@@ -54,27 +54,28 @@ Other parameters are in following sections:
 
 Each component configuration has a property `activated` that activates the component if set to `true` and deactivates it if set to `false`.
 
-In the root of the project, there is an example configuration file named `config-example.yml`.
+In the root of the project, there is an example configuration file named `config_example.yaml`.
 
 ## Database configuration
 
 The database configuration is stored in the `db` section of the configuration file. The structure of the section is the following:
 
 - `db_host`: the host of the database server.
-- `db_port`: the port of the database server.
+- `db_server_port`: the port of the database server.
 - `db_name`: the name of the database.
 - `username`: the user of the database.
 - `db_password`: the password of the database.
 
-Additionally, it is possible to configure the SSH connection to the database server in the `ssh` section inside the `db` section. The structure of the section is the following:
+Additionally, it is possible to configure the SSH connection to the database server in the `ssh` section inside the `db` section. When this section is present, `init_db` opens the SSH tunnel together with the database connections, and `db_host`/`db_server_port` are interpreted relative to the SSH server. The structure of the section is the following:
 
-- `ssh_server_address`: the address of the SSH server.
-- `ssh_tunnel_local_port`: the port on the local machine where the SSH tunnel is established.
-- `private_key_path`: the path to the private key file for the SSH connection.
+- `server`: the address of the SSH server, optionally with a port (`host:port`, default 22).
 - `server_username`: the username of the SSH server.
 
+- `private_key_path`: the path to the private key file for the SSH connection.
+- `private_key_passphrase`: (optional) the passphrase of the private key.
+- `tunnel_port`: the port on the local machine where the SSH tunnel is established.
 Typically, we do not want to store the secrets like private key path or database password in the configuration file so that we may share the configuration file with others. For that, we use a separate file for the secrets. 
-The structure of the file is the same as the structure of the main configuration file and it is effectively merged with the main configuration file. To specify the path to the secrets file, use the `password_config_file` parameter in the root of the configuration file. The example file is stored in the root of the project and is named `secrets-example.yml`.
+The structure of the file is the same as the structure of the main configuration file and it is effectively merged with the main configuration file. To specify the path to the secrets file, use the `password_config_file` parameter in the root of the configuration file. The example file is stored in the root of the project and is named `secrets_example.yaml`.
 
 
 # Testing

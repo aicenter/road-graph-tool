@@ -92,15 +92,6 @@ def run_osmium_cmd(flag: str, input_file: str, output_file: Path = None):
             os.remove(tmp_file)
 
 
-def setup_ssh_tunnel(config) -> int:
-    """Set up SSH tunnel if needed and returns port number."""
-    if hasattr(config, "server"):  # remote connection
-        db._start_or_restart_ssh_connection_if_needed()
-        config.db_server_port = db.ssh_tunnel_local_port
-        return db.ssh_tunnel_local_port
-    return config.db.db_server_port
-
-
 def setup_pgpass(config):
     """Create pgpass file or rewrite its content.
 
@@ -110,10 +101,8 @@ def setup_pgpass(config):
     db_config = config.db
     pgpass_config_path = Path(_ri_source(config).pgpass_file).expanduser().resolve()
 
-    if hasattr(db_config, "ssh"):
-        port = db_config.ssh.tunnel_port
-    else:
-        port = db_config.db_server_port
+    # db.db_server_port is the local tunnel port when SSH is configured, the same port osm2pgsql uses
+    port = db.db_server_port
 
     content = f"{db_config.db_host}:{port}:{db_config.db_name}:{db_config.username}:{db_config.db_password}"
     with open(pgpass_config_path, 'w') as pgfile:

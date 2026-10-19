@@ -303,7 +303,6 @@ def main(arg_list: list[str] | None = None):
 
             conn = get_network_config()
             roadgraphtool.db.init_db(config)
-            roadgraphtool.db.db.start_or_restart_ssh_connection_if_needed()
             if file_exists(JSON_FILE):
                 metrics = read_json()
                 new_metrics = monitor_performance(config)

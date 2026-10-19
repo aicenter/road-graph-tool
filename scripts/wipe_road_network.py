@@ -15,7 +15,5 @@ config = parse_config_file(config_path)
 set_logging(config)
 
 roadgraphtool.db.init_db(config)
-roadgraphtool.db.db._start_or_restart_ssh_connection_if_needed()
-
 
 roadgraphtool.db.db.execute_procedure("wipe_road_network_data", schema="public")

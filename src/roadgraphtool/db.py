@@ -18,6 +18,8 @@ import sqlalchemy
 from sqlalchemy.engine import Row
 from tqdm import tqdm
 
+from roadgraphtool.config import Config
+
 
 SqlParams = Mapping[str, Any] | Sequence[Mapping[str, Any]]
 
@@ -333,19 +335,14 @@ class ParamikoTunnelForwarder:
         self.start()
 
 
-def connect_db_if_required(db_function):
+def ensure_db_connection(db_function):
     """
-    Check and reset ssh connection decorator for methods working with the db
+    Decorator for Database methods: verifies the database is initialized and re-establishes
+    the SSH tunnel and the database connections if the tunnel has dropped.
     """
 
     def wrapper(*args, **kwargs):
-        db = args[0]
-        if not hasattr(db, '_initialized'):
-            raise RuntimeError("Database is not initialized. Call roadgraphtool.db.init_db(config) first.")
-        if hasattr(db, 'ssh_server_address'):
-            db._start_or_restart_ssh_connection_if_needed()
-        if not hasattr(db, '_db_connected'):
-            db._set_up_db_connections()
+        args[0]._ensure_connected()
         return db_function(*args, **kwargs)
 
     return wrapper
@@ -355,56 +352,57 @@ class Database(object):
     """
     Singleton for database connection.
 
-    Connection only happens when it is required.
+    ``init_db(config)`` opens the SSH tunnel (when the ``ssh`` section is configured) and the
+    database connections eagerly. Methods decorated with ``ensure_db_connection`` re-establish the
+    tunnel and the connections if the tunnel has dropped in the meantime.
 
     Import as:
-    
-    from db import db
+
+    from roadgraphtool.db import db
 
     Attributes:
         _sqlalchemy_engine: SQLAlchemy engine object
         _psycopg2_connection: psycopg2 connection object
         _ssh_server_connection: ParamikoTunnelForwarder when SSH is configured
-        db_server_address: address of the database server. If ssh_server_address is specified, this address is 
-        interpreted as a relative address to the ssh_server_address. 
+        db_server_address: address of the database server. When SSH is configured, this is the local
+        bind address of the tunnel.
         db_name: name of the database.
-        db_server_port: port of the database server. 
-        ssh_server_address: address of the ssh server.
+        db_server_port: port of the database server. When SSH is configured, this is the local bind
+        port of the tunnel.
     """
 
-    config: dict
+    def __init__(self) -> None:
+        self.config: Config | None = None
+        self.db_server_address: str | None = None
+        self.db_server_port: int | None = None
+        self.db_name: str | None = None
+        self._ssh_server_connection: ParamikoTunnelForwarder | None = None
+        self._psycopg2_connection = None
+        self._sqlalchemy_engine: sqlalchemy.engine.Engine | None = None
+        atexit.register(self._close_db_connections)
 
-    db_server_address: str
-    db_name: str
-    db_server_port: int
-
-    ssh_server_address: str
-
-    _initialized: bool
-    _db_connected: bool
-    _sqlalchemy_engine: sqlalchemy.engine.Engine
-    # _psycopg2_connection: psycopg2.connection.Connection
-    _ssh_server_connection: ParamikoTunnelForwarder
+    @property
+    def ssh_configured(self) -> bool:
+        return self.config is not None and hasattr(self.config, "ssh")
 
     @property
     def ssh_tunnel_local_port(self) -> int:
-        if getattr(self, "_ssh_server_connection", None) is not None:
+        if self._ssh_server_connection is not None:
             return int(self._ssh_server_connection.local_bind_port)
-        return int(getattr(self, "db_server_port", 0))
+        return int(self.db_server_port or 0)
 
     def initialize(self, config):
         self.config = config
-        
+
         self.db_server_port = self.config.db_server_port
         self.db_name = self.config.db_name
         self.db_server_address = self.config.db_host
 
-        if hasattr(self.config, 'ssh'):
-            self.ssh_server_address = self.config.ssh.server
-            
-        self._initialized = True
+        if self.ssh_configured:
+            self._start_ssh_tunnel()
+        self._open_db_connections()
 
-    def _set_up_db_connections(self):
+    def _open_db_connections(self):
         # psycopg2 connection object
         logging.info("Starting _psycopg2 connection")
         self._psycopg2_connection = self._get_new_psycopg2_connection()
@@ -412,16 +410,26 @@ class Database(object):
         # SQLAlchemy init. SQLAlchemy is used by pandas and geopandas
         logging.info("Starting sql_alchemy connection")
         sql_alchemy_engine_str = self._get_sql_alchemy_engine_str()
-        self._sqlalchemy_engine = sqlalchemy.create_engine(sql_alchemy_engine_str)
-        self._db_connected = True
+        self._sqlalchemy_engine = sqlalchemy.create_engine(sql_alchemy_engine_str, pool_pre_ping=True)
 
-    def _start_ssh_connection(self):
+    def _close_db_connections(self):
+        if self._psycopg2_connection is not None:
+            try:
+                self._psycopg2_connection.close()
+            except Exception:
+                logging.debug("psycopg2 connection already closed", exc_info=True)
+            self._psycopg2_connection = None
+        if self._sqlalchemy_engine is not None:
+            self._sqlalchemy_engine.dispose()
+            self._sqlalchemy_engine = None
+
+    def _start_ssh_tunnel(self):
         passphrase = None
         if hasattr(self.config.ssh, "private_key_passphrase"):
             passphrase = self.config.ssh.private_key_passphrase
 
         self._ssh_server_connection = ParamikoTunnelForwarder(
-            ssh_server=self.ssh_server_address,
+            ssh_server=self.config.ssh.server,
             ssh_username=self.config.ssh.server_username,
             key_filename=self.config.ssh.private_key_path,
             local_bind_address=("localhost", int(self.config.ssh.tunnel_port)),
@@ -439,19 +447,26 @@ class Database(object):
         self.db_server_address = self._ssh_server_connection.local_bind_address[0]
         self.db_server_port = self._ssh_server_connection.local_bind_port
 
-    def _start_or_restart_ssh_connection_if_needed(self):
+    def _ensure_connected(self):
         """
-        Set up or reset ssh tunnel.
+        Raise if ``init_db`` was not called. When SSH is configured and the tunnel has dropped,
+        restart it and recreate the database connections, which point at the dead tunnel sockets.
         """
+        if self.config is None:
+            raise RuntimeError("Database is not initialized. Call roadgraphtool.db.init_db(config) first.")
+        if not self.ssh_configured:
+            return
 
-        if not hasattr(self, '_ssh_server_connection'):
-            # INITIALIZATION
-            logging.info("Connecting to ssh server")
-            self._start_ssh_connection()
-        else:
-            # RESET
-            if not self._ssh_server_connection.is_alive or not self._ssh_server_connection.is_active:
-                self._ssh_server_connection.restart()
+        tunnel = self._ssh_server_connection
+        if tunnel.is_alive and tunnel.is_active:
+            return
+
+        logging.warning("SSH tunnel is down, reconnecting")
+        tunnel.restart()
+        self.db_server_address = tunnel.local_bind_address[0]
+        self.db_server_port = tunnel.local_bind_port
+        self._close_db_connections()
+        self._open_db_connections()
 
     def _get_sql_alchemy_engine_str(self):
         sql_alchemy_engine_str = 'postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}'.format(
@@ -468,19 +483,16 @@ class Database(object):
         Handles creation of db connection.
         """
         try:
-            psycopg2_connection = psycopg2.connect(
+            return psycopg2.connect(
                 user=self.config.username,
                 password=self.config.db_password,
                 host=self.db_server_address,
                 port=self.db_server_port,
                 dbname=self.db_name
             )
-
-            atexit.register(psycopg2_connection.close)
-            return psycopg2_connection
         except psycopg2.OperationalError as er:
             logging.error(str(er))
-            if getattr(self, "_ssh_server_connection", None) is not None:
+            if self._ssh_server_connection is not None:
                 logging.info("Tunnel status: %s", str(self._ssh_server_connection.tunnel_is_up))
             raise
 
@@ -496,7 +508,7 @@ class Database(object):
             )
         except psycopg2.OperationalError as er:
             logging.error(str(er))
-            if getattr(self, "_ssh_server_connection", None) is not None:
+            if self._ssh_server_connection is not None:
                 logging.info("Tunnel status: %s", str(self._ssh_server_connection.tunnel_is_up))
             raise
 
@@ -514,15 +526,15 @@ class Database(object):
                 continue
             raise psycopg2.OperationalError(f"Unexpected psycopg2 poll state: {state}")
 
-    @connect_db_if_required
+    @ensure_db_connection
     def get_new_cursor(self):
         return self._psycopg2_connection.cursor()
 
-    @connect_db_if_required
+    @ensure_db_connection
     def commit(self):
         self._psycopg2_connection.commit()
 
-    @connect_db_if_required
+    @ensure_db_connection
     def execute_sql(self, query: str, args: SqlParams | None = None, schema: str='public', use_transactions: bool=True) -> sqlalchemy.engine.cursor.CursorResult[Any]:
         """
         Execute SQL that doesn't return any value.
@@ -532,11 +544,11 @@ class Database(object):
                 connection.execution_options(isolation_level="AUTOCOMMIT")
             with connection.begin():
                 connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
-                result = connection.execute(sqlalchemy.text(query), *args)
+                result = connection.execute(sqlalchemy.text(query), args)
                 connection.execute(sqlalchemy.text(f"SET search_path TO public;"))
                 return result
 
-    @connect_db_if_required
+    @ensure_db_connection
     def execute_sql_and_fetch_all_rows(self, query, *args) -> list[Row]:
         with self._sqlalchemy_engine.begin() as conn:
             result = conn.execute(sqlalchemy.text(query), *args).all()
@@ -615,7 +627,7 @@ class Database(object):
         )
         return stmt, tuple(params)
 
-    @connect_db_if_required
+    @ensure_db_connection
     def execute_procedure(
         self,
         procedure_name: str,
@@ -683,7 +695,7 @@ class Database(object):
         finally:
             connection.close()
 
-    @connect_db_if_required
+    @ensure_db_connection
     def execute_script(self, script_path: Path, schema: str = 'public'):
         with open(script_path) as f:
             script = f.read().replace('{schema}', schema)
@@ -705,7 +717,7 @@ class Database(object):
             with connection.begin():
                 connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
 
-    @connect_db_if_required
+    @ensure_db_connection
     def execute_query_to_geopandas(self, sql: str, schema='public', **kwargs) -> pd.DataFrame:
         """
         Execute sql and load the result to Pandas DataFrame
@@ -718,17 +730,17 @@ class Database(object):
         self.set_schema('public')
         return data
 
-    @connect_db_if_required
+    @ensure_db_connection
     def execute_count_query(self, query: str) -> int:
         data = self.execute_sql_and_fetch_all_rows(query)
         return data[0][0]
 
-    @connect_db_if_required
+    @ensure_db_connection
     def drop_table_if_exists(self, table_name: str) -> None:
         drop_sql = f"DROP TABLE IF EXISTS {table_name}"
         self.execute_sql(drop_sql)
 
-    @connect_db_if_required
+    @ensure_db_connection
     def execute_query_to_pandas(self, sql: str, **kwargs) -> pd.DataFrame:
         """
         Execute sql and load the result to Pandas DataFrame
@@ -739,7 +751,7 @@ class Database(object):
         data = pd.read_sql_query(sql, self._sqlalchemy_engine, **kwargs)
         return data
 
-    @connect_db_if_required
+    @ensure_db_connection
     def dataframe_to_db_table(
         self,
         df: pd.DataFrame,
@@ -785,7 +797,7 @@ class Database(object):
                 **kwargs,
             )
 
-    @connect_db_if_required
+    @ensure_db_connection
     def geodataframe_to_db_table(
         self,
         gdf: gpd.GeoDataFrame,
@@ -834,11 +846,11 @@ class Database(object):
                 **kwargs,
             )
 
-    @connect_db_if_required
+    @ensure_db_connection
     def db_table_to_pandas(self, table_name: str, **kwargs) -> pd.DataFrame:
         return pd.read_sql_table(table_name, con=self._sqlalchemy_engine, **kwargs)
 
-    @connect_db_if_required
+    @ensure_db_connection
     def create_schema(self, schema_name: str) -> None:
         """
         Create a new schema.
@@ -846,7 +858,7 @@ class Database(object):
         create_schema_sql = f"CREATE SCHEMA IF NOT EXISTS {schema_name};"
         self.execute_sql(create_schema_sql)
 
-    @connect_db_if_required
+    @ensure_db_connection
     def drop_schema(self, schema_name: str, cascade: bool = False) -> None:
         """
         Drop a schema.
@@ -855,7 +867,7 @@ class Database(object):
         drop_schema_sql = f"DROP SCHEMA IF EXISTS {schema_name} {'CASCADE' if cascade else ''};"
         self.execute_sql(drop_schema_sql)
 
-    @connect_db_if_required
+    @ensure_db_connection
     def copy_table_structure(self, table_name: str, main_schema: str, new_schema: str) -> None:
         """
         Copy the table structure and dependencies (without data) from the main schema to the new schema.
@@ -877,7 +889,7 @@ class Database(object):
         else:
             logging.info(f"Table {table_name} already exists in schema {new_schema}. Skipping creation.")
 
-    @connect_db_if_required
+    @ensure_db_connection
     def copy_all_tables_to_new_schema(self, main_schema: str, new_schema: str) -> None:
         """
         Copy all table structures (without data) from the main schema to the new schema.
@@ -896,6 +908,6 @@ class Database(object):
 # db singleton
 db = Database()
 
-def init_db(config):
+def init_db(config: Config):
     global db
     db.initialize(config.db)

@@ -1,11 +1,18 @@
 from contextlib import AbstractContextManager
 from importlib.resources.abc import Traversable
-from typing import Union
 import logging
 
 import yaml
 import types
 from pathlib import Path
+
+
+# Shape of the raw YAML data before it is turned into an object by dict2obj.
+type ConfigValue = str | int | float | bool | list[ConfigValue] | dict[str, ConfigValue]
+type ConfigDict = dict[str, ConfigValue]
+
+# The parsed configuration: a (nested) SimpleNamespace produced by parse_config_file.
+type Config = types.SimpleNamespace
 
 
 def dict2obj(data):
@@ -21,7 +28,7 @@ def dict2obj(data):
         return data
 
 
-def expand_relative_paths(config_object: types.SimpleNamespace, root_dir: Path):
+def expand_relative_paths(config_object: Config, root_dir: Path):
     """Turn path-like config strings into pathlib.Path.
 
     - ``./...`` paths are resolved under *root_dir* (each segment after ``expanduser``).
@@ -45,7 +52,7 @@ def expand_relative_paths(config_object: types.SimpleNamespace, root_dir: Path):
         elif isinstance(value, types.SimpleNamespace):
             expand_relative_paths(value, root_dir)
 
-def merge_dicts(dict_a, dict_b):
+def merge_dicts(dict_a: ConfigDict, dict_b: ConfigDict) -> ConfigDict:
     merged = dict_a.copy()  # Start with a copy of the first dictionary
 
     for key, value in dict_b.items():
@@ -63,7 +70,7 @@ def merge_dicts(dict_a, dict_b):
     return merged
 
 
-def parse_config_file(config_file: Union[Path, Traversable]):
+def parse_config_file(config_file: Path | Traversable) -> Config:
     with open(config_file, 'r',encoding="UTF-8") as file:
         config_dict = yaml.safe_load(file)
 
@@ -87,7 +94,7 @@ def parse_config_file(config_file: Union[Path, Traversable]):
         expand_relative_paths(config_object, config_file.parent)
         return config_object
 
-def get_path_from_config(config, path_string) -> Path:
+def get_path_from_config(config: Config, path_string: str) -> Path:
     path = Path(path_string)
     if not path.is_absolute():
         if hasattr(config,'config_dir'):
@@ -96,7 +103,7 @@ def get_path_from_config(config, path_string) -> Path:
             path = Path.cwd() / path
     return path
 
-def set_logging(config):
+def set_logging(config: Config):
     level=logging.INFO # default
     if hasattr(config,'log_level'):
         level = getattr(logging, config.log_level)

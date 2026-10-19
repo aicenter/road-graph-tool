@@ -13,6 +13,13 @@ db: {
     db_host: localhost,
     db_name: rgt,
     db_server_port: 5432,
+    # Optional SSH tunnel to the database server; db_host/db_server_port are then relative to the SSH server.
+    # ssh: {
+    #     server: ssh.example.com,
+    #     server_username: user,
+    #     private_key_path: ~/.ssh/id_ed25519,
+    #     tunnel_port: 1113,
+    # }
 }
 
 area_insert: {

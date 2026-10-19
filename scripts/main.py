@@ -18,7 +18,6 @@ def main():
     set_logging(config)
 
     roadgraphtool.db.init_db(config)
-    roadgraphtool.db.db._start_or_restart_ssh_connection_if_needed()
 
     roadgraphtool.pipeline.main(config)
 
