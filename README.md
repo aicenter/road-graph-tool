@@ -23,10 +23,11 @@ Also, you need the [osm2pgsql](https://osm2pgsql.org/) tool installed for import
 # Quick Start Guide
 To execute the configured pipeline, follow these steps:
 
-1. Install the Road Graph Tool Python package: `pip install -e <clone dir>/Python`.
+1. Install the Road Graph Tool Python package: `pip install -e <clone dir>`.
 1. Create a YAML configuration file for the project. For details about this file, refer to the [Configuration](#configuration) section.
     1. Configure the database. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
 1. In the `python/` directory, run the `scripts/install_sql.py`. This script will initialize the needed tables, procedures, functions, etc., in your database.
+    1. To let another existing database role read the processed road network, run `scripts/grant_privileges.py <config> <role>` with a config connecting as a user who can grant the privileges (e.g., the owner of the tables).
 1. Run the `main.py` script with with the path to the configuration file as the first argument. The script will execute the pipeline according to the configuration file.
 
 
@@ -70,10 +71,10 @@ Additionally, it is possible to configure the SSH connection to the database ser
 
 - `server`: the address of the SSH server, optionally with a port (`host:port`, default 22).
 - `server_username`: the username of the SSH server.
-
 - `private_key_path`: the path to the private key file for the SSH connection.
 - `private_key_passphrase`: (optional) the passphrase of the private key.
 - `tunnel_port`: the port on the local machine where the SSH tunnel is established.
+
 Typically, we do not want to store the secrets like private key path or database password in the configuration file so that we may share the configuration file with others. For that, we use a separate file for the secrets. 
 The structure of the file is the same as the structure of the main configuration file and it is effectively merged with the main configuration file. To specify the path to the secrets file, use the `password_config_file` parameter in the root of the configuration file. The example file is stored in the root of the project and is named `secrets_example.yaml`.
 
