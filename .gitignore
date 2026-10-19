@@ -20,3 +20,4 @@ python/tests/resources/secrets.yaml
 secrets.yml
 config.yml
 roadgraphtool.log
+/analysis/rgt-db-hosting/README.md

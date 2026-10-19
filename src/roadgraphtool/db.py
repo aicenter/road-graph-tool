@@ -6,6 +6,7 @@ import socket
 import threading
 from pathlib import Path
 from typing import Any, Mapping, Optional, Tuple
+from collections.abc import Mapping, Sequence
 
 import geopandas as gpd
 import paramiko
@@ -16,6 +17,9 @@ import psycopg2.sql
 import sqlalchemy
 from sqlalchemy.engine import Row
 from tqdm import tqdm
+
+
+SqlParams = Mapping[str, Any] | Sequence[Mapping[str, Any]]
 
 
 class PostgresNoticeLogger:
@@ -519,7 +523,7 @@ class Database(object):
         self._psycopg2_connection.commit()
 
     @connect_db_if_required
-    def execute_sql(self, query, *args, schema='public', use_transactions=True) -> sqlalchemy.engine.Result:
+    def execute_sql(self, query: str, args: SqlParams | None = None, schema: str='public', use_transactions: bool=True) -> sqlalchemy.engine.cursor.CursorResult[Any]:
         """
         Execute SQL that doesn't return any value.
         """
