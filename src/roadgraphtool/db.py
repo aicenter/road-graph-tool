@@ -409,8 +409,7 @@ class Database(object):
 
         # SQLAlchemy init. SQLAlchemy is used by pandas and geopandas
         logging.info("Starting sql_alchemy connection")
-        sql_alchemy_engine_str = self._get_sql_alchemy_engine_str()
-        self._sqlalchemy_engine = sqlalchemy.create_engine(sql_alchemy_engine_str, pool_pre_ping=True)
+        self._sqlalchemy_engine = sqlalchemy.create_engine(self._get_sql_alchemy_engine_url(), pool_pre_ping=True)
 
     def _close_db_connections(self):
         if self._psycopg2_connection is not None:
@@ -468,15 +467,16 @@ class Database(object):
         self._close_db_connections()
         self._open_db_connections()
 
-    def _get_sql_alchemy_engine_str(self):
-        sql_alchemy_engine_str = 'postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}'.format(
-            user=self.config.username,
+    def _get_sql_alchemy_engine_url(self) -> sqlalchemy.engine.URL:
+        # URL.create escapes special characters (e.g., '@' in the password)
+        return sqlalchemy.engine.URL.create(
+            'postgresql+psycopg2',
+            username=self.config.username,
             password=self.config.db_password,
             host=self.db_server_address,
             port=self.db_server_port,
-            dbname=self.db_name)
-
-        return sql_alchemy_engine_str
+            database=self.db_name,
+        )
 
     def _get_new_psycopg2_connection(self):
         """
