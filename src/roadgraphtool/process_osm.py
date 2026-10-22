@@ -250,8 +250,14 @@ def _run_osm_file_backend(config, area_id: Optional[int]) -> int:
     else:
         style_file_path = Path(__file__).resolve().parent.parent.parent / f"lua_styles/{source.style_file}.lua"
 
+    # The bbox clip drops the nodes outside the bbox, but keeps the ways crossing the bbox edge, which then reference
+    # missing nodes and fail the post-processing. Deactivate it for files already extracted to the area.
+    clip_to_area_bbox = getattr(source, "clip_to_area_bbox", True)
+
     coords = None
-    if area_id is not None:
+    if area_id is not None and not clip_to_area_bbox:
+        logging.info("Importing the whole input file (road_import.source.clip_to_area_bbox is false)")
+    elif area_id is not None:
         from roadgraphtool.road_import import get_area_polygon
 
         poly = get_area_polygon(config, area_id)

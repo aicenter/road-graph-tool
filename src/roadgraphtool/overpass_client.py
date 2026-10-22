@@ -10,6 +10,8 @@ from typing import Any, Mapping
 
 import overpass
 
+from roadgraphtool.exceptions import OverpassRequestError
+
 
 @dataclass(frozen=True)
 class OverpassPolicyConfig:
@@ -110,6 +112,52 @@ def create_api(policy: OverpassPolicyConfig) -> overpass.API:
     return api
 
 
+_TRY_LATER_HINT = (
+    "This is a problem of the server, not of the query. Run again later, or set `overpass.endpoint` to a less "
+    "loaded Overpass instance."
+)
+
+
+def describe_overpass_error(api: Any, error: Exception, query: str, *, attempts: int) -> str:
+    """Human-readable explanation of a failed Overpass request.
+
+    The ``overpass`` library keeps only the HTTP status (``api._status``), not the response body.
+    """
+    endpoint = getattr(api, "endpoint", "the Overpass server")
+    status = getattr(api, "_status", None)
+    tries = f" ({attempts} attempts)" if attempts > 1 else ""
+
+    if isinstance(error, overpass.MultipleRequestsError):
+        reason = f"the server kept refusing the request as too many requests (HTTP 429){tries}."
+        hint = "Another query from this IP address may still be running. Wait a few minutes and run again."
+    elif isinstance(error, overpass.ServerLoadError):
+        reason = f"the server kept timing out because of high load (HTTP 504){tries}."
+        hint = _TRY_LATER_HINT
+    elif isinstance(error, overpass.TimeoutError):
+        reason = f"no response within the client timeout of {getattr(api, 'timeout', '?')} s."
+        hint = "Increase `overpass.timeout_s`, or run again when the server is less loaded."
+    elif isinstance(error, overpass.OverpassSyntaxError):
+        reason = "the server rejected the query as invalid (HTTP 400)."
+        hint = f"This is a bug in the generated query:\n{query.strip()[:1000]}"
+    elif isinstance(error, overpass.ServerRuntimeError):
+        reason = f"the server aborted the query: {error}."
+        hint = (
+            "The query result is probably too large for the server (time or memory limit). Use a smaller area, "
+            "or the `osm_file` source of `road_import` with a local OSM extract."
+        )
+    elif status in (502, 503):
+        reason = (
+            f"the server is overloaded or temporarily unavailable (HTTP {status}). Public Overpass instances "
+            "reject requests when all their query slots are busy and their queue is full."
+        )
+        hint = _TRY_LATER_HINT
+    else:
+        reason = f"unexpected error{f' (HTTP {status})' if status else ''}: {error}."
+        hint = ""
+
+    return f"Overpass request to {endpoint} failed: {reason} {hint}".strip()
+
+
 def query_json(
     api: overpass.API,
     query: str,
@@ -127,6 +175,8 @@ def query_json(
     - If `build=False` (default), `query` must be a full Overpass QL program (may include
       `[out:json]`, `[timeout:...]`, and `out ...;`).
     - Retries on 429 (MultipleRequestsError) and 504 (ServerLoadError).
+    - Any other failure, or a 429/504 persisting after *max_retries*, raises ``OverpassRequestError``
+      describing the cause, with the original error chained.
     """
     cache_path: Path | None = None
     if cache_dir is not None:
@@ -152,15 +202,19 @@ def query_json(
                 tmp_path.replace(cache_path)
 
             return result
-        except overpass.MultipleRequestsError:
+        except overpass.MultipleRequestsError as e:
             # Per Overpass docs/policy: respect reported wait time; API exposes /status parsing helpers.
             wait_s = getattr(api, "slot_available_countdown", 0) or 0
             wait_s = max(wait_s, 1)
-        except overpass.ServerLoadError:
+            error = e
+        except overpass.ServerLoadError as e:
             # Server suggests retrying later; we back off.
             wait_s = 0
+            error = e
+        except overpass.OverpassError as e:
+            raise OverpassRequestError(describe_overpass_error(api, e, query, attempts=attempt + 1)) from e
         if attempt >= max_retries:
-            raise
+            raise OverpassRequestError(describe_overpass_error(api, error, query, attempts=attempt + 1)) from error
 
         backoff_s = retry_backoff_s * (2**attempt)
         sleep_s = min(max(wait_s, backoff_s), retry_max_sleep_s)

@@ -2,7 +2,7 @@
 -- Name: speed_records_quarterly; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.speed_records_quarterly (
+CREATE TABLE IF NOT EXISTS {schema}.speed_records_quarterly (
     year smallint,
     quarter smallint,
     hour smallint,

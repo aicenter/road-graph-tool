@@ -14,7 +14,8 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
 CREATE TEMPORARY TABLE target_ways AS
-	SELECT id, geom, area, "from", "to", oneway FROM get_ways_in_target_area(target_area_id);
+	-- qualified, because `geom` is also an output column of this function
+	SELECT w.id, w.geom, w.area, w."from", w."to", w.oneway FROM get_ways_in_target_area(target_area_id) AS w;
 CREATE INDEX target_ways_id_idx ON target_ways(id);
 CREATE INDEX target_ways_oneway_idx ON target_ways(oneway);
 

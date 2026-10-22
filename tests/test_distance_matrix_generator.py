@@ -11,7 +11,7 @@ from roadgraphtool.distance_matrix_generator import (
     _set_config_defaults,
     _normalize_dm_output_format,
     _get_dm_output_format,
-    _dm_output_candidate_paths,
+    _get_default_speed_mps,
 )
 
 
@@ -79,14 +79,18 @@ def test_get_dm_output_format_from_dm_generator():
     assert _get_dm_output_format(config) == "hdf"
 
 
-def test_dm_output_candidate_paths_csv():
-    paths = _dm_output_candidate_paths("/area/dm", "csv")
-    assert paths == [Path("/area/dm"), Path("/area/dm.csv")]
+def test_default_speed_without_config_is_14_mps():
+    assert _get_default_speed_mps({}) == 14
 
 
-def test_dm_output_candidate_paths_hdf_with_suffix():
-    paths = _dm_output_candidate_paths("/area/dm.h5", "hdf")
-    assert paths == [Path("/area/dm.h5")]
+def test_default_speed_from_dm_generator():
+    config = SimpleNamespace(dm_generator=SimpleNamespace(default_speed_kmh=5))
+    assert _get_default_speed_mps(config) == pytest.approx(5 / 3.6)
+
+
+def test_default_speed_must_be_positive():
+    with pytest.raises(ValueError, match="must be positive"):
+        _get_default_speed_mps({"dm_generator": {"default_speed_kmh": 0}})
 
 
 @pytest.fixture
@@ -188,6 +192,25 @@ def test_generate_dm_travel_time(config, sample_nodes, sample_edges, mock_dm_exe
     assert 'travel_time' in sample_edges.columns
     assert sample_edges['travel_time'].at[0] == 10
     assert sample_edges['travel_time'].at[1] == 10
+
+
+def test_generate_dm_travel_time_default_speed(config, sample_nodes, sample_edges, mock_dm_exec):
+    edges = sample_edges.drop(columns=['speed'])
+
+    generate_dm(config, sample_nodes, edges)
+
+    # 100 m and 140 m at 14 m/s
+    assert edges['travel_time'].tolist() == [7, 7, 10, 7]
+
+
+def test_generate_dm_travel_time_configured_default_speed(config, sample_nodes, sample_edges, mock_dm_exec):
+    config['dm_generator'] = {'default_speed_kmh': 5}
+    edges = sample_edges.drop(columns=['speed'])
+
+    generate_dm(config, sample_nodes, edges)
+
+    # 100 m and 140 m at 5 km/h
+    assert edges['travel_time'].tolist() == [72, 72, 101, 72]
 
 
 def test_generate_dm(config, sample_nodes, sample_edges, tmp_path, mock_dm_exec):

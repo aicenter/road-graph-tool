@@ -93,6 +93,21 @@ def resolve_dm_filepath(config: Any) -> Path:
     return _resolve_config_path(config, dm_filepath)
 
 
+_DEFAULT_SPEED_MPS = 14
+"""Speed used when edges have no speed and ``dm_generator.default_speed_kmh`` is not set (about 50 km/h)."""
+
+
+def _get_default_speed_mps(config: Any) -> float:
+    """Default edge speed in m/s from ``dm_generator.default_speed_kmh``."""
+    speed_kmh = _read_nested(config, "dm_generator.default_speed_kmh")
+    if speed_kmh is None:
+        return _DEFAULT_SPEED_MPS
+    speed_kmh = float(speed_kmh)
+    if speed_kmh <= 0:
+        raise ValueError(f"dm_generator.default_speed_kmh must be positive, got {speed_kmh}")
+    return speed_kmh / 3.6
+
+
 def generate_dm(
     config: Dict,
     nodes: Optional[gpd.GeoDataFrame],
@@ -120,18 +135,19 @@ def generate_dm(
         xeng_file_path = os.path.join(map_dir, 'map.xeng')
         xeng_file_path = os.path.abspath(xeng_file_path)
 
-        # length to travel time conversion, 50 km/h
+        # length to travel time conversion
         if 'speed' in edges:
             logging.info("Using real speed from edges")
             # estimated travel time in seconds
             edges['travel_time'] = (edges['length'] / edges['speed'] * 3.6).round().astype(int)
         else:
-            logging.info('Using default speed of 50 km/h')
+            speed_mps = _get_default_speed_mps(config)
+            logging.info('Using default speed of %.1f km/h', speed_mps * 3.6)
             try:
-                edges['travel_time'] = edges['length'].apply(lambda x: round(int(x) / 14))
+                edges['travel_time'] = edges['length'].apply(lambda x: round(int(x) / speed_mps))
             except ValueError as v:
                 logging.warning("Suspicious max speed, trying float conversion: %s", v)
-                edges['travel_time'] = edges['length'].apply(lambda x: round(float(x) / 14))
+                edges['travel_time'] = edges['length'].apply(lambda x: round(float(x) / speed_mps))
 
         if not allow_zero_length_edges:
             edges.loc[edges['travel_time'] == 0, 'travel_time'] = 1

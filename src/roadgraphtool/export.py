@@ -8,7 +8,7 @@ import pandas as pd
 from roadgraphtool.db import db
 
 
-def get_map_nodes_from_db(area_id: int, schema='public') -> gpd.GeoDataFrame:
+def get_map_nodes_from_db(area_id: int, schema: str | None = None) -> gpd.GeoDataFrame:
     logging.info("Fetching nodes from db")
     sql = f"""
     DROP TABLE IF EXISTS demand_nodes;
@@ -37,7 +37,7 @@ def get_map_nodes_from_db(area_id: int, schema='public') -> gpd.GeoDataFrame:
     return db.execute_query_to_geopandas(sql, schema=schema)
 
 
-def get_map_edges_from_db(config: dict, schema='public') -> gpd.GeoDataFrame:
+def get_map_edges_from_db(config: dict, schema: str | None = None) -> gpd.GeoDataFrame:
     logging.info("Fetching edges from db")
     speeds = """,
         speed""" if hasattr(config, 'speeds') and config.speeds else """"""

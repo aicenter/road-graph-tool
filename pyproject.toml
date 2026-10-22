@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name='roadgraphtool'
 version='0.0.0'
 dependencies=[
+    'geoalchemy2',
+    'geojson',
     'geopandas',
     'networkx',
     'numpy',

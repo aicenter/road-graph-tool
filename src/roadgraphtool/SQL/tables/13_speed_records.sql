@@ -2,7 +2,7 @@
 -- Name: speed_records; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.speed_records (
+CREATE TABLE IF NOT EXISTS {schema}.speed_records (
     datetime timestamp without time zone NOT NULL,
     from_osm_id bigint NOT NULL,
     to_osm_id bigint NOT NULL,
@@ -16,4 +16,4 @@ CREATE TABLE IF NOT EXISTS public.speed_records (
 -- Name: speed_records_from_osm_id_to_osm_id_index; Type: INDEX; Schema: public
 --
 
-CREATE INDEX speed_records_from_osm_id_to_osm_id_index ON public.speed_records USING btree (from_osm_id, to_osm_id);
+CREATE INDEX speed_records_from_osm_id_to_osm_id_index ON {schema}.speed_records USING btree (from_osm_id, to_osm_id);

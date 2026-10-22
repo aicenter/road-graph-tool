@@ -43,6 +43,11 @@ def _execute_sql_file(db, sql_file: Path, schema: str, multistatement: bool = Fa
         db.execute_sql(sql, schema=schema)
 
 
+def _areas_table_exists(db, schema: str) -> bool:
+    sql = "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = :schema AND table_name = 'areas')"
+    return db.execute_sql_and_fetch_all_rows(sql, {"schema": schema})[0][0]
+
+
 def install_sql(
     *,
     config,
@@ -54,14 +59,17 @@ def install_sql(
     Install road-graph-tool SQL assets into the configured database.
 
     Requirements on config:
-    - config.schema: target schema name
-    - config.road_import.schema: schema used to check whether DB is initialized
+    - config.schema: target schema name. The schema must exist (see ``roadgraphtool.schema.ensure_schema``).
     """
     if sql_dir is None:
         sql_dir = _default_sql_dir()
 
-    import_schema = config.road_import.schema
     schema = config.schema
+
+    schema_exists_sql = "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = :schema)"
+    if not db.execute_sql_and_fetch_all_rows(schema_exists_sql, {"schema": schema})[0][0]:
+        # without this check, the unqualified functions and procedures would silently end up in `public`
+        raise RuntimeError(f"Schema '{schema}' does not exist. Create it first (root config parameter create_schema).")
 
     logging.info("Checking availability of extensions in the database")
     extension_list = ["postgis", "pgrouting", "hstore", "pgtap"]
@@ -89,16 +97,19 @@ ORDER BY el.name;
     if not extensions["postgis"] or not extensions["pgrouting"] or not extensions["hstore"]:
         raise RuntimeError("Missing critical extensions (postgis, pgrouting, hstore) on the database server")
 
-    exists_sql = f"""SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_schema = '{import_schema}' AND table_name = 'areas'
-        );
-        """
-    if not db.execute_sql_and_fetch_all_rows(exists_sql)[0][0]:
-        logging.info("Initializing the database")
+    # The extensions are database-wide. Creating them (and commenting on them in the preamble) requires
+    # admin rights, so the preamble only runs when one of them is not installed yet.
+    installed_sql = "SELECT count(*) FROM pg_extension WHERE extname IN ('postgis', 'pgrouting', 'hstore')"
+    if db.execute_sql_and_fetch_all_rows(installed_sql)[0][0] < 3:
+        logging.info("Installing the extensions")
         _execute_sql_file(db, sql_dir / "schema_preamble.sql", schema, multistatement=True)
+
+    if not _areas_table_exists(db, schema):
+        logging.info("Creating the Road Graph Tool tables in schema '%s'", schema)
         for table_sql_path in sorted((sql_dir / "tables").glob("*.sql")):
             _execute_sql_file(db, table_sql_path, schema, multistatement=True)
+        if not _areas_table_exists(db, schema):
+            raise RuntimeError(f"Creating the Road Graph Tool tables in schema '{schema}' failed, see the log.")
 
     if include_tests:
         pgtap_enabled_sql = "SELECT * FROM pg_extension WHERE extname = 'pgtap'"

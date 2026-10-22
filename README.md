@@ -27,7 +27,7 @@ To execute the configured pipeline, follow these steps:
 1. Create a YAML configuration file for the project. For details about this file, refer to the [Configuration](#configuration) section.
     1. Configure the database. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
 1. In the `python/` directory, run the `scripts/install_sql.py`. This script will initialize the needed tables, procedures, functions, etc., in your database.
-    1. To let another existing database role read the processed road network, run `scripts/grant_privileges.py <config> <role>` with a config connecting as a user who can grant the privileges (e.g., the owner of the tables).
+    1. To let another existing database role read the processed road network and create new schemas for its own road networks (see [Schemas](#schemas)), run `scripts/grant_privileges.py <config> <role>` with a config connecting as a user who can grant the privileges (e.g., the owner of the tables).
 1. Run the `main.py` script with with the path to the configuration file as the first argument. The script will execute the pipeline according to the configuration file.
 
 
@@ -39,10 +39,11 @@ All the relative paths specified in the configuration file are relative to the c
 The main configuration affecting the whole tool is in the root of the configuration file. Root scalar parameters are:
 
 - `area_id`: the id of the area to process.
+- `create_schema` (boolean, default: `false`): create the `schema` if it does not exist. See [Schemas](#schemas).
 - `dm_filepath` (optional): root-level output path for the distance matrix. Default is `<export.dir>/dm.csv` for `csv` format and `<export.dir>/dm.h5` for `hdf` format.
 - `log_level`: the level of the logging.
 - `password_config_file` (optional): path to the file containing the secrets for the database.
-- `schema`: the schema of the database.
+- `schema`: the database schema holding the road network (tables, functions, and procedures of Road Graph Tool). See [Schemas](#schemas).
 - `srid`: the SRID of the map.
 
 Other parameters are in following sections:
@@ -77,6 +78,24 @@ Additionally, it is possible to configure the SSH connection to the database ser
 
 Typically, we do not want to store the secrets like private key path or database password in the configuration file so that we may share the configuration file with others. For that, we use a separate file for the secrets. 
 The structure of the file is the same as the structure of the main configuration file and it is effectively merged with the main configuration file. To specify the path to the secrets file, use the `password_config_file` parameter in the root of the configuration file. The example file is stored in the root of the project and is named `secrets_example.yaml`.
+
+## Schemas
+All the Road Graph Tool tables, functions, and procedures of one road network live in the schema given by the root parameter `schema` (default `public`). Each network type (e.g., car and pedestrian, see `road_import.profile`) needs its own schema. Every database connection uses the search path `<schema>, public`, so the tables are found in the configured schema and the extensions (PostGIS, pgRouting, hstore) in `public`.
+
+At the start, the pipeline checks that the schema exists:
+
+- If it exists, the pipeline uses it as it is.
+- If it does not exist, the pipeline stops with an error, so that a typo in `schema` does not create a new, empty network.
+- If it does not exist and the root parameter `create_schema` is `true`, the pipeline creates the schema and installs the Road Graph Tool tables, functions, and procedures into it.
+
+Creating a schema requires the `CREATE` privilege on the database. The user then owns the new schema and everything in it, so no further privileges are needed there. An administrator can grant the privilege with `scripts/grant_privileges.py <admin config> <role>`, which grants:
+
+- `CONNECT` and `TEMPORARY` on the database (the procedures use temporary tables),
+- `CREATE` on the database (new schemas, including the staging schema of the `osm_file` import),
+- `USAGE` on schema `public` (the extensions),
+- read access to the network in the schema of the admin config.
+
+The extensions must already be installed in the database by an administrator.
 
 
 # Testing
@@ -164,6 +183,35 @@ This component loads road network geometry into the database. It has two modes, 
 - `overpass`: import from the Overpass API. Simple configuration, but not suitable for large areas.
 - `osm_file`: import from a local OSM / PBF file using `osm2pgsql`. This mode can handle large areas, but has some prerequisites
 
+The kind of network is selected by `road_import.profile`:
+
+- `car` (default): roads drivable by car, directed by the `oneway` tag.
+- `pedestrian`: ways walkable by a pedestrian. See [Pedestrian profile](#pedestrian-profile).
+
+
+### Pedestrian profile
+The pedestrian profile imports the network for walking, e.g., from a parking spot to delivery addresses. A way is imported if:
+
+- its `highway` is one of `footway`, `pedestrian`, `path`, `steps`, `living_street`, `residential`, `service`, `unclassified`, `tertiary(_link)`, `secondary(_link)`, `primary(_link)`, `track`, `cycleway`, `corridor`, `bridleway`, and
+    - `foot` is not `no` or `private`, and `access` is not `no` or `private`, or
+    - `foot` is `yes`, `designated`, or `permissive`, regardless of `access`;
+- or its `highway` is `motorway(_link)` or `trunk(_link)` and `foot` is `yes` or `designated`.
+
+Ways tagged `area=yes` (squares mapped as polygons) are never imported. Roads without a separately mapped sidewalk are included on purpose, because sidewalks are often not mapped as separate ways.
+
+Pedestrians may walk both ways on one-way streets, so the car `oneway` tag is ignored. Only `oneway:foot=yes` (or `-1` for the reverse direction) makes a way one-way.
+
+The rules are implemented twice, in [`overpass_import.py`](src/roadgraphtool/overpass_import.py) for the `overpass` source and in [`pedestrian.lua`](lua_styles/pedestrian.lua) for the `osm_file` source. Keep both in sync with this section.
+
+Usage:
+
+- `overpass` source: set `road_import.profile: pedestrian`.
+- `osm_file` source: additionally set `road_import.source.style_file: pedestrian`. Using the car style `pipeline` with the pedestrian profile (or vice versa) raises an error. A custom `.lua` style is accepted with any profile.
+- Set `dm_generator.default_speed_kmh` to a walking speed, e.g. `5`, since the exported edges have no speed.
+- Import the pedestrian network into **its own schema** (root `schema`; set `create_schema: true` to create it on the first run, see [Schemas](#schemas)). A car and a pedestrian network cannot share one schema yet. See [Multiple networks in one schema](doc/multiple_networks_in_one_schema.md) for the reasons and the changes needed.
+
+See [`config_pedestrian_example.yaml`](config_pedestrian_example.yaml) for a complete configuration.
+
 
 ### Source type `overpass`
 The query uses the polygon geometry of the existing `areas` row for the current `area_id`. 
@@ -171,11 +219,14 @@ The query uses the polygon geometry of the existing `areas` row for the current 
 
 ### Source type `osm_file`
 - `input_file` (required): path to the OSM / PBF file (relative paths are resolved from the config file directory).
-- `style_file`: built-in style name (e.g. `pipeline`) or path to a `.lua` flex style.
+- `style_file`: built-in style name (`pipeline` for the car profile, `pedestrian` for the pedestrian profile) or path to a `.lua` flex style.
 - `force` (boolean): allow re-import into non-empty staging tables.
+- `clip_to_area_bbox` (boolean, default: `true`): clip the import to the bounding box of the area (see below). Set it to `false` for files already extracted to the area, e.g., with `osmium extract -p <area polygon> -s complete_ways`.
 - `pgpass` / `pgpass_file`: authentication for `osm2pgsql`.
 
-When an `area_id` is already known (from root `area_id`, a previous pipeline step, or `area_insert`), the importer uses the **bounding box** of that area’s polygon from `"<schema>.areas"` to clip the OSM import (`osm2pgsql -b`). If there is **no** `area_id`, a new area row is created from imported data.
+When an `area_id` is already known (from root `area_id`, a previous pipeline step, or `area_insert`), the importer uses the **bounding box** of that area’s polygon from `"<schema>.areas"` to clip the OSM import (`osm2pgsql -b`), unless `clip_to_area_bbox` is `false`. If there is **no** `area_id`, a new area row is created from imported data.
+
+The clip drops the nodes outside the bounding box but keeps the ways crossing its edge. These ways then reference missing nodes, and the post-processing fails on a foreign key violation of `ways` or `nodes_ways`. The clip therefore only works for input files with no way crossing the bounding box. For larger files, extract the area first with osmium and set `clip_to_area_bbox: false`.
 
 #### Prerequisities
 Before using the `osm_file` mode, we need to install several tools: 
@@ -325,6 +376,7 @@ key: `dm_generator`
 This component generates a distance matrix for the road graph (requires `shortestPathsPreprocessor` from [shortest-distances](https://github.com/aicenter/shortest-distances)). Parameters:
 
 - `output_format` (`csv` | `hdf`, default: `csv`): passed to `--output-format` parameter of `shortestPathsPreprocessor`.
+- `default_speed_kmh` (number, default: 14 m/s, about 50 km/h): speed used to compute edge travel times when the edges have no `speed`. Use a walking speed, e.g. `5`, for the pedestrian profile.
 
 
 # Development Guide

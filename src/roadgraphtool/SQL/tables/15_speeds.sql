@@ -2,7 +2,7 @@
 -- Name: speeds; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.speeds (
+CREATE TABLE IF NOT EXISTS {schema}.speeds (
     way_id bigint NOT NULL,
     speed_dataset smallint NOT NULL,
     speed real NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.speeds (
 -- Name: speeds speeds_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.speeds
+ALTER TABLE ONLY {schema}.speeds
     ADD CONSTRAINT speeds_pkey PRIMARY KEY (way_id, way_area, speed_dataset);
 
 
@@ -23,5 +23,5 @@ ALTER TABLE ONLY public.speeds
 -- Name: speeds fk_speeds_speed_datasets_1; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.speeds
-    ADD CONSTRAINT fk_speeds_speed_datasets_1 FOREIGN KEY (speed_dataset) REFERENCES public.speed_datasets(id);
+ALTER TABLE ONLY {schema}.speeds
+    ADD CONSTRAINT fk_speeds_speed_datasets_1 FOREIGN KEY (speed_dataset) REFERENCES {schema}.speed_datasets(id);

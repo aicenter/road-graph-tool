@@ -6,6 +6,7 @@ import roadgraphtool.road_import
 import roadgraphtool.insert_area
 import roadgraphtool.export
 import roadgraphtool.distance_matrix_generator
+import roadgraphtool.schema
 
 
 def insert_area_if_area_insertion_activated(config) -> Optional[int]:
@@ -88,6 +89,8 @@ def compute_speeds_from_neighborhood_segments(
 
 
 def main(config: Dict[str, Any]):
+    roadgraphtool.schema.ensure_schema(config)
+
     area_id = getattr(config, "area_id", None)
     area_id = insert_area_if_area_insertion_activated(config) or area_id
 
@@ -97,6 +100,8 @@ def main(config: Dict[str, Any]):
 
     if not area_id:
         area_id = config.area_id
+    # the export reads the area from the config, so pass on an area created or found by the steps above
+    config.area_id = area_id
 
     if hasattr(config, "contraction") and config.contraction.activated:
         contract_graph_in_area(area_id, config.srid, False)

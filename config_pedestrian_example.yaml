@@ -1,0 +1,78 @@
+# Example configuration for a pedestrian network (road_import.profile: pedestrian).
+# See the README section "Pedestrian profile".
+password_config_file: ./secrets.yaml
+
+# The pedestrian network must live in its own schema, separate from any car network.
+# create_schema creates it (with all Road Graph Tool tables and procedures) if it does not exist yet.
+# This requires the CREATE privilege on the database, see the README section "Schemas".
+schema: pedestrian
+create_schema: true
+srid: 32631
+log_level: DEBUG
+
+db: {
+    username: postgres,
+    db_host: localhost,
+    db_name: rgt,
+    db_server_port: 5432,
+}
+
+area_insert: {
+    activated: true,
+    description: Andorra pedestrian network,
+    allow_multipolygon: false,
+    boundary_source: {
+        type: overpass,
+        admin_boundary_name: Andorra,
+    }
+}
+
+overpass: {
+    endpoint: "https://overpass-api.de/api/interpreter",
+    timeout_s: 120,
+    user_agent: "roadgraphtool/0.0.0 (contact: you@example.com)",
+    from_email: "you@example.com",
+    referer: "",
+    max_retries: 6,
+    retry_backoff_s: 1.0,
+    retry_max_sleep_s: 120.0
+}
+
+road_import: {
+    activated: true,
+    profile: pedestrian,
+    tags: [highway],
+    source: {
+        type: overpass,
+    }
+    # For an OSM file instead of Overpass, the built-in pedestrian style is required:
+    # source: {
+    #     type: osm_file,
+    #     input_file: ./andorra-latest.osm.pbf,
+    #     style_file: pedestrian,
+    #     force: true,
+    #     pgpass: true,
+    #     pgpass_file: "~/pgpass.conf",
+    # }
+    # schema: importer,
+}
+
+contraction: {
+    activated: true
+}
+
+strong_components: {
+    activated: true
+}
+
+export: {
+    activated: true,
+    dir: ./
+}
+
+dm_generator: {
+    activated: true,
+    output_format: csv,
+    # walking speed used for travel times, since the pedestrian edges have no speed
+    default_speed_kmh: 5,
+}

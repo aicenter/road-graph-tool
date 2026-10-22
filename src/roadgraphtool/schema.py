@@ -1,13 +1,46 @@
+import logging
 from typing import Optional, TYPE_CHECKING
 import psycopg2
 
 import roadgraphtool.db
+from roadgraphtool.exceptions import MissingInputError
 
 
 if TYPE_CHECKING:
     from psycopg2 import connection
 
 TABLES = ["nodes", "ways"]
+
+
+def schema_exists(schema: str) -> bool:
+    rows = roadgraphtool.db.db.execute_sql_and_fetch_all_rows(
+        "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = :schema)", {"schema": schema}
+    )
+    return bool(rows[0][0])
+
+
+def ensure_schema(config) -> None:
+    """Make sure the schema configured in the root ``schema`` parameter exists.
+
+    If it does not exist, raise ``MissingInputError``, unless the root parameter ``create_schema`` is ``true``.
+    In that case, create the schema and install the Road Graph Tool tables, functions, and procedures into it.
+    The database user then needs the ``CREATE`` privilege on the database (see ``roadgraphtool.privileges``).
+    """
+    schema = config.schema
+    if schema_exists(schema):
+        return
+
+    if not getattr(config, "create_schema", False):
+        raise MissingInputError(
+            f"Schema '{schema}' does not exist in database '{config.db.db_name}'. Check the root parameter "
+            "`schema`, or set the root parameter `create_schema: true` to create it."
+        )
+
+    from roadgraphtool.sql_install import install_sql
+
+    logging.info("Creating schema '%s' and installing the Road Graph Tool SQL objects into it", schema)
+    create_schema(schema)
+    install_sql(config=config, db=roadgraphtool.db.db, include_tests=False)
 
 # def get_connection() -> Optional['connection']:
 #     """Establishes a connection to the database and returns the connection object."""

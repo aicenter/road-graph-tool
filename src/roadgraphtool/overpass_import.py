@@ -7,12 +7,35 @@ from shapely import geometry
 
 from roadgraphtool.db import db
 from roadgraphtool.overpass_client import elements_by_type, query_json_from_config
+from roadgraphtool.road_import import get_network_profile
 
 _HIGHWAY_FILTER = (
     'highway~"(motorway|motorway_link|trunk|trunk_link|primary|primary_link|'
     'secondary|secondary_link|tertiary|tertiary_link|unclassified|unclassified_link|'
     'residential|residential_link|living_street)"'
 )
+
+# Pedestrian rules. Keep in sync with lua_styles/pedestrian.lua and the README section "Pedestrian profile".
+_PEDESTRIAN_HIGHWAYS = (
+    "footway|pedestrian|path|steps|living_street|residential|service|unclassified|"
+    "tertiary|tertiary_link|secondary|secondary_link|primary|primary_link|"
+    "track|cycleway|corridor|bridleway"
+)
+_PEDESTRIAN_MOTOR_HIGHWAYS = "motorway|motorway_link|trunk|trunk_link"
+
+# Overpass way selectors per network profile. The query is a union of one statement per selector and polygon.
+_WAY_SELECTORS: Dict[str, List[str]] = {
+    "car": [f"[{_HIGHWAY_FILTER}]"],
+    "pedestrian": [
+        # walkable way classes unless walking or access is forbidden
+        f'[highway~"^({_PEDESTRIAN_HIGHWAYS})$"][area!=yes]'
+        '[foot!~"^(no|private)$"][access!~"^(no|private)$"]',
+        # walkable way classes with general access forbidden but walking explicitly allowed
+        f'[highway~"^({_PEDESTRIAN_HIGHWAYS})$"][area!=yes][foot~"^(yes|designated|permissive)$"]',
+        # motorways and trunks only where walking is explicitly allowed
+        f'[highway~"^({_PEDESTRIAN_MOTOR_HIGHWAYS})$"][area!=yes][foot~"^(yes|designated)$"]',
+    ],
+}
 
 
 def _polygons_from_geom(area_poly: geometry.base.BaseGeometry) -> List[geometry.Polygon]:
@@ -128,17 +151,25 @@ def _import_configured_tags(
         db.dataframe_to_db_table(pd.DataFrame(way_tag_rows), "ways_tags", index=False)
 
 
-def _run_overpass_backend(config, area_id: int, area_poly: geometry.base.BaseGeometry) -> int:
-    """Download highway ways inside *area_poly* from Overpass and insert into DB for *area_id*."""
-    logging.info("Downloading road network from Overpass API for area_id=%s", area_id)
+def _pedestrian_direction(way_nodes: List[int], tags: dict) -> tuple[List[int], bool]:
+    """Walking direction of a way: only ``oneway:foot`` counts, the car ``oneway`` tag is ignored.
 
-    polys = _polygons_from_geom(area_poly)
-    timeout = _overpass_timeout_s(config)
+    Returns the node list (reversed for ``oneway:foot=-1``) and the oneway flag.
+    """
+    oneway_foot = tags.get("oneway:foot")
+    if oneway_foot == "-1":
+        return list(reversed(way_nodes)), True
+    return way_nodes, oneway_foot == "yes"
+
+
+def _build_way_query(polys: Sequence[geometry.Polygon], timeout: int, profile: str) -> str:
+    """Overpass query for the ways of network *profile* inside *polys*, including their nodes."""
     way_lines = "\n".join(
-        f'        way[{_HIGHWAY_FILTER}](poly:"{_poly_to_overpass_arg(p)}");'
+        f'        way{selector}(poly:"{_poly_to_overpass_arg(p)}");'
         for p in polys
+        for selector in _WAY_SELECTORS[profile]
     )
-    query = f"""
+    return f"""
 [out:json][timeout:{timeout}];
 (
 {way_lines}
@@ -146,6 +177,17 @@ def _run_overpass_backend(config, area_id: int, area_poly: geometry.base.BaseGeo
 (._;>;);
 out body;
 """
+
+
+def _run_overpass_backend(config, area_id: int, area_poly: geometry.base.BaseGeometry) -> int:
+    """Download the ways of the configured network profile inside *area_poly* from Overpass and insert them
+    into DB for *area_id*."""
+    profile = get_network_profile(config)
+    logging.info("Downloading %s network from Overpass API for area_id=%s", profile, area_id)
+
+    polys = _polygons_from_geom(area_poly)
+    timeout = _overpass_timeout_s(config)
+    query = _build_way_query(polys, timeout, profile)
     overpass_json = query_json_from_config(config, query, build=False)
     by_type = elements_by_type(overpass_json)
 
@@ -183,6 +225,10 @@ out body;
         if not way_nodes:
             continue
 
+        oneway = False
+        if profile == "pedestrian":
+            way_nodes, oneway = _pedestrian_direction(way_nodes, way.get("tags") or {})
+
         for position, node_id in enumerate(way_nodes):
             nodes_ways_list.append(
                 {'node_id': node_id, 'way_id': way_id, 'position': position}
@@ -200,7 +246,7 @@ out body;
                 'area': area_id,
                 'from': way_nodes[0],
                 'to': way_nodes[-1],
-                'oneway': False}
+                'oneway': oneway}
         )
 
     ways_gdf = gpd.GeoDataFrame(ways_list, geometry='geom', crs="EPSG:4326")

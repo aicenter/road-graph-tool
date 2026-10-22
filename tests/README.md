@@ -4,6 +4,7 @@
 To test the functionality of the scripts, ensure you have the following installed:
 - [pytest](https://docs.pytest.org/en/stable/)
 - [pytest-mock](https://pypi.org/project/pytest-mock/)
+- [lupa](https://pypi.org/project/lupa/) (optional): runs the osm2pgsql Lua styles in an embedded Lua for [test_pedestrian_style.py](test_pedestrian_style.py). Without it, these tests are skipped.
 
 ## Tested scripts:
 The following scripts are included in the tests:

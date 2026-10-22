@@ -16,4 +16,5 @@ set_logging(config)
 
 roadgraphtool.db.init_db(config)
 
-roadgraphtool.db.db.execute_procedure("wipe_road_network_data", schema="public")
+# wipes the road network in the configured schema (root `schema` of the config)
+roadgraphtool.db.db.execute_procedure("wipe_road_network_data")

@@ -369,10 +369,14 @@ class Database(object):
         db_name: name of the database.
         db_server_port: port of the database server. When SSH is configured, this is the local bind
         port of the tunnel.
+        schema: the schema holding the Road Graph Tool tables (root ``schema`` of the config). Every connection
+        uses the search path ``<schema>, public``, so unqualified table names resolve to this schema, while the
+        extensions (PostGIS, pgRouting, hstore) are found in ``public``.
     """
 
     def __init__(self) -> None:
         self.config: Config | None = None
+        self.schema: str = "public"
         self.db_server_address: str | None = None
         self.db_server_port: int | None = None
         self.db_name: str | None = None
@@ -391,8 +395,9 @@ class Database(object):
             return int(self._ssh_server_connection.local_bind_port)
         return int(self.db_server_port or 0)
 
-    def initialize(self, config):
+    def initialize(self, config, schema: str = "public"):
         self.config = config
+        self.schema = schema
 
         self.db_server_port = self.config.db_server_port
         self.db_name = self.config.db_name
@@ -409,7 +414,22 @@ class Database(object):
 
         # SQLAlchemy init. SQLAlchemy is used by pandas and geopandas
         logging.info("Starting sql_alchemy connection")
-        self._sqlalchemy_engine = sqlalchemy.create_engine(self._get_sql_alchemy_engine_url(), pool_pre_ping=True)
+        self._sqlalchemy_engine = sqlalchemy.create_engine(
+            self._get_sql_alchemy_engine_url(),
+            pool_pre_ping=True,
+            connect_args={"options": self._connection_options()},
+        )
+
+    @staticmethod
+    def search_path(schema: str) -> str:
+        """SQL search path for *schema*: the schema itself, then ``public`` holding the extensions."""
+        quoted = '"' + schema.replace('"', '""') + '"'
+        return "public" if schema == "public" else f"{quoted}, public"
+
+    def _connection_options(self) -> str:
+        """libpq ``options`` setting the default search path of every new connection."""
+        search_path = self.search_path(self.schema).replace(", ", ",")
+        return "-c search_path=" + search_path.replace("\\", "\\\\").replace(" ", "\\ ")
 
     def _close_db_connections(self):
         if self._psycopg2_connection is not None:
@@ -488,7 +508,8 @@ class Database(object):
                 password=self.config.db_password,
                 host=self.db_server_address,
                 port=self.db_server_port,
-                dbname=self.db_name
+                dbname=self.db_name,
+                options=self._connection_options(),
             )
         except psycopg2.OperationalError as er:
             logging.error(str(er))
@@ -504,6 +525,7 @@ class Database(object):
                 host=self.db_server_address,
                 port=self.db_server_port,
                 dbname=self.db_name,
+                options=self._connection_options(),
                 async_=True,
             )
         except psycopg2.OperationalError as er:
@@ -535,17 +557,21 @@ class Database(object):
         self._psycopg2_connection.commit()
 
     @ensure_db_connection
-    def execute_sql(self, query: str, args: SqlParams | None = None, schema: str='public', use_transactions: bool=True) -> sqlalchemy.engine.cursor.CursorResult[Any]:
+    def execute_sql(self, query: str, args: SqlParams | None = None, schema: str | None = None, use_transactions: bool=True) -> sqlalchemy.engine.cursor.CursorResult[Any]:
         """
         Execute SQL that doesn't return any value.
+
+        *schema* defaults to the configured schema (``self.schema``).
         """
+        if schema is None:
+            schema = self.schema
         with self._sqlalchemy_engine.connect() as connection:
             if not use_transactions:
                 connection.execution_options(isolation_level="AUTOCOMMIT")
             with connection.begin():
-                connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
+                connection.execute(sqlalchemy.text(f"SET search_path TO {self.search_path(schema)};"))
                 result = connection.execute(sqlalchemy.text(query), args)
-                connection.execute(sqlalchemy.text(f"SET search_path TO public;"))
+                connection.execute(sqlalchemy.text(f"SET search_path TO {self.search_path(self.schema)};"))
                 return result
 
     @ensure_db_connection
@@ -633,10 +659,12 @@ class Database(object):
         procedure_name: str,
         *arguments: Any,
         named_arguments: Optional[Mapping[str, Any]] = None,
-        schema: str = "public",
+        schema: str | None = None,
     ) -> None:
         """
         Execute a stored procedure (CALL) with psycopg2 so PostgreSQL notices are logged as they arrive.
+
+        *schema* defaults to the configured schema (``self.schema``).
 
         Pass positional procedure arguments as varargs. Each argument is either a plain value (bound as
         ``%s`` with no cast), or ``(value, postgres_type)`` for ``CAST(%s AS type)``.
@@ -663,17 +691,13 @@ class Database(object):
                 self._wait_for_async_psycopg2_connection(connection)
                 transaction_started = True
 
-                cursor.execute(
-                    psycopg2.sql.SQL("SET search_path TO {}, public;").format(
-                        psycopg2.sql.Identifier(schema)
-                    )
-                )
+                cursor.execute(f"SET search_path TO {self.search_path(schema or self.schema)};")
                 self._wait_for_async_psycopg2_connection(connection)
 
                 cursor.execute(query, params)
                 self._wait_for_async_psycopg2_connection(connection)
 
-                cursor.execute("SET search_path TO public;")
+                cursor.execute(f"SET search_path TO {self.search_path(self.schema)};")
                 self._wait_for_async_psycopg2_connection(connection)
 
                 cursor.execute("COMMIT;")
@@ -715,20 +739,21 @@ class Database(object):
         """
         with self._sqlalchemy_engine.connect() as connection:
             with connection.begin():
-                connection.execute(sqlalchemy.text(f"SET search_path TO {schema};"))
+                connection.execute(sqlalchemy.text(f"SET search_path TO {self.search_path(schema)};"))
 
     @ensure_db_connection
-    def execute_query_to_geopandas(self, sql: str, schema='public', **kwargs) -> pd.DataFrame:
+    def execute_query_to_geopandas(self, sql: str, schema: str | None = None, **kwargs) -> pd.DataFrame:
         """
         Execute sql and load the result to Pandas DataFrame
+
+        *schema* defaults to the configured schema (``self.schema``).
 
         kwargs are the same as for the pd.read_sql_query(), notably
         index_col=None
         """
-        self.set_schema(schema)
-        data = gpd.read_postgis(sql, self._sqlalchemy_engine, **kwargs)
-        self.set_schema('public')
-        return data
+        with self._sqlalchemy_engine.connect() as connection:
+            connection.execute(sqlalchemy.text(f"SET search_path TO {self.search_path(schema or self.schema)};"))
+            return gpd.read_postgis(sql, connection, **kwargs)
 
     @ensure_db_connection
     def execute_count_query(self, query: str) -> int:
@@ -773,6 +798,7 @@ class Database(object):
 
         if 'index' not in kwargs:
             kwargs['index'] = False
+        kwargs.setdefault('schema', self.schema)
 
         if not chunk:
             df.to_sql(
@@ -819,6 +845,9 @@ class Database(object):
 
         if data_types is None:
             data_types = {}
+
+        # GeoPandas writes to `public` when no schema is given, ignoring the search path
+        kwargs.setdefault('schema', self.schema)
 
         if not chunk:
             gdf.to_postgis(
@@ -910,4 +939,4 @@ db = Database()
 
 def init_db(config: Config):
     global db
-    db.initialize(config.db)
+    db.initialize(config.db, schema=getattr(config, "schema", "public"))
