@@ -7,6 +7,8 @@ import roadgraphtool.insert_area
 import roadgraphtool.export
 import roadgraphtool.distance_matrix_generator
 import roadgraphtool.schema
+import roadgraphtool.viewer
+import roadgraphtool.viewer_deploy
 
 
 def insert_area_if_area_insertion_activated(config) -> Optional[int]:
@@ -116,6 +118,12 @@ def main(config: Dict[str, Any]):
 
     if hasattr(config, "dm_generator") and config.dm_generator.activated:
         roadgraphtool.distance_matrix_generator.generate_dm(config, nodes, edges)
+
+    if hasattr(config, "viewer") and config.viewer.activated:
+        roadgraphtool.viewer.build_viewer(config, nodes, edges)
+
+    if hasattr(config, "viewer_deploy") and config.viewer_deploy.activated:
+        roadgraphtool.viewer_deploy.deploy_viewer(config)
     
     # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")
     # try:

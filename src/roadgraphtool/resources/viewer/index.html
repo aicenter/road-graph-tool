@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Road network</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.12.0/dist/maplibre-gl.css">
+    <link rel="stylesheet" href="viewer.css">
+    <script type="module" src="viewer.js"></script>
+</head>
+<body>
+<div id="map"></div>
+<aside id="panel">
+    <h1 id="title">Road network</h1>
+    <p id="stats" class="muted"></p>
+    <p class="muted">Click the map to set the start and then the target of a route. Drag the markers to change them.</p>
+    <div class="buttons">
+        <button id="toggle-nodes" type="button">Show nodes</button>
+        <button id="clear-route" type="button">Clear route</button>
+    </div>
+    <section>
+        <h2>Route</h2>
+        <div id="route">No route.</div>
+    </section>
+    <section>
+        <h2>Under cursor</h2>
+        <div id="hover">-</div>
+    </section>
+</aside>
+</body>
+</html>

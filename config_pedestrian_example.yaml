@@ -76,3 +76,21 @@ dm_generator: {
     # walking speed used for travel times, since the pedestrian edges have no speed
     default_speed_kmh: 5,
 }
+
+viewer: {
+    activated: true,
+    dir: ./viewer,
+    title: Andorra pedestrian network,
+    min_zoom: 10,
+    max_zoom: 16,
+}
+
+viewer_deploy: {
+    activated: false,
+    host: ftp.example.com,
+    port: 21,
+    tls: true,
+    username: user,
+    # the password is in the secrets file
+    remote_dir: /www/pedestrian-map,
+}
