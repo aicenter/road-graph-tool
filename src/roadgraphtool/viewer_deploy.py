@@ -8,6 +8,21 @@ from roadgraphtool.overpass_client import _read_nested
 LAST_FILES = ("build.json", "index.html")
 
 
+class SessionReusingFTP_TLS(ftplib.FTP_TLS):
+    """
+    FTP over TLS whose data connections reuse the TLS session of the control connection.
+
+    Servers like vsftpd with ``require_ssl_reuse`` reject data connections with a new TLS session
+    (``522 SSL connection failed: session reuse required``), which is what ``ftplib.FTP_TLS`` does.
+    """
+
+    def ntransfercmd(self, cmd, rest=None):
+        connection, size = ftplib.FTP.ntransfercmd(self, cmd, rest)
+        if self._prot_p:
+            connection = self.context.wrap_socket(connection, server_hostname=self.host, session=self.sock.session)
+        return connection, size
+
+
 def _ensure_remote_dir(ftp: ftplib.FTP, remote_dir: PurePosixPath):
     for directory in reversed([remote_dir, *remote_dir.parents]):
         try:
@@ -46,7 +61,7 @@ def deploy_viewer(config):
     files = sorted(path for path in viewer_dir.iterdir() if path.is_file())
     files.sort(key=lambda path: LAST_FILES.index(path.name) if path.name in LAST_FILES else -1)
 
-    ftp = ftplib.FTP_TLS() if _read_nested(config, "viewer_deploy.tls", True) else ftplib.FTP()
+    ftp = SessionReusingFTP_TLS() if _read_nested(config, "viewer_deploy.tls", True) else ftplib.FTP()
     logging.info("Deploying the viewer to %s:%d%s", section.host, port, remote_dir)
     with ftp:
         ftp.connect(section.host, port)
