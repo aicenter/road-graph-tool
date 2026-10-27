@@ -189,7 +189,7 @@ This component loads road network geometry into the database. It has two modes, 
 
 The kind of network is selected by `road_import.profile`:
 
-- `car` (default): roads drivable by car, directed by the `oneway` tag.
+- `car` (default): roads drivable by car. A way is one-way if tagged `oneway=yes|true|1`, or reversed one-way if tagged `oneway=-1`. Roundabouts (`junction=roundabout`) and motorways are one-way unless tagged `oneway=no`.
 - `pedestrian`: ways walkable by a pedestrian. See [Pedestrian profile](#pedestrian-profile).
 
 

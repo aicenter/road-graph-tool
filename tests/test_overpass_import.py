@@ -5,6 +5,7 @@ from shapely import geometry
 from roadgraphtool.overpass_import import (
     _HIGHWAY_FILTER,
     _build_way_query,
+    _car_direction,
     _configured_tag_keys,
     _pedestrian_direction,
     _poly_to_overpass_arg,
@@ -62,6 +63,27 @@ def test_pedestrian_direction_uses_oneway_foot():
     assert _pedestrian_direction([1, 2, 3], {"oneway:foot": "yes"}) == ([1, 2, 3], True)
     assert _pedestrian_direction([1, 2, 3], {"oneway:foot": "-1"}) == ([3, 2, 1], True)
     assert _pedestrian_direction([1, 2, 3], {"oneway:foot": "no"}) == ([1, 2, 3], False)
+
+
+def test_car_direction_uses_oneway():
+    for value in ("yes", "true", "1"):
+        assert _car_direction([1, 2, 3], {"highway": "residential", "oneway": value}) == ([1, 2, 3], True)
+    assert _car_direction([1, 2, 3], {"highway": "residential", "oneway": "-1"}) == ([3, 2, 1], True)
+    assert _car_direction([1, 2, 3], {"highway": "residential"}) == ([1, 2, 3], False)
+
+
+def test_car_direction_implied_oneway():
+    assert _car_direction([1, 2, 3], {"highway": "primary", "junction": "roundabout"}) == ([1, 2, 3], True)
+    assert _car_direction([1, 2, 3], {"highway": "motorway"}) == ([1, 2, 3], True)
+    assert _car_direction([1, 2, 3], {"highway": "motorway_link"}) == ([1, 2, 3], False)
+
+
+def test_car_direction_explicit_two_way_overrides_implied_oneway():
+    assert _car_direction([1, 2, 3], {"highway": "motorway", "oneway": "no"}) == ([1, 2, 3], False)
+    assert _car_direction([1, 2, 3], {"highway": "tertiary", "junction": "roundabout", "oneway": "no"}) == (
+        [1, 2, 3],
+        False,
+    )
 
 
 def test_configured_tag_keys_defaults_to_empty():

@@ -88,12 +88,19 @@ local function do_ways(object)
     local nodes = object.nodes
     local oneway = false
 
-    if object.tags.oneway == "-1" then
+    -- keep in sync with _car_direction in src/roadgraphtool/overpass_import.py
+    local oneway_tag = object.tags.oneway
+    if oneway_tag == "-1" then
         --         handle reversed oneway street
         nodes = array_reverse(nodes)
         oneway = true
+    elseif oneway_tag == "yes" or oneway_tag == "true" or oneway_tag == "1" then
+        oneway = true
+    elseif oneway_tag == "no" then
+        oneway = false
     else
-        oneway = object.tags.oneway == "yes"
+        -- implied oneway
+        oneway = object.tags.junction == "roundabout" or object.tags.highway == "motorway"
     end
 
     -- add to ways

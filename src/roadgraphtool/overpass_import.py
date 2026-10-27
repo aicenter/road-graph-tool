@@ -162,6 +162,23 @@ def _pedestrian_direction(way_nodes: List[int], tags: dict) -> tuple[List[int], 
     return way_nodes, oneway_foot == "yes"
 
 
+def _car_direction(way_nodes: List[int], tags: dict) -> tuple[List[int], bool]:
+    """Driving direction of a way. Keep in sync with lua_styles/pipeline.lua.
+
+    A way is one-way if tagged ``oneway=yes|true|1``, if it is a roundabout, or if it is a motorway (implied
+    one-way), unless explicitly tagged ``oneway=no``. Returns the node list (reversed for ``oneway=-1``) and the
+    oneway flag.
+    """
+    oneway = tags.get("oneway")
+    if oneway == "-1":
+        return list(reversed(way_nodes)), True
+    if oneway in ("yes", "true", "1"):
+        return way_nodes, True
+    if oneway == "no":
+        return way_nodes, False
+    return way_nodes, tags.get("junction") == "roundabout" or tags.get("highway") == "motorway"
+
+
 def _build_way_query(polys: Sequence[geometry.Polygon], timeout: int, profile: str) -> str:
     """Overpass query for the ways of network *profile* inside *polys*, including their nodes."""
     way_lines = "\n".join(
@@ -225,9 +242,10 @@ def _run_overpass_backend(config, area_id: int, area_poly: geometry.base.BaseGeo
         if not way_nodes:
             continue
 
-        oneway = False
         if profile == "pedestrian":
             way_nodes, oneway = _pedestrian_direction(way_nodes, way.get("tags") or {})
+        else:
+            way_nodes, oneway = _car_direction(way_nodes, way.get("tags") or {})
 
         for position, node_id in enumerate(way_nodes):
             nodes_ways_list.append(
