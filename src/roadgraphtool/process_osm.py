@@ -19,7 +19,7 @@ import shapely.geometry as geometry
 
 AREA_ID_SEQUENCE = "areas_id_seq"
 
-SQL_DIR = Path(__file__).parent.parent.parent / "SQL"
+SQL_DIR = Path(__file__).parent / "SQL"
 
 postprocess_dict = {"pipeline": "after_import.sql"}
 

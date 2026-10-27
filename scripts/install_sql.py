@@ -15,5 +15,4 @@ config = parse_config_file(Path(args[1]))
 set_logging(config)
 init_db(config)
 
-sql_dir = Path(__file__).parent.parent.parent / "SQL"
-install_sql(config=config, db=db, sql_dir=sql_dir, include_tests=True)
+install_sql(config=config, db=db, include_tests=True)

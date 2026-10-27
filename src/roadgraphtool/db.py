@@ -720,16 +720,20 @@ class Database(object):
             connection.close()
 
     @ensure_db_connection
-    def execute_script(self, script_path: Path, schema: str = 'public'):
-        with open(script_path) as f:
+    def execute_script(self, script_path: Path, schema: str = 'public', raise_on_error: bool = False):
+        """Execute the SQL script in one transaction. On error, the transaction is rolled back and the error is
+        logged, or raised if *raise_on_error*."""
+        with open(script_path, encoding="utf-8") as f:
             script = f.read().replace('{schema}', schema)
             cursor = self._psycopg2_connection.cursor()
             try:
                 cursor.execute(script)
                 self._psycopg2_connection.commit()
             except Exception as e:
-                logging.error(f"Error executing script {script_path}: {e}")
                 self._psycopg2_connection.rollback()
+                if raise_on_error:
+                    raise
+                logging.error(f"Error executing script {script_path}: {e}")
             finally:
                 cursor.close()
 

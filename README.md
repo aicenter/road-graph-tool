@@ -26,7 +26,7 @@ To execute the configured pipeline, follow these steps:
 1. Install the Road Graph Tool Python package: `pip install -e <clone dir>`.
 1. Create a YAML configuration file for the project. For details about this file, refer to the [Configuration](#configuration) section.
     1. Configure the database. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
-1. In the `python/` directory, run the `scripts/install_sql.py`. This script will initialize the needed tables, procedures, functions, etc., in your database.
+1. Run `python scripts/install_sql.py <config>`. This script will initialize the needed tables, procedures, functions, etc., in your database, using the SQL files shipped in the package (`src/roadgraphtool/SQL`). The functions and procedures are dropped and created again, so that changed signatures and return types are applied; afterwards, run `scripts/grant_privileges.py` again for the roles that had privileges granted.
     1. To let another existing database role read the processed road network and create new schemas for its own road networks (see [Schemas](#schemas)), run `scripts/grant_privileges.py <config> <role>` with a config connecting as a user who can grant the privileges (e.g., the owner of the tables).
 1. Run the `main.py` script with with the path to the configuration file as the first argument. The script will execute the pipeline according to the configuration file.
 
