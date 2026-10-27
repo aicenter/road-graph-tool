@@ -1,7 +1,9 @@
+import json
 import logging
 from typing import Optional, Dict, Any
 
 from roadgraphtool.db import db
+from roadgraphtool.posted_speeds import get_posted_speeds
 import roadgraphtool.road_import
 import roadgraphtool.insert_area
 import roadgraphtool.export
@@ -28,23 +30,33 @@ def insert_area_if_area_insertion_activated(config) -> Optional[int]:
     return roadgraphtool.insert_area.genereate_area(config, description)
 
 
+_SPEED_SOURCES = ("none", "fcd", "posted")
+
+
 def contract_graph_in_area(
-    target_area_id: int, target_area_srid: int, fill_speed: bool = True
+    target_area_id: int,
+    target_area_srid: int,
+    speed_source: str = "none",
+    posted_speeds: Optional[Dict[str, Any]] = None,
 ):
-    logging.info("Contracting graph")
-    if fill_speed:
-        db.execute_procedure(
-            "contract_graph_in_area",
-            (target_area_id, "smallint"),
-            (target_area_srid, "int"),
-        )
-    else:
-        db.execute_procedure(
-            "contract_graph_in_area",
-            (target_area_id, "smallint"),
-            (target_area_srid, "int"),
-            (False, "boolean"),
-        )
+    """Contract the road graph in the area. See the README section "Graph Contraction" for *speed_source*.
+
+    *posted_speeds* is the posted speed mapping (see ``roadgraphtool.posted_speeds``), required for the
+    ``posted`` speed source.
+    """
+    if speed_source not in _SPEED_SOURCES:
+        raise ValueError(f"Unsupported contraction speed source {speed_source!r}, supported: {_SPEED_SOURCES}")
+    if speed_source == "posted" and posted_speeds is None:
+        raise ValueError("The posted speed source requires the posted speed mapping")
+
+    logging.info("Contracting graph (speed source: %s)", speed_source)
+    db.execute_procedure(
+        "contract_graph_in_area",
+        (target_area_id, "smallint"),
+        (target_area_srid, "int"),
+        (speed_source, "varchar"),
+        (json.dumps(posted_speeds) if posted_speeds is not None else None, "jsonb"),
+    )
     logging.info("Graph Contracted")
 
 
@@ -111,7 +123,9 @@ def main(config: Dict[str, Any]):
     config.area_id = area_id
 
     if _is_activated(config, "contraction"):
-        contract_graph_in_area(area_id, config.srid, False)
+        speed_source = getattr(config.contraction, "speed_source", "none")
+        posted_speeds = get_posted_speeds(config) if speed_source == "posted" else None
+        contract_graph_in_area(area_id, config.srid, speed_source, posted_speeds)
 
     if _is_activated(config, "strong_components"):
         compute_strong_components(area_id)

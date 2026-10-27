@@ -75,7 +75,11 @@ road_import: {
 }
 
 contraction: {
-    activated: false
+    activated: false,
+    # Edge speeds: none | fcd | posted (posted speeds require road_import.tags: [highway, maxspeed])
+    speed_source: none,
+    # Overrides of the built-in posted speeds (km/h), see the README section "Posted speeds"
+    # posted_speeds: {default: 50, highway: {motorway: 130}},
 }
 
 strong_components: {
@@ -91,4 +95,6 @@ dm_generator: {
     activated: false,
     # Distance matrix file format for shortestPathsPreprocessor: csv or hdf
     output_format: csv,
+    # Multiplier of all edge speeds in the travel time computation
+    speed_factor: 1,
 }

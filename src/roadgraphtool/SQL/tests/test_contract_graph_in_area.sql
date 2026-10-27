@@ -143,6 +143,84 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Sets the maxspeed tag of the test way from p_from_node to p_to_node
+CREATE OR REPLACE FUNCTION set_test_way_maxspeed(p_from_node bigint, p_to_node bigint, p_maxspeed text) RETURNS VOID AS $$
+BEGIN
+    INSERT INTO tags ("key") VALUES ('maxspeed') ON CONFLICT ("key") DO NOTHING;
+    INSERT INTO ways_tags (way_id, tag_id, tag_value)
+    SELECT ways.id, tags.id, p_maxspeed
+    FROM ways
+        JOIN tags ON tags."key" = 'maxspeed'
+    WHERE ways.area = 9999 AND ways."from" = p_from_node AND ways."to" = p_to_node;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Edges of the test area as [from, to, speed] rows
+CREATE OR REPLACE FUNCTION get_test_edge_speeds() RETURNS bigint[] AS $$
+    SELECT array_agg(ARRAY[edges."from", edges."to", edges.speed::bigint] ORDER BY edges."from", edges."to")
+    FROM edges
+    WHERE edges.area = 9999;
+$$ LANGUAGE sql;
+
+-- Posted speeds, the same speed along the chain 1 -> 2 -> 3: node 2 is contracted, the edge keeps the speed
+CREATE OR REPLACE FUNCTION test_contract_graph_in_area_posted_uniform_speed() RETURNS SETOF TEXT AS $$
+BEGIN
+    PERFORM prepare_contract_graph_area();
+    PERFORM load_graphml_to_nodes_edges('test_1');
+    PERFORM set_test_way_maxspeed(1, 2, '50');
+    PERFORM set_test_way_maxspeed(2, 3, '50 km/h');
+
+    CALL contract_graph_in_area(9999::smallint, 4326, 'posted', '{"default": 30}'::jsonb);
+
+    RETURN QUERY SELECT * FROM validate_contracted_nodes(ARRAY[2]::bigint[], 'Posted uniform speed test');
+    RETURN NEXT is(get_test_edge_speeds(), ARRAY[[1, 3, 50]]::bigint[], 'Posted uniform speed test: edge speed');
+END;
+$$ LANGUAGE plpgsql;
+
+-- Posted speeds, the speed changes in node 2 of the chain 1 -> 2 -> 3: node 2 is kept, each edge has its speed
+CREATE OR REPLACE FUNCTION test_contract_graph_in_area_posted_speed_change() RETURNS SETOF TEXT AS $$
+BEGIN
+    PERFORM prepare_contract_graph_area();
+    PERFORM load_graphml_to_nodes_edges('test_1');
+    PERFORM set_test_way_maxspeed(1, 2, '50');
+    PERFORM set_test_way_maxspeed(2, 3, '30');
+
+    CALL contract_graph_in_area(9999::smallint, 4326, 'posted', '{"default": 40}'::jsonb);
+
+    RETURN QUERY SELECT * FROM validate_contracted_nodes(ARRAY[]::bigint[], 'Posted speed change test');
+    RETURN NEXT is(
+        get_test_edge_speeds(), ARRAY[[1, 2, 50], [2, 3, 30]]::bigint[], 'Posted speed change test: edge speeds'
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Posted speeds without maxspeed tags: the default speed is used
+CREATE OR REPLACE FUNCTION test_contract_graph_in_area_posted_default_speed() RETURNS SETOF TEXT AS $$
+BEGIN
+    PERFORM prepare_contract_graph_area();
+    PERFORM load_graphml_to_nodes_edges('test_1');
+
+    CALL contract_graph_in_area(9999::smallint, 4326, 'posted', '{"default": 40}'::jsonb);
+
+    RETURN QUERY SELECT * FROM validate_contracted_nodes(ARRAY[2]::bigint[], 'Posted default speed test');
+    RETURN NEXT is(get_test_edge_speeds(), ARRAY[[1, 3, 40]]::bigint[], 'Posted default speed test: edge speed');
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION test_contract_graph_in_area_unknown_speed_source() RETURNS SETOF TEXT AS $$
+BEGIN
+    PERFORM prepare_contract_graph_area();
+    PERFORM load_graphml_to_nodes_edges('test_1');
+
+    RETURN NEXT throws_ok(
+        $sql$CALL contract_graph_in_area(9999::smallint, 4326, 'measured')$sql$,
+        'Unsupported speed source: measured. Supported: none, fcd, posted.',
+        'Unknown speed source is rejected'
+    );
+END;
+$$ LANGUAGE plpgsql;
+
 -- Example of running tests:
 -- SELECT * FROM mob_group_runtests('contract_graph_in_area'); -- runs all tests
+-- SELECT * FROM mob_group_runtests('contract_graph_in_area_posted'); -- runs the posted speed tests
 -- SELECT * FROM mob_group_runtests('contract_graph_in_area_three_node_chain'); -- runs a single test

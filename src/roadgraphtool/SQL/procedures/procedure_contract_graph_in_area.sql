@@ -1,16 +1,39 @@
+-- speed_source:
+--   none: edges without speed,
+--   fcd: speeds from floating car data (nodes_ways_speeds), contracted edges get the length-weighted mean speed,
+--   posted: posted speeds (see select_posted_way_speeds, posted_speeds is its p_posted_speeds parameter).
+--     Nodes where the posted speed changes are not contracted, so each edge has a single posted speed.
 CREATE OR REPLACE PROCEDURE contract_graph_in_area(
-    IN target_area_id smallint, IN target_area_srid integer, IN fill_speed boolean DEFAULT FALSE
+    IN target_area_id smallint,
+    IN target_area_srid integer,
+    IN speed_source varchar DEFAULT 'none',
+    IN posted_speeds jsonb DEFAULT NULL
 )
     LANGUAGE plpgsql
 AS $$
 DECLARE
     non_contracted_edges_count integer;
     restricted_nodes bigint[];
+    fill_speed boolean;
 BEGIN
+
+IF speed_source IS NULL OR speed_source NOT IN ('none', 'fcd', 'posted') THEN
+    RAISE EXCEPTION 'Unsupported speed source: %. Supported: none, fcd, posted.', speed_source;
+END IF;
+fill_speed := speed_source <> 'none';
 
 -- road segments table
 RAISE NOTICE 'Creating road segments table';
-IF fill_speed THEN
+IF speed_source = 'posted' THEN
+CREATE TEMPORARY TABLE road_segments AS (
+    SELECT
+        node_segments.*,
+        posted_way_speeds.speed
+    FROM select_node_segments_in_area(target_area_id, target_area_srid) AS node_segments
+        JOIN select_posted_way_speeds(target_area_id, posted_speeds) AS posted_way_speeds
+            ON posted_way_speeds.way_id = node_segments.way_id
+);
+ELSIF speed_source = 'fcd' THEN
 CREATE TEMPORARY TABLE road_segments AS (
     SELECT
     from_id,
@@ -40,6 +63,9 @@ RAISE NOTICE 'Road segments table created: % road segments', (SELECT count(*) FR
 -- get restricted nodes
 RAISE NOTICE 'Computing restricted nodes';
 restricted_nodes = get_restricted_nodes();
+IF speed_source = 'posted' THEN
+    restricted_nodes = restricted_nodes || get_speed_change_nodes();
+END IF;
 
 -- contraction
 CALL compute_contractions(restricted_nodes);
@@ -89,7 +115,21 @@ CALL create_edge_segments_from_contractions(fill_speed);
 
 -- edges for contracted road segments
 RAISE NOTICE 'Creating edges for contracted road segments';
-IF fill_speed THEN
+IF speed_source = 'posted' THEN
+    -- speed change nodes are not contracted, so all segments of a contraction have the same speed
+    IF EXISTS (SELECT 1 FROM contraction_segments GROUP BY id HAVING min(speed) <> max(speed)) THEN
+        RAISE EXCEPTION 'Some contractions span a posted speed change';
+    END IF;
+    INSERT INTO edges ("from", "to", area, geom, speed)
+    SELECT
+        max(edge_from),
+        max(edge_to),
+        target_area_id AS area,
+        st_transform(st_multi(st_union(geom)), 4326) AS geom,
+        max(speed) AS speed
+    FROM contraction_segments
+    GROUP BY id;
+ELSIF fill_speed THEN
     INSERT INTO edges ("from", "to", area, geom, speed)
     SELECT
         max(edge_from),

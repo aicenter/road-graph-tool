@@ -12,6 +12,7 @@ from roadgraphtool.distance_matrix_generator import (
     _normalize_dm_output_format,
     _get_dm_output_format,
     _get_default_speed_mps,
+    _get_speed_factor,
 )
 
 
@@ -239,6 +240,38 @@ def test_generate_dm_travel_time_configured_default_speed(config, sample_nodes, 
 
     # 100 m and 140 m at 5 km/h
     assert edges['travel_time'].tolist() == [72, 72, 101, 72]
+
+
+def test_generate_dm_travel_time_speed_factor(config, sample_nodes, sample_edges, mock_dm_exec):
+    config['dm_generator'] = {'speed_factor': 0.5}
+
+    generate_dm(config, sample_nodes, sample_edges)
+
+    # 100 m and 140 m at 36 km/h * 0.5
+    assert sample_edges['travel_time'].tolist() == [20, 20, 28, 20]
+
+
+def test_generate_dm_travel_time_speed_factor_applies_to_default_speed(
+    config, sample_nodes, sample_edges, mock_dm_exec
+):
+    config['dm_generator'] = {'default_speed_kmh': 36, 'speed_factor': 0.5}
+    edges = sample_edges.drop(columns=['speed'])
+
+    generate_dm(config, sample_nodes, edges)
+
+    assert edges['travel_time'].tolist() == [20, 20, 28, 20]
+
+
+def test_speed_factor_must_be_positive():
+    with pytest.raises(ValueError, match="must be positive"):
+        _get_speed_factor({"dm_generator": {"speed_factor": 0}})
+
+
+def test_generate_dm_missing_edge_speed(config, sample_nodes, sample_edges, mock_dm_exec):
+    sample_edges.loc[1, 'speed'] = None
+
+    with pytest.raises(ValueError, match="missing or non-positive speed"):
+        generate_dm(config, sample_nodes, sample_edges)
 
 
 def test_generate_dm(config, sample_nodes, sample_edges, tmp_path, mock_dm_exec):

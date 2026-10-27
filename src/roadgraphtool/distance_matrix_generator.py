@@ -111,6 +111,17 @@ def _get_default_speed_mps(config: Any) -> float:
     return speed_kmh / 3.6
 
 
+def _get_speed_factor(config: Any) -> float:
+    """Multiplier of all edge speeds from ``dm_generator.speed_factor`` (default 1)."""
+    speed_factor = _read_nested(config, "dm_generator.speed_factor")
+    if speed_factor is None:
+        return 1.0
+    speed_factor = float(speed_factor)
+    if speed_factor <= 0:
+        raise ValueError(f"dm_generator.speed_factor must be positive, got {speed_factor}")
+    return speed_factor
+
+
 def generate_dm(
     config: Dict,
     nodes: Optional[gpd.GeoDataFrame],
@@ -139,12 +150,18 @@ def generate_dm(
         xeng_file_path = os.path.abspath(xeng_file_path)
 
         # length to travel time conversion
+        speed_factor = _get_speed_factor(config)
         if 'speed' in edges:
-            logging.info("Using real speed from edges")
+            logging.info("Using real speed from edges multiplied by %s", speed_factor)
+            speeds = pd.to_numeric(edges['speed'])
+            if speeds.isna().any() or (speeds <= 0).any():
+                raise ValueError("Some edges have a missing or non-positive speed")
             # estimated travel time in seconds
-            edges['travel_time'] = (edges['length'] / edges['speed'] * 3.6).round().astype(int)
+            edges['travel_time'] = (
+                pd.to_numeric(edges['length']) / (speeds * speed_factor) * 3.6
+            ).round().astype(int)
         else:
-            speed_mps = _get_default_speed_mps(config)
+            speed_mps = _get_default_speed_mps(config) * speed_factor
             logging.info('Using default speed of %.1f km/h', speed_mps * 3.6)
             try:
                 edges['travel_time'] = edges['length'].apply(lambda x: round(int(x) / speed_mps))

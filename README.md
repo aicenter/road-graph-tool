@@ -44,6 +44,7 @@ The main configuration affecting the whole tool is in the root of the configurat
 - `log_level`: the level of the logging.
 - `password_config_file` (optional): path to the file containing the secrets for the database.
 - `schema`: the database schema holding the road network (tables, functions, and procedures of Road Graph Tool). See [Schemas](#schemas).
+- `speeds` (boolean, default: `false`): export the edge speeds (the `speed` column of the edges file, see [Export](#export)). Requires edges with speeds, e.g., from the [posted speeds](#posted-speeds).
 - `srid`: the SRID of the map.
 
 Other parameters are in following sections:
@@ -192,6 +193,8 @@ The kind of network is selected by `road_import.profile`:
 - `car` (default): roads drivable by car. A way is one-way if tagged `oneway=yes|true|1`, or reversed one-way if tagged `oneway=-1`. Roundabouts (`junction=roundabout`) and motorways are one-way unless tagged `oneway=no`.
 - `pedestrian`: ways walkable by a pedestrian. See [Pedestrian profile](#pedestrian-profile).
 
+The `road_import.tags` list selects the OSM tags stored in the database (`ways_tags` and `nodes_tags`), e.g., `[highway, maxspeed]` for the [posted speeds](#posted-speeds).
+
 
 ### Pedestrian profile
 The pedestrian profile imports the network for walking, e.g., from a parking spot to delivery addresses. A way is imported if:
@@ -321,6 +324,39 @@ key: `contraction`
 
 This script contracts the road graph within a specified area. Only intersections nodes are preserved.
 
+Parameters:
+
+- `speed_source` (`none` | `fcd` | `posted`, default: `none`): the source of the edge speeds.
+    - `none`: edges without speed.
+    - `fcd`: speeds from floating car data (`nodes_ways_speeds` table). Road segments without a speed are left out, contracted edges get the length-weighted mean speed of their segments.
+    - `posted`: posted speeds, see [Posted speeds](#posted-speeds).
+- `posted_speeds` (optional): overrides of the default posted speeds, see [Posted speeds](#posted-speeds).
+
+
+### Posted speeds
+With `speed_source: posted`, each edge gets the posted speed (km/h) of its OSM way:
+
+1. the `maxspeed` tag, if it contains a fixed speed: a number (km/h), a number with the `km/h` or `mph` unit, or a zone constant (e.g., `CZ:urban`). For a list of values (`50;30`), the first one is used,
+1. otherwise, the default speed for the `highway` tag value,
+1. otherwise, the default speed.
+
+Nodes where the posted speed changes are not contracted, so each edge has a single posted speed, without averaging. The `maxspeed` and `highway` tags have to be imported (`road_import.tags: [highway, maxspeed]`). Direction-specific (`maxspeed:forward`/`maxspeed:backward`) and conditional speed limits are not supported.
+
+The built-in defaults ([`posted_speeds.py`](src/roadgraphtool/posted_speeds.py)) are the Czech urban speed limits from the [OSM wiki](https://wiki.openstreetmap.org/wiki/Default_speed_limits). They can be changed by `contraction.posted_speeds`:
+
+- `default`: the default speed,
+- `highway`: `highway` tag value to speed, merged into the built-in mapping,
+- `zones`: zone constant to speed, merged into the built-in mapping.
+
+```yaml
+contraction:
+  activated: true
+  speed_source: posted
+  posted_speeds:
+    highway:
+      motorway: 130
+```
+
 
 ### Implementation details
 
@@ -371,7 +407,7 @@ The **edges** file contains:
 - `db_id_from`: the unique identifier of the starting node in the database.
 - `db_id_to`: the unique identifier of the ending node in the database.
 - `length`: the length of the edge in meters.
-- `speed`: the speed on the edge in km/h.
+- `speed`: the speed on the edge in km/h. Only exported with the root `speeds: true` parameter.
 
 
 ## Distance Matrix Generator
@@ -381,6 +417,7 @@ This component generates a distance matrix for the road graph (requires `shortes
 
 - `output_format` (`csv` | `hdf`, default: `csv`): passed to `--output-format` parameter of `shortestPathsPreprocessor`.
 - `default_speed_kmh` (number, default: 14 m/s, about 50 km/h): speed used to compute edge travel times when the edges have no `speed`. Use a walking speed, e.g. `5`, for the pedestrian profile.
+- `speed_factor` (number, default: `1`): multiplier of all edge speeds (including the default speed) in the travel time computation, e.g., to get realistic travel times from the [posted speeds](#posted-speeds). The exported edge speeds stay unchanged.
 
 
 ## Viewer
