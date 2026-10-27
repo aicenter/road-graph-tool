@@ -95,46 +95,64 @@ $$
 $$;
 
 
+-- Function: _select_fixtures(name, text, text[])
+-- Fixtures of the given type (startup, shutdown, setup, teardown) for the given tests (schema-qualified names from
+-- findfuncs): the fixture <type>_X belongs to the tests named test_X or test_X_*.
+-- If schema_name is NULL, the fixtures are searched in all schemas.
+CREATE OR REPLACE FUNCTION _select_fixtures(schema_name name, fixture_type text, tests text[]) RETURNS text[]
+    LANGUAGE sql
+AS
+$$
+    SELECT coalesce(array_agg(fixture ORDER BY fixture), ARRAY[]::text[])
+    FROM unnest(
+        CASE WHEN schema_name IS NULL THEN findfuncs('^' || fixture_type || '_')
+        ELSE findfuncs(schema_name, '^' || fixture_type || '_') END
+    ) AS fixture
+    WHERE EXISTS (
+        SELECT 1
+        FROM unnest(tests) AS test
+        WHERE split_part(test, '.', 2) = 'test_' || substr(split_part(fixture, '.', 2), length(fixture_type) + 2)
+            OR starts_with(split_part(test, '.', 2), 'test_' || substr(split_part(fixture, '.', 2), length(fixture_type) + 2) || '_')
+    );
+$$;
+
 -- Function: mob_group_runtests(name, text)
 -- This function is used to run a group of tests.
 -- Input parameters: name - the name of the schema to look for the test functions;
---                   text - the pattern to match the names of the functions to run.
+--                   text - the beginning of the names of the tests to run, without the test_ prefix.
+-- The tests are all functions whose names start with "test_" + $2, e.g., $2 = 'insert_area' runs all test_insert_area*
+-- tests, $2 = 'insert_area_valid_all' runs only test_insert_area_valid_all, and $2 = '' runs all tests.
+-- The fixtures are the functions "<fixture type>_X" (startup, setup, teardown, shutdown) such that some of the tests
+-- is named test_X or test_X_*, e.g., startup_insert_area for the test test_insert_area_valid_all.
 -- Flow:
--- 1. Run alphabetically ordered startup functions once, which match the pattern "startup" + $2.
+-- 1. Run alphabetically ordered startup fixtures once.
 -- 2. Enter a loop:
---  2.1. Run alphabetically ordered setup functions once, which match the pattern "setup" + $2.
---  2.2. Run alphabetically ordered test functions once, which match the pattern $2.
---  2.3. Run alphabetically ordered teardown functions once, which match the pattern "teardown" + $2.
--- 3. Run alphabetically ordered shutdown functions once, which match the pattern "shutdown" + $2.
+--  2.1. Run alphabetically ordered setup fixtures.
+--  2.2. Run the next test in alphabetical order.
+--  2.3. Run alphabetically ordered teardown fixtures.
+-- 3. Run alphabetically ordered shutdown fixtures once.
 -- 4. Return the results of the tests.
 create or replace function mob_group_runtests(schema_name name, filter text) returns SETOF text
     language plpgsql
 as
 $$
 DECLARE
-    startup TEXT := 'startup_' || filter;
-    shutdown TEXT := 'shutdown_' || filter;
-    setup TEXT := 'setup_' || filter;
-    teardown TEXT := 'teardown_' || filter;
-    test TEXT := 'test_' || filter;
-    startup_pattern TEXT := '^' || startup;
-    shutdown_pattern TEXT := '^' || shutdown;
-    setup_pattern TEXT := '^' || setup;
-    test_pattern TEXT := '^' || test;
-    teardown_pattern TEXT := '^' || teardown;
-    exclude_pattern TEXT := '^(' || startup || '|' || shutdown || '|' || setup || '|' || teardown || ')';
+    test_pattern TEXT := '^test_' || filter;
+    tests TEXT[];
     result_record RECORD;
 BEGIN
     -- create testing environment:
     CALL _env_constructor();
 
+    tests := CASE WHEN schema_name IS NULL THEN findfuncs(test_pattern) ELSE findfuncs(schema_name, test_pattern) END;
+
     FOR result_record IN
         SELECT * FROM _runner(
-            findfuncs_recursive( schema_name, startup_pattern ),
-            findfuncs_recursive( schema_name, shutdown_pattern ),
-            findfuncs_recursive( schema_name, setup_pattern ),
-            findfuncs_recursive( schema_name, teardown_pattern ),
-            findfuncs_recursive( schema_name, test_pattern, exclude_pattern )
+            _select_fixtures(schema_name, 'startup', tests),
+            _select_fixtures(schema_name, 'shutdown', tests),
+            _select_fixtures(schema_name, 'setup', tests),
+            _select_fixtures(schema_name, 'teardown', tests),
+            tests
         )
     LOOP
         RETURN NEXT result_record;
@@ -152,14 +170,7 @@ $$;
 -- Function: mob_group_runtests(text)
 -- This function is used to run a group of tests.
 -- Input parameters: text - the pattern to match the names of the functions to run.
--- Flow:
--- 1. Run alphabetically ordered startup functions once, which match the pattern "startup" + $1.
--- 2. Enter a loop:
---  2.1. Run alphabetically ordered setup functions once, which match the pattern "setup" + $1.
---  2.2. Run alphabetically ordered test functions once, which match the pattern $1.
---  2.3. Run alphabetically ordered teardown functions once, which match the pattern "teardown" + $1.
--- 3. Run alphabetically ordered shutdown functions once, which match the pattern "shutdown" + $1.
--- 4. Return the results of the tests.
+-- Runs mob_group_runtests(name, text) for all schemas, see there for the test and fixture selection.
 create or replace function mob_group_runtests(filter text) returns SETOF text
     language plpgsql
 as

@@ -431,10 +431,12 @@ For testing the PostgreSQL, we use the [pgTAP](https://pgtap.org/) framework. Yo
 
 
 ### Custom test executer
-Because pgTAP provides only a basic function for executing tests, that for example, executes every single fixture even if a test filter is used, we created a custom test executer `mob_group_runtests` that can be used to run tests. The source code for this execution machinery can be found in the `SQL/tests/test_extensions.sql` file. The main difference compared to the default test runner:
+Because pgTAP provides only a basic function for executing tests, that for example, executes every single fixture even if a test filter is used, we created a custom test executer `mob_group_runtests` that can be used to run tests. The source code for this execution machinery can be found in the [`testing_extension.sql`](src/roadgraphtool/SQL/tests/testing_extension.sql) file. The main difference compared to the default test runner:
 
-- filter is applied to the test fixtures as well, not only to the tests
+- only the fixtures of the selected tests are executed
 - tests are executed in a separate schema (`test_env` by default)
+
+The filter is the test name without the `test_` prefix, or its beginning: `mob_group_runtests('insert_area')` runs all `test_insert_area*` tests, `mob_group_runtests('insert_area_valid_all')` only `test_insert_area_valid_all`, and `mob_group_runtests('')` all tests. A fixture `<type>_X` (`startup`, `setup`, `teardown`, `shutdown`) is run if any of the selected tests is named `test_X` or `test_X_*`, e.g., `startup_insert_area` for the test `test_insert_area_valid_all`.
 
 
 ### Creating new tests

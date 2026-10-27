@@ -144,9 +144,5 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Example of running tests:
--- SELECT * FROM mob_group_runtests('_contract_graph_in_area$'); -- runs only startup
--- SELECT * FROM mob_group_runtests('_contract_graph_in_area_three_node_chain'); -- runs the first test
--- SELECT * FROM mob_group_runtests('_contract_graph_in_area_no_contraction'); -- runs the second test
--- SELECT * FROM mob_group_runtests('_contract_graph_in_area_test_3'); -- runs the third test
--- SELECT * FROM mob_group_runtests('_contract_graph_in_area_single_bidirectional_contraction'); -- runs the fourth test
--- SELECT * FROM mob_group_runtests('_contract_graph_in_area_single_bidirectional_and_parallel'); -- runs the fifth test 
+-- SELECT * FROM mob_group_runtests('contract_graph_in_area'); -- runs all tests
+-- SELECT * FROM mob_group_runtests('contract_graph_in_area_three_node_chain'); -- runs a single test
