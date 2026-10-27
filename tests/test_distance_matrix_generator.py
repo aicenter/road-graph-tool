@@ -100,13 +100,12 @@ def mock_dm_exec():
     def fake_call(command):
         calls.append(command)
         output_format = command[command.index("--output-format") + 1]
-        out_path = Path(command[command.index("-o") + 1])
+        out_path = command[command.index("-o") + 1]
+        # like shortestPathsPreprocessor, always append the extension of the output format
         if output_format == "csv":
-            out_file = out_path if out_path.suffix == ".csv" else Path(str(out_path) + ".csv")
-            out_file.write_text("0,10,4294967295\n10,0,4294967295\n14,10,0\n")
+            Path(out_path + ".csv").write_text("0,10,4294967295\n10,0,4294967295\n14,10,0\n")
         else:
-            out_file = out_path if out_path.suffix == ".h5" else out_path.with_suffix(".h5")
-            out_file.write_bytes(b"hdf5")
+            Path(out_path + ".hdf5").write_bytes(b"hdf5")
         return True
 
     with patch(
@@ -152,7 +151,7 @@ def test_simple_area_dir(config, sample_nodes, sample_edges, tmp_path, mock_dm_e
 
 def test_simple_dm_filepath(sample_nodes, sample_edges, tmp_path, mock_dm_exec):
     config = {
-        'dm_filepath': tmp_path / 'dm1',
+        'dm_filepath': tmp_path / 'dm1.csv',
         'export': {'dir': tmp_path},
         'map': {
             'path': tmp_path
@@ -161,7 +160,19 @@ def test_simple_dm_filepath(sample_nodes, sample_edges, tmp_path, mock_dm_exec):
 
     generate_dm(config, sample_nodes, sample_edges)
 
-    assert (tmp_path / 'dm1.csv').exists()
+    assert sorted(path.name for path in tmp_path.glob('dm1*')) == ['dm1.csv']
+
+
+def test_dm_filepath_with_other_extension(sample_nodes, sample_edges, tmp_path, mock_dm_exec):
+    config = {
+        'dm_filepath': tmp_path / 'travel_times.matrix',
+        'export': {'dir': tmp_path},
+        'map': {'path': tmp_path},
+    }
+
+    generate_dm(config, sample_nodes, sample_edges)
+
+    assert sorted(path.name for path in tmp_path.glob('travel_times*')) == ['travel_times.matrix']
 
 
 def test_generate_dm_hdf_format(sample_nodes, sample_edges, tmp_path, mock_dm_exec):
@@ -175,7 +186,24 @@ def test_generate_dm_hdf_format(sample_nodes, sample_edges, tmp_path, mock_dm_ex
 
     command = mock_dm_exec[0]
     assert command[command.index("--output-format") + 1] == "hdf"
-    assert (tmp_path / 'dm.h5').exists()
+    # the tool appends the extension itself
+    assert command[command.index("-o") + 1] == str(tmp_path / 'dm')
+    assert sorted(path.name for path in tmp_path.glob('dm*')) == ['dm.h5']
+
+
+def test_generate_dm_hdf_format_skips_existing(caplog, sample_nodes, sample_edges, tmp_path, mock_dm_exec):
+    config = {
+        'export': {'dir': tmp_path},
+        'dm_generator': {'output_format': 'hdf'},
+        'map': {'path': tmp_path},
+    }
+    generate_dm(config, sample_nodes, sample_edges)
+
+    with caplog.at_level(logging.INFO):
+        generate_dm(config, sample_nodes, sample_edges)
+
+    assert len(mock_dm_exec) == 1
+    assert 'Skipping DM generation, the file is already generated.' in caplog.text
 
 
 def test_generate_dm_skip_generation(caplog, config, sample_nodes, sample_edges, mock_dm_exec):

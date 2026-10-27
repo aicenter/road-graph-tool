@@ -11,10 +11,16 @@ import roadgraphtool.viewer
 import roadgraphtool.viewer_deploy
 
 
+def _is_activated(config, step: str) -> bool:
+    """Whether the pipeline *step* is configured and activated. A section without ``activated`` (e.g., only with
+    credentials from the secrets file) is not activated."""
+    return getattr(getattr(config, step, None), "activated", False)
+
+
 def insert_area_if_area_insertion_activated(config) -> Optional[int]:
-    section = getattr(config, "area_insert", None)
-    if section is None or not getattr(section, "activated", False):
+    if not _is_activated(config, "area_insert"):
         return None
+    section = config.area_insert
     description = getattr(section, "description", None)
     if description is None:
         description = "Pipeline area insert"
@@ -96,8 +102,7 @@ def main(config: Dict[str, Any]):
     area_id = getattr(config, "area_id", None)
     area_id = insert_area_if_area_insertion_activated(config) or area_id
 
-    road_import = getattr(config, "road_import", None)
-    if road_import is not None and getattr(road_import, "activated", False):
+    if _is_activated(config, "road_import"):
         area_id = roadgraphtool.road_import.import_road_network(config, area_id)
 
     if not area_id:
@@ -105,24 +110,24 @@ def main(config: Dict[str, Any]):
     # the export reads the area from the config, so pass on an area created or found by the steps above
     config.area_id = area_id
 
-    if hasattr(config, "contraction") and config.contraction.activated:
+    if _is_activated(config, "contraction"):
         contract_graph_in_area(area_id, config.srid, False)
 
-    if hasattr(config, "strong_components") and config.strong_components.activated:
+    if _is_activated(config, "strong_components"):
         compute_strong_components(area_id)
 
     nodes = None
     edges = None
-    if hasattr(config, "export") and config.export.activated:
+    if _is_activated(config, "export"):
         nodes, edges = roadgraphtool.export.export(config)
 
-    if hasattr(config, "dm_generator") and config.dm_generator.activated:
+    if _is_activated(config, "dm_generator"):
         roadgraphtool.distance_matrix_generator.generate_dm(config, nodes, edges)
 
-    if hasattr(config, "viewer") and config.viewer.activated:
+    if _is_activated(config, "viewer"):
         roadgraphtool.viewer.build_viewer(config, nodes, edges)
 
-    if hasattr(config, "viewer_deploy") and config.viewer_deploy.activated:
+    if _is_activated(config, "viewer_deploy"):
         roadgraphtool.viewer_deploy.deploy_viewer(config)
     
     # logging.info("Execution of assign_average_speeds_to_all_segments_in_area")

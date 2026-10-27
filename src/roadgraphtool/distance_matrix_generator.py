@@ -11,6 +11,9 @@ from roadgraphtool.overpass_client import _read_nested
 
 DM_OUTPUT_FORMATS = ("csv", "hdf")
 
+# extensions appended by shortestPathsPreprocessor to its output path
+_DM_TOOL_EXTENSIONS = {"csv": ".csv", "hdf": ".hdf5"}
+
 
 def _set_config_defaults(config: Dict, defaults: Dict):
     for key, val in defaults.items():
@@ -156,7 +159,9 @@ def generate_dm(
         xeng['one_way'] = 1
         xeng.to_csv(xeng_file_path, sep=" ", header=["XGI", str(len(nodes)), str(len(edges)), ""], index=False)
 
-        # call distance utils to generate dm
+        # call distance utils to generate dm; the tool appends the extension of the output format to the output path
+        tool_output_stem = Path(abs_path).with_suffix("")
+        tool_output_path = tool_output_stem.with_name(tool_output_stem.name + _DM_TOOL_EXTENSIONS[output_format])
         command = [
             "shortestPathsPreprocessor",
             "create",
@@ -167,7 +172,7 @@ def generate_dm(
             "-i",
             xeng_file_path,
             "-o",
-            abs_path,
+            str(tool_output_stem),
             "--preprocessing-mode",
             "slow",
             "--output-format",
@@ -175,3 +180,5 @@ def generate_dm(
         ]
 
         roadgraphtool.exec.call_executable(command)
+        if tool_output_path != Path(abs_path):
+            tool_output_path.replace(abs_path)
