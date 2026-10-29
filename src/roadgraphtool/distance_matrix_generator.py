@@ -96,6 +96,25 @@ def resolve_dm_filepath(config: Any) -> Path:
     return _resolve_config_path(config, dm_filepath)
 
 
+def resolve_dist_filepath(config: Any) -> Path:
+    """Resolve the path of the distance matrix of edge lengths along the fastest paths.
+
+    Mirrors :func:`resolve_dm_filepath`: the explicit path is root-level
+    ``dist_filepath``; when it is omitted, the default is ``<export.dir>/dist.csv``
+    for csv output and ``<export.dir>/dist.h5`` for hdf output.
+    """
+    output_format = _get_dm_output_format(config)
+    dist_filepath = _read_nested(config, "dist_filepath")
+    if dist_filepath is None:
+        extension = "h5" if output_format == "hdf" else "csv"
+        return resolve_export_dir(config) / f"dist.{extension}"
+    return _resolve_config_path(config, dist_filepath)
+
+
+def _is_distance_matrix_requested(config: Any) -> bool:
+    return bool(_read_nested(config, "dm_generator.distance_matrix", False))
+
+
 _DEFAULT_SPEED_MPS = 14
 """Speed used when edges have no speed and ``dm_generator.default_speed_kmh`` is not set (about 50 km/h)."""
 
@@ -139,63 +158,76 @@ def generate_dm(
         edges_file_path = map_dir / 'edges.csv'
         edges = gpd.read_file(edges_file_path)
 
-    dm_file_path = resolve_dm_filepath(config)
-    abs_path = os.path.abspath(dm_file_path)
-    if Path(abs_path).exists():
+    dm_file_path = Path(os.path.abspath(resolve_dm_filepath(config)))
+    output_paths = [dm_file_path]
+    distance_matrix = _is_distance_matrix_requested(config)
+    if distance_matrix:
+        dist_file_path = Path(os.path.abspath(resolve_dist_filepath(config)))
+        output_paths.append(dist_file_path)
+    if all(path.exists() for path in output_paths):
         logging.info('Skipping DM generation, the file is already generated.')
+        return
+
+    logging.info(f"Generating distance matrix ({output_format}) in {dm_file_path}")
+    if distance_matrix:
+        logging.info(f"Generating distance matrix of the lengths along the fastest paths in {dist_file_path}")
+
+    # length to travel time conversion
+    speed_factor = _get_speed_factor(config)
+    if 'speed' in edges:
+        logging.info("Using real speed from edges multiplied by %s", speed_factor)
+        speeds = pd.to_numeric(edges['speed'])
+        if speeds.isna().any() or (speeds <= 0).any():
+            raise ValueError("Some edges have a missing or non-positive speed")
+        # estimated travel time in seconds
+        edges['travel_time'] = (
+            pd.to_numeric(edges['length']) / (speeds * speed_factor) * 3.6
+        ).round().astype(int)
     else:
-        logging.info(f"Generating distance matrix ({output_format}) in {abs_path}")
-        map_dir.mkdir(parents=True, exist_ok=True)
-        xeng_file_path = os.path.join(map_dir, 'map.xeng')
-        xeng_file_path = os.path.abspath(xeng_file_path)
+        speed_mps = _get_default_speed_mps(config) * speed_factor
+        logging.info('Using default speed of %.1f km/h', speed_mps * 3.6)
+        try:
+            edges['travel_time'] = edges['length'].apply(lambda x: round(int(x) / speed_mps))
+        except ValueError as v:
+            logging.warning("Suspicious max speed, trying float conversion: %s", v)
+            edges['travel_time'] = edges['length'].apply(lambda x: round(float(x) / speed_mps))
 
-        # length to travel time conversion
-        speed_factor = _get_speed_factor(config)
-        if 'speed' in edges:
-            logging.info("Using real speed from edges multiplied by %s", speed_factor)
-            speeds = pd.to_numeric(edges['speed'])
-            if speeds.isna().any() or (speeds <= 0).any():
-                raise ValueError("Some edges have a missing or non-positive speed")
-            # estimated travel time in seconds
-            edges['travel_time'] = (
-                pd.to_numeric(edges['length']) / (speeds * speed_factor) * 3.6
-            ).round().astype(int)
-        else:
-            speed_mps = _get_default_speed_mps(config) * speed_factor
-            logging.info('Using default speed of %.1f km/h', speed_mps * 3.6)
-            try:
-                edges['travel_time'] = edges['length'].apply(lambda x: round(int(x) / speed_mps))
-            except ValueError as v:
-                logging.warning("Suspicious max speed, trying float conversion: %s", v)
-                edges['travel_time'] = edges['length'].apply(lambda x: round(float(x) / speed_mps))
+    if not allow_zero_length_edges:
+        edges.loc[edges['travel_time'] == 0, 'travel_time'] = 1
 
-        if not allow_zero_length_edges:
-            edges.loc[edges['travel_time'] == 0, 'travel_time'] = 1
+    # input of shortestPathsPreprocessor in its csv format: a directory with nodes.csv and edges.csv
+    input_dir = map_dir / 'dm_input'
+    input_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({'id': range(len(nodes))}).to_csv(input_dir / 'nodes.csv', sep='\t', index=False)
+    tool_edges = pd.DataFrame({'u': edges['u'], 'v': edges['v'], 'cost': edges['travel_time']})
+    if distance_matrix:
+        # the tool accumulates the lengths along the fastest paths and rounds them to metres
+        tool_edges['secondary_cost'] = pd.to_numeric(edges['length'])
+    tool_edges.to_csv(input_dir / 'edges.csv', sep='\t', index=False)
 
-        xeng = pd.DataFrame(edges[['u', 'v', 'travel_time']])
-        xeng['one_way'] = 1
-        xeng.to_csv(xeng_file_path, sep=" ", header=["XGI", str(len(nodes)), str(len(edges)), ""], index=False)
+    # the tool appends the extension of the output format to the output paths
+    command = [
+        "shortestPathsPreprocessor",
+        "create",
+        "-m",
+        "dm",
+        "-f",
+        "csv",
+        "-i",
+        str(input_dir.absolute()),
+        "-o",
+        str(dm_file_path.with_suffix("")),
+        "--preprocessing-mode",
+        "slow",
+        "--output-format",
+        output_format,
+    ]
+    if distance_matrix:
+        command += ["--secondary-output-path", str(dist_file_path.with_suffix(""))]
 
-        # call distance utils to generate dm; the tool appends the extension of the output format to the output path
-        tool_output_stem = Path(abs_path).with_suffix("")
+    roadgraphtool.exec.call_executable(command)
+    for path in output_paths:
+        tool_output_stem = path.with_suffix("")
         tool_output_path = tool_output_stem.with_name(tool_output_stem.name + _DM_TOOL_EXTENSIONS[output_format])
-        command = [
-            "shortestPathsPreprocessor",
-            "create",
-            "-m",
-            "dm",
-            "-f",
-            "xengraph",
-            "-i",
-            xeng_file_path,
-            "-o",
-            str(tool_output_stem),
-            "--preprocessing-mode",
-            "slow",
-            "--output-format",
-            output_format,
-        ]
-
-        roadgraphtool.exec.call_executable(command)
-        if tool_output_path != Path(abs_path):
-            tool_output_path.replace(abs_path)
+        if tool_output_path != path:
+            tool_output_path.replace(path)

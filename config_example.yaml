@@ -97,4 +97,6 @@ dm_generator: {
     output_format: csv,
     # Multiplier of all edge speeds in the travel time computation
     speed_factor: 1,
+    # Also generate the matrix of the lengths along the fastest paths (root dist_filepath, default <export.dir>/dist.csv)
+    distance_matrix: false,
 }

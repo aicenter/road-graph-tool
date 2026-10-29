@@ -13,6 +13,7 @@ from roadgraphtool.distance_matrix_generator import (
     _get_dm_output_format,
     _get_default_speed_mps,
     _get_speed_factor,
+    resolve_dist_filepath,
 )
 
 
@@ -107,6 +108,12 @@ def mock_dm_exec():
             Path(out_path + ".csv").write_text("0,10,4294967295\n10,0,4294967295\n14,10,0\n")
         else:
             Path(out_path + ".hdf5").write_bytes(b"hdf5")
+        if "--secondary-output-path" in command:
+            secondary_path = command[command.index("--secondary-output-path") + 1]
+            if output_format == "csv":
+                Path(secondary_path + ".csv").write_text("0,100,4294967295\n100,0,4294967295\n140,100,0\n")
+            else:
+                Path(secondary_path + ".hdf5").write_bytes(b"hdf5")
         return True
 
     with patch(
@@ -294,3 +301,82 @@ def test_generate_dm_namespace_config(sample_nodes, sample_edges, tmp_path, mock
     )
     generate_dm(config, sample_nodes, sample_edges)
     assert (tmp_path / "dm.csv").exists()
+
+
+def test_generate_dm_csv_input(config, sample_nodes, sample_edges, tmp_path, mock_dm_exec):
+    generate_dm(config, sample_nodes, sample_edges)
+
+    command = mock_dm_exec[0]
+    input_dir = tmp_path / 'map' / 'dm_input'
+    assert command[command.index("-f") + 1] == "csv"
+    assert command[command.index("-i") + 1] == str(input_dir)
+    assert "--secondary-output-path" not in command
+    nodes = pd.read_csv(input_dir / 'nodes.csv', sep='\t')
+    assert nodes['id'].tolist() == [0, 1, 2]
+    edges = pd.read_csv(input_dir / 'edges.csv', sep='\t')
+    assert edges.columns.tolist() == ['u', 'v', 'cost']
+    assert edges['cost'].tolist() == [10, 10, 14, 10]
+
+
+def test_resolve_dist_filepath_default(tmp_path):
+    assert resolve_dist_filepath({'export': {'dir': tmp_path}}) == tmp_path / 'dist.csv'
+    config = {'export': {'dir': tmp_path}, 'dm_generator': {'output_format': 'hdf'}}
+    assert resolve_dist_filepath(config) == tmp_path / 'dist.h5'
+
+
+def test_resolve_dist_filepath_relative_to_config_dir(tmp_path):
+    config = {'config_dir': tmp_path, 'export': {'dir': 'out'}, 'dist_filepath': 'matrices/lengths.h5'}
+    assert resolve_dist_filepath(config) == tmp_path / 'matrices' / 'lengths.h5'
+
+
+def test_generate_dm_distance_matrix(config, sample_nodes, sample_edges, tmp_path, mock_dm_exec):
+    config['dm_generator'] = {'distance_matrix': True}
+
+    generate_dm(config, sample_nodes, sample_edges)
+
+    assert len(mock_dm_exec) == 1
+    command = mock_dm_exec[0]
+    assert command[command.index("--secondary-output-path") + 1] == str(tmp_path / 'dist')
+    edges = pd.read_csv(tmp_path / 'map' / 'dm_input' / 'edges.csv', sep='\t')
+    assert edges.columns.tolist() == ['u', 'v', 'cost', 'secondary_cost']
+    assert edges['secondary_cost'].tolist() == [100, 100, 140, 100]
+    assert (tmp_path / 'dm.csv').exists()
+    df = pd.read_csv(tmp_path / 'dist.csv', header=None)
+    assert df.iloc[2].tolist() == [140, 100, 0]
+
+
+def test_generate_dm_distance_matrix_hdf_dist_filepath(sample_nodes, sample_edges, tmp_path, mock_dm_exec):
+    config = {
+        'export': {'dir': tmp_path},
+        'dm_generator': {'output_format': 'hdf', 'distance_matrix': True},
+        'dist_filepath': tmp_path / 'lengths.h5',
+    }
+
+    generate_dm(config, sample_nodes, sample_edges)
+
+    command = mock_dm_exec[0]
+    assert command[command.index("--secondary-output-path") + 1] == str(tmp_path / 'lengths')
+    assert sorted(path.name for path in tmp_path.glob('*.h*')) == ['dm.h5', 'lengths.h5']
+
+
+def test_generate_dm_distance_matrix_skips_when_all_exist(caplog, config, sample_nodes, sample_edges, mock_dm_exec):
+    config['dm_generator'] = {'distance_matrix': True}
+    generate_dm(config, sample_nodes, sample_edges)
+
+    with caplog.at_level(logging.INFO):
+        generate_dm(config, sample_nodes, sample_edges)
+
+    assert len(mock_dm_exec) == 1
+    assert 'Skipping DM generation, the file is already generated.' in caplog.text
+
+
+def test_generate_dm_distance_matrix_regenerates_when_missing(config, sample_nodes, sample_edges, tmp_path, mock_dm_exec):
+    # the travel time matrix exists from an earlier run without the distance matrix
+    generate_dm(config, sample_nodes, sample_edges)
+    config['dm_generator'] = {'distance_matrix': True}
+
+    generate_dm(config, sample_nodes, sample_edges)
+
+    assert len(mock_dm_exec) == 2
+    assert "--secondary-output-path" in mock_dm_exec[1]
+    assert (tmp_path / 'dist.csv').exists()

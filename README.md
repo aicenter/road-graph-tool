@@ -41,6 +41,7 @@ The main configuration affecting the whole tool is in the root of the configurat
 - `area_id`: the id of the area to process.
 - `create_schema` (boolean, default: `false`): create the `schema` if it does not exist. See [Schemas](#schemas).
 - `dm_filepath` (optional): root-level output path for the distance matrix. Default is `<export.dir>/dm.csv` for `csv` format and `<export.dir>/dm.h5` for `hdf` format.
+- `dist_filepath` (optional): root-level output path for the matrix of the lengths along the fastest paths, generated with `dm_generator.distance_matrix: true`. Default is `<export.dir>/dist.csv` for `csv` format and `<export.dir>/dist.h5` for `hdf` format.
 - `log_level`: the level of the logging.
 - `password_config_file` (optional): path to the file containing the secrets for the database.
 - `schema`: the database schema holding the road network (tables, functions, and procedures of Road Graph Tool). See [Schemas](#schemas).
@@ -418,6 +419,9 @@ This component generates a distance matrix for the road graph (requires `shortes
 - `output_format` (`csv` | `hdf`, default: `csv`): passed to `--output-format` parameter of `shortestPathsPreprocessor`.
 - `default_speed_kmh` (number, default: 14 m/s, about 50 km/h): speed used to compute edge travel times when the edges have no `speed`. Use a walking speed, e.g. `5`, for the pedestrian profile.
 - `speed_factor` (number, default: `1`): multiplier of all edge speeds (including the default speed) in the travel time computation, e.g., to get realistic travel times from the [posted speeds](#posted-speeds). The exported edge speeds stay unchanged.
+- `distance_matrix` (boolean, default: `false`): also generate the distance matrix of the lengths [m] along the fastest paths of the travel time matrix (the same paths; ties broken by the shorter path), rounded to integer metres once per pair, at the root `dist_filepath`. Both matrices come from one run of `shortestPathsPreprocessor` (its secondary distance matrix). The DM generation is skipped only when all requested matrices exist; otherwise all of them are generated again.
+
+The input of `shortestPathsPreprocessor` is written to `<export.dir>/map/dm_input/` in its CSV format (`nodes.csv`, and `edges.csv` with the travel time as `cost` and, for the distance matrix, the length as `secondary_cost`).
 
 
 ## Viewer
