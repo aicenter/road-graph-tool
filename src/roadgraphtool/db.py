@@ -6,7 +6,7 @@ import socket
 import threading
 from pathlib import Path
 from typing import Any, Mapping, Optional, Tuple
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 import geopandas as gpd
 import paramiko
@@ -723,19 +723,28 @@ class Database(object):
     def execute_script(self, script_path: Path, schema: str = 'public', raise_on_error: bool = False):
         """Execute the SQL script in one transaction. On error, the transaction is rolled back and the error is
         logged, or raised if *raise_on_error*."""
-        with open(script_path, encoding="utf-8") as f:
-            script = f.read().replace('{schema}', schema)
-            cursor = self._psycopg2_connection.cursor()
-            try:
-                cursor.execute(script)
-                self._psycopg2_connection.commit()
-            except Exception as e:
-                self._psycopg2_connection.rollback()
-                if raise_on_error:
-                    raise
-                logging.error(f"Error executing script {script_path}: {e}")
-            finally:
-                cursor.close()
+        script = Path(script_path).read_text(encoding="utf-8")
+        try:
+            self.execute_statements([script], schema)
+        except Exception as e:
+            if raise_on_error:
+                raise
+            logging.error(f"Error executing script {script_path}: {e}")
+
+    @ensure_db_connection
+    def execute_statements(self, statements: Iterable[str], schema: str = 'public') -> None:
+        """Execute the SQL *statements* (``{schema}`` replaced by *schema*) in one transaction. On error, the
+        transaction is rolled back and the error is raised."""
+        cursor = self._psycopg2_connection.cursor()
+        try:
+            for statement in statements:
+                cursor.execute(statement.replace('{schema}', schema))
+            self._psycopg2_connection.commit()
+        except Exception:
+            self._psycopg2_connection.rollback()
+            raise
+        finally:
+            cursor.close()
 
     def set_schema(self, schema: str):
         """

@@ -69,9 +69,23 @@ def _drop_routines(db, sql_files: Iterable[Path], schema: str) -> None:
         db.execute_sql(f"DROP ROUTINE {routine}", schema=schema)
 
 
-_TABLE_DEFINITION = re.compile(r"\bcreate\s+table\s+if\s+not\s+exists\s+\{schema\}\.(\w+)\s*\((.*?)\n\);", re.IGNORECASE | re.DOTALL)
-_CONSTRAINT_DEFINITION = re.compile(r"\bconstraint\s+(\"[^\"]+\"|\w+)", re.IGNORECASE)
-_INDEX_DEFINITION = re.compile(r"\bcreate\s+(?:unique\s+)?index\s+(?:if\s+not\s+exists\s+)?(\"[^\"]+\"|\w+)\s+on\b", re.IGNORECASE)
+_TABLE_DEFINITION = re.compile(
+    r"\bcreate\s+table\s+if\s+not\s+exists\s+\{schema\}\.(\w+)\s*\((.*)\)\s*$", re.IGNORECASE | re.DOTALL
+)
+_CONSTRAINT_DEFINITION = re.compile(
+    r"\balter\s+table\s+(?:only\s+)?\{schema\}\.(\w+)\s+add\s+constraint\s+(\"[^\"]+\"|\w+)\s+(.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_INDEX_DEFINITION = re.compile(
+    r"\bcreate\s+(unique\s+)?index\s+(?:if\s+not\s+exists\s+)?(\"[^\"]+\"|\w+)\s+on\s+(.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_INDEX_NAME = re.compile(r"\bindex\s+(?:\"[^\"]+\"|\w+)\s+on\b", re.IGNORECASE)
+_IDEMPOTENT_STATEMENT = re.compile(
+    r"\b(?:create\s+sequence\s+if\s+not\s+exists|create\s+or\s+replace\s+view|comment\s+on"
+    r"|alter\s+table\s+(?:only\s+)?\S+\s+alter\s+column\s+\S+\s+set)\b",
+    re.IGNORECASE,
+)
 _COMMENT = re.compile(r"--[^\n]*")
 _TABLE_CONSTRAINT_KEYWORDS = ("constraint", "primary", "unique", "foreign", "check", "exclude")
 
@@ -80,85 +94,186 @@ def _unquote(identifier: str) -> str:
     return identifier[1:-1] if identifier.startswith('"') else identifier.lower()
 
 
-def _ddl_columns(table_body: str) -> list[str]:
-    """Column names declared in the body of a CREATE TABLE statement (one column per line)."""
-    columns = []
+def _statements(sql: str) -> list[str]:
+    """The non-empty statements of *sql*, split on the semicolons outside of string literals."""
+    statements = []
+    start = 0
+    in_string = False
+    for position, char in enumerate(sql):
+        if char == "'":
+            in_string = not in_string
+        elif char == ";" and not in_string:
+            statements.append(sql[start:position])
+            start = position + 1
+    statements.append(sql[start:])
+    return [statement.strip() for statement in statements if statement.strip()]
+
+
+def _ddl_columns(table_body: str) -> dict[str, str]:
+    """Column names and their definitions declared in the body of a CREATE TABLE statement (one column per line)."""
+    columns = {}
     for line in table_body.splitlines():
-        line = line.strip()
-        if not line or line.startswith("--") or line.lower().startswith(_TABLE_CONSTRAINT_KEYWORDS):
+        line = line.strip().rstrip(",")
+        if not line or line.lower().startswith(_TABLE_CONSTRAINT_KEYWORDS):
             continue
-        columns.append(_unquote(line.split()[0].rstrip(",")))
+        columns[_unquote(line.split()[0])] = line
     return columns
 
 
-def _existing_tables(db, schema: str, tables: list[str]) -> set[str]:
-    sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = :schema AND table_name = ANY(:tables)"
-    return {row[0] for row in db.execute_sql_and_fetch_all_rows(sql, {"schema": schema, "tables": tables})}
+def _existing_columns(db, schema: str, table: str) -> Optional[set[str]]:
+    """The columns of the existing table, or ``None`` if the table does not exist."""
+    sql = """
+        SELECT columns.column_name
+        FROM information_schema.tables
+            LEFT JOIN information_schema.columns USING (table_schema, table_name)
+        WHERE table_schema = :schema AND table_name = :table
+    """
+    rows = db.execute_sql_and_fetch_all_rows(sql, {"schema": schema, "table": table})
+    if not rows:
+        return None
+    return {row[0] for row in rows if row[0] is not None}
 
 
-def _table_differences(db, schema: str, table_sql: str, tables: dict[str, str]) -> list[str]:
-    """Columns, constraints, and indexes declared in the table DDL but missing in the existing tables."""
-    differences = []
-    for table, body in tables.items():
-        columns_sql = "SELECT column_name FROM information_schema.columns WHERE table_schema = :schema AND table_name = :table"
-        existing_columns = {row[0] for row in db.execute_sql_and_fetch_all_rows(columns_sql, {"schema": schema, "table": table})}
-        differences.extend(
-            f"{schema}.{table}: missing column {column}" for column in _ddl_columns(body) if column not in existing_columns
-        )
-
-    constraints_sql = """
-        SELECT constraints.conname
+def _existing_constraints(db, schema: str) -> dict[str, dict[str, tuple[str, str]]]:
+    """The constraints of the tables in *schema*: table name -> constraint name -> (constraint type, definition)."""
+    sql = """
+        SELECT tables.relname, constraints.conname, constraints.contype, pg_get_constraintdef(constraints.oid)
         FROM pg_constraint AS constraints
-            JOIN pg_namespace AS namespaces ON namespaces.oid = constraints.connamespace
+            JOIN pg_class AS tables ON tables.oid = constraints.conrelid
+            JOIN pg_namespace AS namespaces ON namespaces.oid = tables.relnamespace
         WHERE namespaces.nspname = :schema
     """
-    existing_constraints = {row[0] for row in db.execute_sql_and_fetch_all_rows(constraints_sql, {"schema": schema})}
-    differences.extend(
-        f"missing constraint {constraint}"
-        for constraint in map(_unquote, _CONSTRAINT_DEFINITION.findall(table_sql))
-        if constraint not in existing_constraints
-    )
+    constraints: dict[str, dict[str, tuple[str, str]]] = {}
+    for table, name, constraint_type, definition in db.execute_sql_and_fetch_all_rows(sql, {"schema": schema}):
+        constraints.setdefault(table, {})[name] = (constraint_type, definition)
+    return constraints
 
-    indexes_sql = "SELECT indexname FROM pg_indexes WHERE schemaname = :schema"
-    existing_indexes = {row[0] for row in db.execute_sql_and_fetch_all_rows(indexes_sql, {"schema": schema})}
-    differences.extend(
-        f"missing index {index}"
-        for index in map(_unquote, _INDEX_DEFINITION.findall(table_sql))
-        if index not in existing_indexes
-    )
-    return differences
+
+def _existing_indexes(db, schema: str) -> dict[str, str]:
+    """The indexes in *schema*: index name -> definition (``CREATE INDEX`` statement)."""
+    sql = "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = :schema"
+    return {row[0]: row[1] for row in db.execute_sql_and_fetch_all_rows(sql, {"schema": schema})}
+
+
+def _normalize_definition(definition: str, schema: str) -> str:
+    """The constraint or index definition in a form comparable between the DDL and the catalog: without schema
+    qualification, identifier quotes, and case and whitespace differences."""
+    definition = definition.replace("{schema}.", "").replace(f"{schema}.", "")
+    definition = re.sub(r"\s+", " ", definition.lower()).replace('"', "")
+    return re.sub(r"\s*([(),])\s*", r"\1", definition).strip()
+
+
+def _constraint_statements(
+    statement: str, table: str, name: str, definition: str, existing: dict[str, tuple[str, str]], schema: str
+) -> list[str]:
+    """The statements making the constraint *name* with *definition* of the ``ADD CONSTRAINT`` *statement* exist on
+    *table*, given the table's *existing* constraints (name -> (type, definition)): none if it exists, a rename if
+    it exists under another name, a replacement if its definition changed or if another primary key exists, and the
+    addition otherwise."""
+    alter = f"ALTER TABLE ONLY {{schema}}.{table}"
+    add = f"ADD CONSTRAINT {name} {definition}"
+    normalized = _normalize_definition(definition, schema)
+    existing_definition = existing.get(_unquote(name))
+    if existing_definition is not None:
+        if _normalize_definition(existing_definition[1], schema) == normalized:
+            return []
+        return [f"{alter} DROP CONSTRAINT {name}, {add}"]
+    for other, (_, other_definition) in existing.items():
+        if _normalize_definition(other_definition, schema) == normalized:
+            return [f'{alter} RENAME CONSTRAINT "{other}" TO {name}']
+    if normalized.startswith("primary key"):
+        for other, (constraint_type, _) in existing.items():
+            if constraint_type == "p":
+                return [f'{alter} DROP CONSTRAINT "{other}", {add}']
+    return [statement]
+
+
+def _index_statements(statement: str, unique: bool, name: str, definition: str, existing: dict[str, str], schema: str) -> list[str]:
+    """The statements making the index *name* with *definition* (the part after ``ON``) of the ``CREATE INDEX``
+    *statement* exist, given the *existing* indexes (name -> definition): none if it exists (its definition is not
+    compared), a rename if an index with the same definition exists under another name, and the creation otherwise.
+    """
+    if _unquote(name) in existing:
+        return []
+    normalized = _normalize_definition(f"create {'unique ' if unique else ''}index on {definition}", schema)
+    for other, other_definition in existing.items():
+        if _normalize_definition(_INDEX_NAME.sub("index on", other_definition), schema) == normalized:
+            return [f'ALTER INDEX {{schema}}."{other}" RENAME TO {name}']
+    return [statement]
+
+
+def _update_statements(
+    db,
+    schema: str,
+    table_sql: str,
+    existing_constraints: dict[str, dict[str, tuple[str, str]]],
+    existing_indexes: dict[str, str],
+) -> list[str]:
+    """The statements of the table DDL *table_sql* that make the schema match the DDL without dropping anything.
+
+    ``CREATE TABLE`` statements of existing tables are replaced by ``ALTER TABLE ... ADD COLUMN`` statements for the
+    columns missing in the table (table constraints declared in the table body are not added); constraints and
+    indexes are added, renamed, or replaced as described in ``_constraint_statements`` and ``_index_statements``;
+    the other statements (sequences, views, comments, column defaults and options) are idempotent by themselves.
+    """
+    statements = []
+    for statement in _statements(_COMMENT.sub("", table_sql)):
+        table_definition = _TABLE_DEFINITION.match(statement)
+        constraint_definition = _CONSTRAINT_DEFINITION.match(statement)
+        index_definition = _INDEX_DEFINITION.match(statement)
+        if table_definition:
+            table = table_definition.group(1).lower()
+            existing_columns = _existing_columns(db, schema, table)
+            if existing_columns is None:
+                statements.append(statement)
+            else:
+                statements.extend(
+                    f"ALTER TABLE {{schema}}.{table} ADD COLUMN {definition}"
+                    for column, definition in _ddl_columns(table_definition.group(2)).items()
+                    if column not in existing_columns
+                )
+        elif constraint_definition:
+            table, name, definition = constraint_definition.groups()
+            table = table.lower()
+            statements.extend(
+                _constraint_statements(
+                    statement, table, name, definition.strip(), existing_constraints.get(table, {}), schema
+                )
+            )
+        elif index_definition:
+            unique, name, definition = index_definition.groups()
+            statements.extend(_index_statements(statement, bool(unique), name, definition, existing_indexes, schema))
+        elif _IDEMPOTENT_STATEMENT.match(statement):
+            statements.append(statement)
+        else:
+            raise RuntimeError(f"Unsupported statement in the table DDL:\n{statement}")
+    return statements
 
 
 def _install_tables(db, sql_dir: Path, schema: str) -> None:
-    """Create the tables (and views) of the table DDL files that do not exist yet.
+    """Create the tables (and views) of the table DDL files and add what the existing tables lack.
 
-    Existing tables are not changed: if they differ from the DDL (missing columns, constraints, or indexes), the
-    installation fails with the list of differences, which have to be resolved manually (e.g., by a migration or by
-    recreating the table). Column types are not compared.
+    The DDL files are executed statement by statement (one transaction per file): the missing columns of existing
+    tables are added with ``ALTER TABLE ... ADD COLUMN``, constraints and indexes that exist under another name are
+    renamed, constraints whose definition changed (or primary keys replacing a differently named one) are dropped and
+    added again, and the ones that already exist are skipped (see ``_update_statements``). No data is touched:
+    columns, constraints, and indexes that exist in the database but not in the DDL are kept, and column types are
+    not compared. If the database refuses a change (e.g., a primary key on a table with duplicate keys, a NOT NULL
+    column without a default on a table with rows, or dropping a key referenced by a foreign key), the installation
+    fails with the database error, and the difference has to be resolved manually.
     """
-    differences = []
+    existing_constraints = _existing_constraints(db, schema)
+    existing_indexes = _existing_indexes(db, schema)
     for table_sql_path in sorted((sql_dir / "tables").glob("*.sql")):
-        table_sql = _COMMENT.sub("", table_sql_path.read_text(encoding="utf-8"))
-        tables = {name.lower(): body for name, body in _TABLE_DEFINITION.findall(table_sql)}
-        existing = _existing_tables(db, schema, list(tables))
-        if not existing:
-            # new tables, or only views and other idempotent statements
-            logging.info("Executing %s", table_sql_path)
-            db.execute_script(table_sql_path, schema, raise_on_error=True)
-        elif len(existing) == len(tables):
-            differences.extend(
-                f"{table_sql_path.name}: {difference}"
-                for difference in _table_differences(db, schema, table_sql, tables)
-            )
-        else:
-            differences.append(
-                f"{table_sql_path.name}: only some of the tables exist: {sorted(existing)} of {sorted(tables)}"
-            )
-    if differences:
-        raise RuntimeError(
-            f"Existing tables in schema '{schema}' differ from the DDL, resolve the differences manually:\n"
-            + "\n".join(differences)
-        )
+        table_sql = table_sql_path.read_text(encoding="utf-8")
+        statements = _update_statements(db, schema, table_sql, existing_constraints, existing_indexes)
+        if not statements:
+            logging.debug("%s: nothing to add", table_sql_path.name)
+            continue
+        logging.info("Executing %s statements of %s", len(statements), table_sql_path)
+        for statement in statements:
+            logging.debug("%s", statement)
+        db.execute_statements(statements, schema)
 
 
 def install_sql(
