@@ -5,8 +5,7 @@
 CREATE TABLE IF NOT EXISTS {schema}.nodes (
     id bigint NOT NULL,
     geom public.geometry(Point,4326) NOT NULL,
-    area integer,
-    contracted boolean DEFAULT false NOT NULL
+    area integer
 );
 
 

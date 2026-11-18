@@ -12,15 +12,15 @@ BEGIN
 
     RAISE NOTICE 'Inserting into nodes';
     -- insert 5 nodes within the test area
-    INSERT INTO nodes(id, geom, area, contracted) VALUES (1, ST_GeomFromText('POINT(1 1)', 4326), 1, false)
-    , (2, ST_GeomFromText('POINT(1 5)', 4326), 1, false)
-    , (3, ST_GeomFromText('POINT(5 5)', 4326), 1, false)
-    , (4, ST_GeomFromText('POINT(5 1)', 4326), 1, false)
-    , (5, ST_GeomFromText('POINT(9 1)', 4326), 1, false);
+    INSERT INTO nodes(id, geom, area) VALUES (1, ST_GeomFromText('POINT(1 1)', 4326), 1)
+    , (2, ST_GeomFromText('POINT(1 5)', 4326), 1)
+    , (3, ST_GeomFromText('POINT(5 5)', 4326), 1)
+    , (4, ST_GeomFromText('POINT(5 1)', 4326), 1)
+    , (5, ST_GeomFromText('POINT(9 1)', 4326), 1);
     -- insert 3 nodes outside the test area
-    INSERT INTO nodes(id, geom, area, contracted) VALUES (6, ST_GeomFromText('POINT(11 1)', 4326), 1, false),
-    (7, ST_GeomFromText('POINT(11 5)', 4326), 1, false),
-    (8, ST_GeomFromText('POINT(11 11)', 4326), 1, false);
+    INSERT INTO nodes(id, geom, area) VALUES (6, ST_GeomFromText('POINT(11 1)', 4326), 1),
+    (7, ST_GeomFromText('POINT(11 5)', 4326), 1),
+    (8, ST_GeomFromText('POINT(11 11)', 4326), 1);
 
     -- insert 2 ways within the test area
     RAISE NOTICE 'Inserting into ways';

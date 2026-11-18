@@ -87,6 +87,13 @@ _IDEMPOTENT_STATEMENT = re.compile(
     re.IGNORECASE,
 )
 _COMMENT = re.compile(r"--[^\n]*")
+
+_OBSOLETE_COLUMNS: dict[str, tuple[str, ...]] = {
+    # the contraction is stored per area in the edges, see the README section "Multiple areas in one schema"
+    "nodes": ("contracted",),
+}
+"""Columns (by table) removed from the table DDL that are dropped from existing tables, together with their data.
+All other columns that are not in the DDL are kept."""
 _TABLE_CONSTRAINT_KEYWORDS = ("constraint", "primary", "unique", "foreign", "check", "exclude")
 
 
@@ -209,10 +216,12 @@ def _update_statements(
     existing_constraints: dict[str, dict[str, tuple[str, str]]],
     existing_indexes: dict[str, str],
 ) -> list[str]:
-    """The statements of the table DDL *table_sql* that make the schema match the DDL without dropping anything.
+    """The statements of the table DDL *table_sql* that make the schema match the DDL without dropping anything
+    but the obsolete columns (``_OBSOLETE_COLUMNS``).
 
     ``CREATE TABLE`` statements of existing tables are replaced by ``ALTER TABLE ... ADD COLUMN`` statements for the
-    columns missing in the table (table constraints declared in the table body are not added); constraints and
+    columns missing in the table (table constraints declared in the table body are not added) and
+    ``ALTER TABLE ... DROP COLUMN`` statements for the obsolete columns present in the table; constraints and
     indexes are added, renamed, or replaced as described in ``_constraint_statements`` and ``_index_statements``;
     the other statements (sequences, views, comments, column defaults and options) are idempotent by themselves.
     """
@@ -231,6 +240,11 @@ def _update_statements(
                     f"ALTER TABLE {{schema}}.{table} ADD COLUMN {definition}"
                     for column, definition in _ddl_columns(table_definition.group(2)).items()
                     if column not in existing_columns
+                )
+                statements.extend(
+                    f'ALTER TABLE {{schema}}.{table} DROP COLUMN "{column}"'
+                    for column in _OBSOLETE_COLUMNS.get(table, ())
+                    if column in existing_columns
                 )
         elif constraint_definition:
             table, name, definition = constraint_definition.groups()
@@ -256,9 +270,9 @@ def _install_tables(db, sql_dir: Path, schema: str) -> None:
     The DDL files are executed statement by statement (one transaction per file): the missing columns of existing
     tables are added with ``ALTER TABLE ... ADD COLUMN``, constraints and indexes that exist under another name are
     renamed, constraints whose definition changed (or primary keys replacing a differently named one) are dropped and
-    added again, and the ones that already exist are skipped (see ``_update_statements``). No data is touched:
-    columns, constraints, and indexes that exist in the database but not in the DDL are kept, and column types are
-    not compared. If the database refuses a change (e.g., a primary key on a table with duplicate keys, a NOT NULL
+    added again, and the ones that already exist are skipped (see ``_update_statements``). The obsolete columns
+    (``_OBSOLETE_COLUMNS``) are dropped with their data. No other data is touched: the other columns, constraints,
+    and indexes that exist in the database but not in the DDL are kept, and column types are not compared. If the database refuses a change (e.g., a primary key on a table with duplicate keys, a NOT NULL
     column without a default on a table with rows, or dropping a key referenced by a foreign key), the installation
     fails with the database error, and the difference has to be resolved manually.
     """

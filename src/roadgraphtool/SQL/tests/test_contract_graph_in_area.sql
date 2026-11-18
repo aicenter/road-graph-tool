@@ -22,8 +22,16 @@ CREATE OR REPLACE FUNCTION validate_contracted_nodes(expected_contracted_nodes b
 DECLARE
     actual_contracted_nodes bigint[];
 BEGIN
-    -- Get actual contracted nodes
-    SELECT ARRAY(SELECT id FROM nodes WHERE contracted = TRUE)::bigint[] INTO actual_contracted_nodes;
+    -- Get actual contracted nodes: the nodes of the test ways that are not a node of any edge of the test area
+    SELECT ARRAY(
+        SELECT nodes_ways.node_id
+        FROM nodes_ways
+        WHERE nodes_ways.area = 9999
+        EXCEPT
+        SELECT unnest(ARRAY[edges."from", edges."to"])
+        FROM edges
+        WHERE edges.area = 9999
+    )::bigint[] INTO actual_contracted_nodes;
     
     -- NULL check
     IF actual_contracted_nodes IS NULL THEN

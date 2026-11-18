@@ -18,6 +18,7 @@
    - [compute_strong_components](#compute_strong_components)
    - [contract_graph_in_area](#contract_graph_in_area)
    - [insert_area](#insert_area)
+   - [wipe_area_results](#wipe_area_results)
 
 # Python Functions
 
@@ -193,7 +194,7 @@ SELECT insert_area(1, 'Area Name', 'Description','{
 ## [`select_network_nodes_in_area`](SQL/functions/function_select_network_nodes_in_area.sql)
 
 ### Description
-The `select_network_nodes_in_area` function retrieves network nodes within a specified geographic area.
+The `select_network_nodes_in_area` function retrieves the network nodes of an area: the nodes of the largest strong component computed for the area (see [`compute_strong_components`](#compute_strong_components)). The result does not depend on the other areas in the schema.
 
 ### Parameters
 - `area_id` (smallint): The ID of the area for which network nodes are to be selected.
@@ -235,6 +236,7 @@ This procedure transfers data from temporary tables (with prefix `_tmp`, not SQL
    - Insert into `nodes_ways` from `nodes_ways_tmp`, joining with `ways_tmp` and `nodes_tmp`
 
 ### Notes
+- Legacy procedure, not called by the pipeline. It deletes the nodes and ways by their `area` column, so it is not safe when [multiple areas](../README.md#multiple-areas-in-one-schema) share the schema.
 - All insert operations use `ON CONFLICT DO NOTHING` clause to handle potential conflicts.
 - The procedure assumes that temporary tables contain only data related to the specified `map_area`.
 
@@ -361,14 +363,17 @@ CALL compute_speeds_from_neighborhood_segments(
 ## [`compute_strong_components`](SQL/procedures/procedure_compute_strongly_connected_components.sql)
 
 ### Description
-The `compute_strong_components` procedure computes strong components for a specified target area and stores the results in the `component_data` table.
+The `compute_strong_components` procedure computes strong components for a specified target area and stores the results in the `component_data` table. Only the edges generated for the target area (`edges.area`) are used, so the edges of other areas in the schema, including overlapping ones, have no effect.
 
 ### Parameters
 - `target_area_id` (smallint): Area for which strong components are computed.
 
+### Error Handling
+The procedure raises an exception if the area does not exist, if it has no edges (the graph in the area has to be contracted first), or if it already has strong components (remove them with [`wipe_area_results`](#wipe_area_results)).
+
 ### Operations
 1. Create temporary table `components` to store strong components.
-2. Execute `pgr_strongcomponents` function to compute strong components.
+2. Execute `pgr_strongcomponents` function to compute strong components of the edges of the area.
 3. Store results in the `component_data` table.
 4. Drop temporary table `components`.
 
@@ -386,11 +391,16 @@ CALL compute_strong_components(target_area_id := CAST(5 AS smallint));
 ## [`contract_graph_in_area`](SQL/procedures/procedure_contract_graph_in_area.sql)
 
 ### Description
-This procedure optimizes road network data within a specific area by contracting the graph representation of the road network and generating optimized edge data.
+This procedure optimizes road network data within a specific area by contracting the graph representation of the road network and generating optimized edge data. The contraction is stored only in the edges of the area (`edges.area`), so the contractions of other areas in the schema, including overlapping ones, are neither read nor changed.
 
 ### Parameters
 - `target_area_id` (smallint): The target geographical area ID.
 - `target_area_srid` (integer): The spatial reference identifier for the target geographical area.
+- `speed_source` (varchar, default `none`): the source of the edge speeds, see the [Graph Contraction](../README.md#graph-contraction) section of the README.
+- `posted_speeds` (jsonb, default `NULL`): the posted speed mapping for the `posted` speed source.
+
+### Error Handling
+The procedure raises an exception if the area already has edges (remove them with [`wipe_area_results`](#wipe_area_results)), or if there are no road segments in the area.
 
 ### Operations
 1. Create Temporary Table `road_segments`:
@@ -401,23 +411,21 @@ This procedure optimizes road network data within a specific area by contracting
     * This operation contracts the graph representation of the road network using the `pgr_contraction` function.
     * The contracted vertices are stored in a temporary table named `contractions`, along with their corresponding source and target nodes.
     * Another index named `contractions_index_contracted_vertex` is created on the `contracted_vertex` column of the `contractions` table for efficient retrieval of contracted vertices.
-3. Update Nodes:
-    * This operation updates the `nodes` table, marking nodes as contracted where their IDs match the contracted vertices stored in the `contractions` table.
-4. Create Edges for Non-contracted Road Segments:
-    * This operation generates edge data for non-contracted road segments by joining the `road_segments` table with the `nodes` table to retrieve geometry and other attributes.
+3. Create Edges for Non-contracted Road Segments:
+    * This operation generates edge data for the road segments with no node among the contracted vertices in the `contractions` table, joining the `road_segments` table with the `nodes` table to retrieve geometry and other attributes.
     * The resulting edge data is inserted into the `edges` table, which represents the road network.
-5. Generate Contraction Segments:
+4. Generate Contraction Segments:
     * This operation generates contraction segments based on the contracted graph representation stored in the `contractions` table.
     * Contraction segments represent aggregated road segments between contracted nodes.
     * The generated segments are stored in a temporary table named `contraction_segments`.
-6. Create Edges for Contracted Road Segments:
+5. Create Edges for Contracted Road Segments:
     * This operation generates edge data for contracted road segments by aggregating contraction segments and calculating average speed.
     * The resulting edge data is inserted into the `edges` table, complementing the existing edge data for non-contracted segments.
+6. Drop the temporary tables `road_segments`, `contractions`, and `contraction_segments`.
 
 ![procedure_contract_graph_in_area](https://github.com/aicenter/road-graph-tool/assets/25695606/8de0fd29-6500-4a13-a3c1-31b57f864c65)
 
 ### Outputs
-- Updates `nodes` table to mark contracted nodes.
 - Inserts edge data for both contracted and non-contracted road segments into the `edges` table.
 
 ### Example
@@ -443,4 +451,20 @@ This function inserts a new area into a database table named `areas`. The area i
 ### Example
 ```sql
 INSERT INTO areas(name, geom) VALUES('name', st_geomfromgeojson('{"type": "MultiPolygon", "coordinates": []}'));
+```
+
+## [`wipe_area_results`](../src/roadgraphtool/SQL/procedures/procedure_wipe_area_results.sql)
+
+### Description
+This procedure deletes the results computed for one area: its strong components (`component_data`) and its edges (`edges`). Afterwards, the graph in the area can be contracted again. The area itself, the results of the other areas, and the imported road network (`nodes`, `ways`, `nodes_ways`, tags) are kept. See [Multiple areas in one schema](../README.md#multiple-areas-in-one-schema).
+
+### Parameters
+- `target_area_id` (smallint): The area whose results are deleted.
+
+### Error Handling
+The procedure raises an exception if the area does not exist.
+
+### Example
+```sql
+CALL wipe_area_results(CAST(5 AS smallint));
 ```

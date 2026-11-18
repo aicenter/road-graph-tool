@@ -1,5 +1,7 @@
 ------------------------------------------------------------------------------------------------------------------------
--- This function returns road network nodes in a given area.
+-- This function returns road network nodes in a given area: the nodes of the largest strong component of the area.
+-- The components of an area contain only the nodes of the edges of that area (see compute_strong_components), so
+-- the result does not depend on the other areas in the schema.
 -- Parameters:
 --      - area_id: The area id.
 -- Returns: network nodes in the given area.
@@ -24,6 +26,5 @@ SELECT
 		ON component_data.node_id = nodes.id
 		   	AND component_data.area = area_id
 			AND component_data.component_id = 0
-			AND nodes.contracted = FALSE
 ORDER BY nodes.id;
 $$

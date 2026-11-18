@@ -1,3 +1,5 @@
+-- Nodes of the road segments (road_segments temporary table, see contract_graph_in_area) that must not be contracted.
+-- Only the nodes of the road segments are considered, so the other areas in the schema have no effect.
 CREATE OR REPLACE FUNCTION get_restricted_nodes()
     RETURNS bigint[]
     LANGUAGE plpgsql
@@ -9,8 +11,12 @@ BEGIN
     RAISE NOTICE 'Computing restricted nodes';
 
     restricted_nodes := (
-        SELECT array_agg(nodes.id)
-        FROM nodes
+        SELECT array_agg(segment_nodes.id)
+        FROM (
+            SELECT road_segments.from_node AS id FROM road_segments
+            UNION
+            SELECT road_segments.to_node AS id FROM road_segments
+        ) AS segment_nodes
             LEFT JOIN (
             -- case A: one ways to contract
             SELECT max(nodes.id) AS contract_node_id
@@ -38,7 +44,7 @@ BEGIN
                AND count(DISTINCT neighbour_nodes.id) = 2
                AND count(1) = 6
         ) AS contract_nodes
-                      ON nodes.id = contract_node_id
+                      ON segment_nodes.id = contract_node_id
         WHERE contract_node_id IS NULL
     );
 

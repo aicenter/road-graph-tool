@@ -1,12 +1,16 @@
 from types import SimpleNamespace
 
+import pytest
 from shapely import geometry
 
+from roadgraphtool.exceptions import ImportConflictError
 from roadgraphtool.overpass_import import (
     _HIGHWAY_FILTER,
     _build_way_query,
     _car_direction,
     _configured_tag_keys,
+    _new_nodes,
+    _new_ways,
     _pedestrian_direction,
     _poly_to_overpass_arg,
     _tag_rows,
@@ -119,3 +123,51 @@ def test_tag_rows_keeps_configured_tags_for_inserted_elements_only():
         {"way_id": 1, "tag_id": 11, "tag_value": "Main St"},
         {"way_id": 3, "tag_id": 11, "tag_value": "Skipped"},
     ]
+
+
+def test_new_nodes_skips_identical_existing_nodes():
+    node_coord = {1: (14.4, 50.1), 2: (14.5, 50.2), 3: (14.6, 50.3)}
+
+    # coordinates stored by another import may differ below the OSM precision
+    new_nodes = _new_nodes(node_coord, {2: (14.5 + 1e-9, 50.2)})
+
+    assert new_nodes == {1: (14.4, 50.1), 3: (14.6, 50.3)}
+
+
+def test_new_nodes_rejects_existing_node_with_other_coordinates():
+    node_coord = {1: (14.4, 50.1), 2: (14.5, 50.2)}
+
+    with pytest.raises(ImportConflictError, match="1 imported nodes are already in the database .*: 2\\."):
+        _new_nodes(node_coord, {1: (14.4, 50.1), 2: (14.5, 50.2001)})
+
+
+def test_new_ways_skips_identical_existing_ways():
+    ways = {10: {"nodes": [1, 2, 3], "oneway": True}, 11: {"nodes": [3, 4], "oneway": False}}
+
+    new_ways = _new_ways(ways, {10: {"nodes": [1, 2, 3], "oneway": True}})
+
+    assert new_ways == {11: {"nodes": [3, 4], "oneway": False}}
+
+
+@pytest.mark.parametrize(
+    "existing_way",
+    [
+        {"nodes": [1, 2], "oneway": True},  # other nodes
+        {"nodes": [3, 2, 1], "oneway": True},  # other direction of the nodes
+        {"nodes": [1, 2, 3], "oneway": False},  # other direction, e.g., from another network profile
+        {"nodes": None, "oneway": True},  # way stored without nodes
+    ],
+)
+def test_new_ways_rejects_existing_way_with_other_nodes_or_direction(existing_way):
+    ways = {10: {"nodes": [1, 2, 3], "oneway": True}}
+
+    with pytest.raises(ImportConflictError, match="1 imported ways are already in the database .*: 10\\."):
+        _new_ways(ways, {10: existing_way})
+
+
+def test_import_conflict_error_reports_the_first_conflicts_only():
+    error = ImportConflictError("nodes", list(range(1, 14)), "coordinates")
+
+    assert "13 imported nodes" in str(error)
+    assert ": 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 3 more." in str(error)
+    assert error.conflicts == list(range(1, 14))

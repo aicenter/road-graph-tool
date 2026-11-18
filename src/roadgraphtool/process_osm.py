@@ -8,7 +8,7 @@ from typing import Optional
 import roadgraphtool.exec
 from roadgraphtool.config import get_path_from_config
 from roadgraphtool.db import db
-from roadgraphtool.exceptions import InvalidInputError, TableNotEmptyError, SubprocessError
+from roadgraphtool.exceptions import ImportConflictError, InvalidInputError, TableNotEmptyError, SubprocessError
 from roadgraphtool.insert_area import genereate_area
 from roadgraphtool.schema import *
 from roadgraphtool.filter_osm import load_multipolygon_by_id, is_valid_extension
@@ -219,12 +219,17 @@ def postprocess_osm_import(config, existing_area_id: Optional[int] = None) -> in
     else:
         area_id = _create_area_from_import(config)
 
-    overlaps = {}
-    overlaps['nodes'] = get_overlapping_elements_count(schema, target_schema, 'nodes')
-    overlaps['ways'] = get_overlapping_elements_count(schema, target_schema, 'ways')
-    overlaps['relations'] = get_overlapping_elements_count(schema, target_schema, 'relations')
+    # nodes and ways already in the database (imported with another area) are not copied, they have to be the same
+    check_existing_nodes(schema, target_schema)
+    check_existing_ways(schema, target_schema)
+    for table_name in ('nodes', 'ways'):
+        logging.info(
+            "%s imported %s are already in the database",
+            get_overlapping_elements_count(schema, target_schema, table_name),
+            table_name,
+        )
 
-    check_and_print_warning(overlaps)
+    check_and_print_warning({'relations': get_overlapping_elements_count(schema, target_schema, 'relations')})
 
     copy_nodes(schema, target_schema, area_id)
     copy_ways(schema, target_schema, area_id)
@@ -294,6 +299,47 @@ def check_and_print_warning(overlaps: dict[str, int]):
             logging.warning(f"{overlap} {element_type} with the same ID are already in the database and not added.")
 
 
+COORDINATE_TOLERANCE = 1e-7
+"""OSM coordinate precision in degrees. Coordinates of the same node from two imports may differ by less."""
+
+
+def check_existing_nodes(import_schema: str, target_schema: str):
+    """Raise ``ImportConflictError`` if a node of the import schema is in the target schema with other coordinates."""
+    query = f'''
+        SELECT i.id
+        FROM "{import_schema}".nodes i
+            JOIN "{target_schema}".nodes e ON e.id = i.id
+        WHERE abs(ST_X(i.geom) - ST_X(e.geom)) > {COORDINATE_TOLERANCE}
+            OR abs(ST_Y(i.geom) - ST_Y(e.geom)) > {COORDINATE_TOLERANCE}
+        ORDER BY i.id'''
+    conflicts = [int(row[0]) for row in db.execute_sql_and_fetch_all_rows(query)]
+    if conflicts:
+        raise ImportConflictError("nodes", conflicts, "coordinates")
+
+
+def check_existing_ways(import_schema: str, target_schema: str):
+    """Raise ``ImportConflictError`` if a way of the import schema is in the target schema with other nodes or
+    direction."""
+    query = f'''
+        SELECT i.id
+        FROM "{import_schema}".ways i
+            JOIN "{target_schema}".ways e ON e.id = i.id
+        WHERE i.oneway IS DISTINCT FROM e.oneway
+            OR (
+                SELECT array_agg(nodes_ways.node_id::bigint ORDER BY nodes_ways."position")
+                FROM "{import_schema}".nodes_ways
+                WHERE nodes_ways.way_id = i.id
+            ) IS DISTINCT FROM (
+                SELECT array_agg(nodes_ways.node_id::bigint ORDER BY nodes_ways."position")
+                FROM "{target_schema}".nodes_ways
+                WHERE nodes_ways.way_id = e.id
+            )
+        ORDER BY i.id'''
+    conflicts = [int(row[0]) for row in db.execute_sql_and_fetch_all_rows(query)]
+    if conflicts:
+        raise ImportConflictError("ways", conflicts, "nodes or direction")
+
+
 def generate_area_id(connection, target_schema):
     with connection.cursor() as cursor:
         query = f'''
@@ -341,6 +387,8 @@ def copy_nodes(import_schema: str, target_schema: str, area_id: int):
 
 
 def copy_nodes_ways(import_schema: str, target_schema: str, area_id: int):
+    """Copy the nodes of the ways that have no nodes in the target schema yet, i.e., of the ways copied by
+    ``copy_ways``. The ways that were already in the database keep their nodes (see ``check_existing_ways``)."""
     logging.debug("Copying nodes ways")
     query = f'''
             INSERT INTO "{target_schema}".nodes_ways (way_id,node_id,"position",area)
@@ -349,7 +397,11 @@ def copy_nodes_ways(import_schema: str, target_schema: str, area_id: int):
             WHERE EXISTS
                 (SELECT id
                     FROM "{target_schema}".ways e
-                    WHERE i.way_id = e.id AND e.area = {area_id})'''
+                    WHERE i.way_id = e.id)
+                AND NOT EXISTS
+                (SELECT id
+                    FROM "{target_schema}".nodes_ways e
+                    WHERE i.way_id = e.way_id)'''
     logging.debug(f'Executing following SQL: {query}')
     result = db.execute_sql(query)
     logging.debug(f'Inserted rows: {result.rowcount}')

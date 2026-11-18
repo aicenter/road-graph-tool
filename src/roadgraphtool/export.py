@@ -65,9 +65,8 @@ def get_map_edges_from_db(config: dict, schema: str | None = None) -> gpd.GeoDat
             JOIN demand_nodes from_nodes ON edges."from" = from_nodes.db_id
             JOIN demand_nodes to_nodes ON edges."to" = to_nodes.db_id
         WHERE
-            edges.area = {config.area_id}::smallint -- This is to support overlapping areas. For using another 
-                                                        --area for edges (like for Manhattan), new edge_are_id param 
-                                                        -- should be added to config.yaml
+            edges.area = {config.area_id}::smallint -- only the edges generated for this area, the schema can
+                                                        -- contain edges of other, even overlapping, areas
     """
     edges = db.execute_query_to_geopandas(sql, schema=schema)
 

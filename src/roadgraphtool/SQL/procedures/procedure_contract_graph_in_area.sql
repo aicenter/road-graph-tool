@@ -3,6 +3,10 @@
 --   fcd: speeds from floating car data (nodes_ways_speeds), contracted edges get the length-weighted mean speed,
 --   posted: posted speeds (see select_posted_way_speeds, posted_speeds is its p_posted_speeds parameter).
 --     Nodes where the posted speed changes are not contracted, so each edge has a single posted speed.
+--
+-- The contraction is computed for the target area only and stored in the edges of this area (edges.area), so the
+-- contractions of other areas in the schema, including overlapping ones, are neither read nor changed.
+-- An area that already has edges is not contracted again, see wipe_area_results.
 CREATE OR REPLACE PROCEDURE contract_graph_in_area(
     IN target_area_id smallint,
     IN target_area_srid integer,
@@ -21,6 +25,11 @@ IF speed_source IS NULL OR speed_source NOT IN ('none', 'fcd', 'posted') THEN
     RAISE EXCEPTION 'Unsupported speed source: %. Supported: none, fcd, posted.', speed_source;
 END IF;
 fill_speed := speed_source <> 'none';
+
+IF EXISTS (SELECT 1 FROM edges WHERE area = target_area_id) THEN
+    RAISE EXCEPTION 'Area % already has edges. To contract it again, remove them first with wipe_area_results.',
+        target_area_id;
+END IF;
 
 -- road segments table
 RAISE NOTICE 'Creating road segments table';
@@ -59,6 +68,9 @@ end if;
 
 CREATE INDEX road_segments_index_from_to ON road_segments (from_id, to_id);
 RAISE NOTICE 'Road segments table created: % road segments', (SELECT count(*) FROM road_segments);
+IF NOT EXISTS (SELECT 1 FROM road_segments) THEN
+    RAISE EXCEPTION 'No road segments in area %', target_area_id;
+END IF;
 
 -- get restricted nodes
 RAISE NOTICE 'Computing restricted nodes';
@@ -70,16 +82,7 @@ END IF;
 -- contraction
 CALL compute_contractions(restricted_nodes);
 
--- update nodes
-RAISE NOTICE 'Updating nodes';
-UPDATE nodes
-	SET contracted = TRUE
-WHERE id IN (
-	SELECT contracted_vertex
-	FROM contractions
-);
-
--- edges for non contracted road segments
+-- edges for non contracted road segments: neither of the two nodes was contracted
 RAISE NOTICE 'Creating edges for non-contracted road segments';
 
 IF fill_speed THEN
@@ -91,9 +94,12 @@ SELECT
 	target_area_id AS area,
 	speed
 	FROM road_segments
-		JOIN nodes from_nodes ON from_nodes.id  = from_node AND from_nodes.contracted = FALSE
-		JOIN nodes to_nodes ON to_nodes.id  = to_node AND to_nodes.contracted = FALSE
-	JOIN ways ON ways.id = road_segments.way_id;
+		JOIN nodes from_nodes ON from_nodes.id  = from_node
+		JOIN nodes to_nodes ON to_nodes.id  = to_node
+	JOIN ways ON ways.id = road_segments.way_id
+	WHERE NOT EXISTS (
+		SELECT 1 FROM contractions WHERE contractions.contracted_vertex IN (road_segments.from_node, road_segments.to_node)
+	);
 ELSE
 INSERT INTO edges ("from", "to", geom, area)
 SELECT
@@ -102,9 +108,12 @@ SELECT
     st_multi(st_makeline(from_nodes.geom, to_nodes.geom)) as geom,
     target_area_id AS area
     FROM road_segments
-        JOIN nodes from_nodes ON from_nodes.id  = from_node AND from_nodes.contracted = FALSE
-        JOIN nodes to_nodes ON to_nodes.id  = to_node AND to_nodes.contracted = FALSE
-        JOIN ways ON ways.id = road_segments.way_id;
+        JOIN nodes from_nodes ON from_nodes.id  = from_node
+        JOIN nodes to_nodes ON to_nodes.id  = to_node
+        JOIN ways ON ways.id = road_segments.way_id
+    WHERE NOT EXISTS (
+        SELECT 1 FROM contractions WHERE contractions.contracted_vertex IN (road_segments.from_node, road_segments.to_node)
+    );
 END IF;
 
 non_contracted_edges_count := (SELECT count(*) FROM edges WHERE area = target_area_id);
@@ -150,6 +159,11 @@ ELSE
     GROUP BY id;
 END IF;
 RAISE NOTICE '% Edges for contracted road segments created', (SELECT count(*) FROM edges WHERE area = target_area_id) - non_contracted_edges_count;
+
+-- the temporary tables are dropped, so that another area can be contracted in the same session
+DROP TABLE road_segments;
+DROP TABLE contractions;
+DROP TABLE contraction_segments;
 
 END
 $$

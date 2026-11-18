@@ -180,10 +180,10 @@ def test_get_nodes_edges_empty_component_data(config):
     db.execute_sql(sql_insert_area, schema=TEST_SCHEMA)
 
     sql_insert_nodes = """
-        INSERT INTO nodes (id, area, geom, contracted) 
+        INSERT INTO nodes (id, area, geom) 
         VALUES
-            (100, 99, ST_SetSRID(ST_MakePoint(0, 0), 4326), false),
-            (101, 99, ST_SetSRID(ST_MakePoint(1, 1), 4326), false)
+            (100, 99, ST_SetSRID(ST_MakePoint(0, 0), 4326)),
+            (101, 99, ST_SetSRID(ST_MakePoint(1, 1), 4326))
         ON CONFLICT (id) DO NOTHING;
         """
 

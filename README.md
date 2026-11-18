@@ -26,7 +26,7 @@ To execute the configured pipeline, follow these steps:
 1. Install the Road Graph Tool Python package: `pip install -e <clone dir>`.
 1. Create a YAML configuration file for the project. For details about this file, refer to the [Configuration](#configuration) section.
     1. Configure the database. The remote database can be accessed through an SSH tunnel. The SSH tunneling is handled at the application level.
-1. Run `python scripts/install_sql.py <config>`. This script will initialize the needed tables, procedures, functions, etc., in your database, using the SQL files shipped in the package (`src/roadgraphtool/SQL`). Tables that already exist are updated without touching their data: missing columns are added, constraints and indexes existing under another name are renamed, constraints whose definition changed are replaced, and nothing else is dropped (if the database refuses a change, e.g., a primary key over duplicate keys, the installation fails with the database error). The functions and procedures are dropped and created again, so that changed signatures and return types are applied; afterwards, run `scripts/grant_privileges.py` again for the roles that had privileges granted.
+1. Run `python scripts/install_sql.py <config>`. This script will initialize the needed tables, procedures, functions, etc., in your database, using the SQL files shipped in the package (`src/roadgraphtool/SQL`). Tables that already exist are updated without touching their data: missing columns are added, constraints and indexes existing under another name are renamed, constraints whose definition changed are replaced, and nothing else is dropped, except for the obsolete column `nodes.contracted` (if the database refuses a change, e.g., a primary key over duplicate keys, the installation fails with the database error). The functions and procedures are dropped and created again, so that changed signatures and return types are applied; afterwards, run `scripts/grant_privileges.py` again for the roles that had privileges granted.
     1. To let another existing database role read the processed road network and create new schemas for its own road networks (see [Schemas](#schemas)), run `scripts/grant_privileges.py <config> <role>` with a config connecting as a user who can grant the privileges (e.g., the owner of the tables).
 1. Run the `main.py` script with with the path to the configuration file as the first argument. The script will execute the pipeline according to the configuration file.
 
@@ -38,7 +38,7 @@ All the relative paths specified in the configuration file are relative to the c
 
 The main configuration affecting the whole tool is in the root of the configuration file. Root scalar parameters are:
 
-- `area_id`: the id of the area to process.
+- `area_id`: the id of the area to process. One schema can hold several areas, see [Multiple areas in one schema](#multiple-areas-in-one-schema).
 - `create_schema` (boolean, default: `false`): create the `schema` if it does not exist. See [Schemas](#schemas).
 - `dm_filepath` (optional): root-level output path for the distance matrix. Default is `<export.dir>/dm.csv` for `csv` format and `<export.dir>/dm.h5` for `hdf` format.
 - `dist_filepath` (optional): root-level output path for the matrix of the lengths along the fastest paths, generated with `dm_generator.distance_matrix: true`. Default is `<export.dir>/dist.csv` for `csv` format and `<export.dir>/dist.h5` for `hdf` format.
@@ -100,6 +100,30 @@ Creating a schema requires the `CREATE` privilege on the database. The user then
 - read access to the network in the schema of the admin config.
 
 The extensions must already be installed in the database by an administrator.
+
+
+## Multiple areas in one schema
+One schema can hold any number of areas of the same network type, including overlapping and nested areas (e.g., a city and one of its districts). Each area is processed by its own pipeline run with its own `area_id`.
+
+The data in the schema are divided into two groups:
+
+- **Shared by all areas**: the imported road network (`nodes`, `ways`, `nodes_ways`, and the tags). A node or way is stored once, no matter how many areas contain it. The `area` column of these tables only records the area the row was first imported with.
+- **Separate for each area**: the edges (`edges.area`) and the strong components (`component_data.area`), and therefore also the export, the distance matrix, and the viewer. The contraction and the strong components of an area read and write only the rows of that area, so the results of one area do not depend on the other areas.
+
+The pipeline stops with an error instead of mixing the areas:
+
+- **Import**: a node or way that is already in the schema is not imported again, but it has to be the same as the imported one: a node needs the same coordinates, and a way the same nodes and the same direction. Otherwise, the import fails before anything is stored. Therefore, all areas of one schema have to be imported from the same OSM data (the same snapshot) and with the same `road_import.profile`. The configured tags (`road_import.tags`) of the nodes and ways already in the schema are updated.
+- **Contraction** fails if the area already has edges, and if there are no roads in the area.
+- **Strong components** fail if the area has no edges, and if it already has strong components.
+
+To process an area again, first remove its edges and strong components with `python scripts/wipe_area_results.py <config>` (the area is the root `area_id` of the config). The other areas and the imported road network are not touched.
+
+Limitations:
+
+- Each area needs its own `export.dir`, because the export is skipped if the directory already contains the exported map.
+- The imported road network can only be removed for all areas at once, with `scripts/wipe_road_network.py`.
+- The SQL procedures for the floating car data speeds (`compute_speeds_for_segments`, `compute_speeds_from_neighborhood_segments`, `assign_average_speed_to_all_segments_in_area`) and the legacy `add_temp_map` are not called by the pipeline and are not safe for overlapping areas: the speed of a road segment is stored once for all areas, and `add_temp_map` deletes the nodes and ways by their `area` column.
+- Different network types (e.g., car and pedestrian) still need separate schemas, see [Multiple networks in one schema](doc/multiple_networks_in_one_schema.md).
 
 
 # Testing
@@ -195,6 +219,8 @@ The kind of network is selected by `road_import.profile`:
 - `pedestrian`: ways walkable by a pedestrian. See [Pedestrian profile](#pedestrian-profile).
 
 The `road_import.tags` list selects the OSM tags stored in the database (`ways_tags` and `nodes_tags`), e.g., `[highway, maxspeed]` for the [posted speeds](#posted-speeds).
+
+Nodes and ways that are already in the schema from the import of another area are not imported again. If they differ from the imported ones, the import fails, see [Multiple areas in one schema](#multiple-areas-in-one-schema).
 
 
 ### Pedestrian profile
@@ -370,9 +396,10 @@ The SQL procedure `contract_graph_in_area` processes the graph in the following 
 
 1. **Road Segments Table Creation**: Generates a temporary table containing road segments within a target area. A road segment is a line between two subsequent nodes from the OSM data.
 1. **Graph Contraction**: Contracts the graph by creating a temporary table that holds the contraction information for each node.
-1. **Node Updates**: Updates the nodes in the database to mark some of them as contracted.
 1. **Edge Creation**: Generates edges for both contracted and non-contracted road segments.
 1. **Contraction Segments Generation**: Creates contraction segments to facilitate the creation of edges for contracted road segments.
+
+The contraction is stored only in the edges of the area (`edges.area`). The procedure fails if the area already has edges, see [Multiple areas in one schema](#multiple-areas-in-one-schema).
 
 
 <!-- ![procedure_contract_graph_in_area](https://github.com/user-attachments/assets/6a4b7c8d-6a95-4c75-836c-2e1a4622575a) -->
@@ -382,6 +409,8 @@ The SQL procedure `contract_graph_in_area` processes the graph in the following 
 key: `strong_components`
 
 This component computes the strongly connected components of the road graph, and keeps only the largest component.
+
+The components are computed from the edges of the area (`edges.area`), so the area has to be contracted first. The procedure fails if the area already has strong components, see [Multiple areas in one schema](#multiple-areas-in-one-schema).
 
 
 ## Export

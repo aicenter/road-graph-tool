@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+import roadgraphtool.sql_install
 from roadgraphtool.sql_install import (
     DEFAULT_SQL_DIR,
     _COMMENT,
@@ -130,6 +131,36 @@ def test_missing_column_constraint_and_index_are_added(sql_dir):
             ],
         )
     ]
+
+
+def test_obsolete_column_is_dropped_and_other_unknown_columns_are_kept(sql_dir, monkeypatch):
+    monkeypatch.setattr(roadgraphtool.sql_install, "_OBSOLETE_COLUMNS", {"things": ("flag", "never_existed")})
+    db = FakeDb(
+        tables={"things": ["id", "position", "geom", "flag", "note"]},
+        constraints=[_THINGS_PK],
+        indexes=_THINGS_GEOM_INDEX,
+    )
+
+    _install_tables(db, sql_dir, "public")
+
+    assert db.executed == [
+        (
+            "public",
+            ['ALTER TABLE {schema}.things DROP COLUMN "flag"', _COMMENT_ON, _CREATE_SEQUENCE, _SET_DEFAULT, _SET_OPTIONS],
+        )
+    ]
+
+
+def test_contracted_flag_of_nodes_is_obsolete():
+    statements = _update_statements(
+        FakeDb(tables={"nodes": ["id", "geom", "area", "contracted"]}),
+        "public",
+        "CREATE TABLE IF NOT EXISTS {schema}.nodes (\n    id bigint NOT NULL,\n    geom text,\n    area integer\n);",
+        {},
+        {},
+    )
+
+    assert statements == ['ALTER TABLE {schema}.nodes DROP COLUMN "contracted"']
 
 
 def test_partially_existing_tables_are_completed(sql_dir):

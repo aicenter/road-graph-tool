@@ -1,11 +1,14 @@
 import logging
-from typing import Dict, Iterable, List, Sequence, Set
+from typing import Dict, Iterable, List, Sequence, Set, Tuple
 
 import geopandas as gpd
 import pandas as pd
 from shapely import geometry
 
+from sqlalchemy.dialects import postgresql
+
 from roadgraphtool.db import db
+from roadgraphtool.exceptions import ImportConflictError
 from roadgraphtool.overpass_client import elements_by_type, query_json_from_config
 from roadgraphtool.road_import import get_network_profile
 
@@ -129,26 +132,37 @@ def _tag_rows(
     return rows
 
 
+def _upsert_tag_rows(table, connection, keys, data_iter) -> None:
+    """Insertion method for ``DataFrame.to_sql`` updating the value of the tags that the element already has."""
+    statement = postgresql.insert(table.table).values([dict(zip(keys, row)) for row in data_iter])
+    statement = statement.on_conflict_do_update(
+        index_elements=[keys[0], "tag_id"], set_={"tag_value": statement.excluded.tag_value}
+    )
+    connection.execute(statement)
+
+
 def _import_configured_tags(
     nodes: Iterable[dict],
     ways: Iterable[dict],
     tag_keys: Sequence[str],
-    inserted_node_ids: Set[int],
-    inserted_way_ids: Set[int],
+    imported_node_ids: Set[int],
+    imported_way_ids: Set[int],
 ) -> None:
+    """Store the configured tags of the imported nodes and ways, including the ones that were already in the
+    database: their tags are updated, as in the OSM file import."""
     if not tag_keys:
         return
 
     logging.info("Importing configured Overpass tags: %s", ", ".join(tag_keys))
     tag_ids = _ensure_tag_ids(tag_keys)
 
-    node_tag_rows = _tag_rows(nodes, "node_id", tag_ids, inserted_node_ids)
+    node_tag_rows = _tag_rows(nodes, "node_id", tag_ids, imported_node_ids)
     if node_tag_rows:
-        db.dataframe_to_db_table(pd.DataFrame(node_tag_rows), "nodes_tags", index=False)
+        db.dataframe_to_db_table(pd.DataFrame(node_tag_rows), "nodes_tags", index=False, method=_upsert_tag_rows)
 
-    way_tag_rows = _tag_rows(ways, "way_id", tag_ids, inserted_way_ids)
+    way_tag_rows = _tag_rows(ways, "way_id", tag_ids, imported_way_ids)
     if way_tag_rows:
-        db.dataframe_to_db_table(pd.DataFrame(way_tag_rows), "ways_tags", index=False)
+        db.dataframe_to_db_table(pd.DataFrame(way_tag_rows), "ways_tags", index=False, method=_upsert_tag_rows)
 
 
 def _pedestrian_direction(way_nodes: List[int], tags: dict) -> tuple[List[int], bool]:
@@ -196,9 +210,71 @@ out body;
 """
 
 
+_COORDINATE_TOLERANCE = 1e-7
+"""OSM coordinate precision in degrees. Coordinates of the same node from two imports may differ by less."""
+
+def _new_nodes(
+    node_coord: Dict[int, Tuple[float, float]], existing_node_coord: Dict[int, Tuple[float, float]]
+) -> Dict[int, Tuple[float, float]]:
+    """The nodes of *node_coord* (id -> lon, lat) that are not in *existing_node_coord* (the same nodes as stored in
+    the database). Raises ``ImportConflictError`` if a node is stored with other coordinates."""
+    conflicts = sorted(
+        node_id
+        for node_id, (lon, lat) in existing_node_coord.items()
+        if abs(node_coord[node_id][0] - lon) > _COORDINATE_TOLERANCE
+        or abs(node_coord[node_id][1] - lat) > _COORDINATE_TOLERANCE
+    )
+    if conflicts:
+        raise ImportConflictError("nodes", conflicts, "coordinates")
+    return {node_id: coord for node_id, coord in node_coord.items() if node_id not in existing_node_coord}
+
+
+def _new_ways(ways: Dict[int, dict], existing_ways: Dict[int, dict]) -> Dict[int, dict]:
+    """The ways of *ways* (id -> ``nodes`` and ``oneway``) that are not in *existing_ways* (the same ways as stored
+    in the database). Raises ``ImportConflictError`` if a way is stored with other nodes or direction."""
+    conflicts = sorted(
+        way_id
+        for way_id, existing_way in existing_ways.items()
+        if list(existing_way["nodes"] or []) != ways[way_id]["nodes"] or existing_way["oneway"] != ways[way_id]["oneway"]
+    )
+    if conflicts:
+        raise ImportConflictError("ways", conflicts, "nodes or direction")
+    return {way_id: way for way_id, way in ways.items() if way_id not in existing_ways}
+
+
+def _existing_node_coord(node_ids: Sequence[int]) -> Dict[int, Tuple[float, float]]:
+    rows = db.execute_sql_and_fetch_all_rows(
+        "SELECT id, ST_X(geom), ST_Y(geom) FROM nodes WHERE id = ANY(:ids)", {"ids": list(node_ids)}
+    )
+    return {int(node_id): (float(lon), float(lat)) for node_id, lon, lat in rows}
+
+
+def _existing_ways(way_ids: Sequence[int]) -> Dict[int, dict]:
+    rows = db.execute_sql_and_fetch_all_rows(
+        """
+        SELECT
+            ways.id,
+            ways.oneway,
+            (
+                SELECT array_agg(nodes_ways.node_id ORDER BY nodes_ways."position")
+                FROM nodes_ways
+                WHERE nodes_ways.way_id = ways.id
+            )
+        FROM ways
+        WHERE ways.id = ANY(:ids)
+        """,
+        {"ids": list(way_ids)},
+    )
+    return {int(way_id): {"oneway": oneway, "nodes": way_nodes} for way_id, oneway, way_nodes in rows}
+
+
 def _run_overpass_backend(config, area_id: int, area_poly: geometry.base.BaseGeometry) -> int:
     """Download the ways of the configured network profile inside *area_poly* from Overpass and insert them
-    into DB for *area_id*."""
+    into DB for *area_id*.
+
+    The nodes and ways already in the database (imported with another area) are not inserted again. They have to be
+    the same as the downloaded ones, otherwise ``ImportConflictError`` is raised before anything is inserted.
+    """
     profile = get_network_profile(config)
     logging.info("Downloading %s network from Overpass API for area_id=%s", profile, area_id)
 
@@ -216,28 +292,9 @@ def _run_overpass_backend(config, area_id: int, area_poly: geometry.base.BaseGeo
     for n in nodes:
         if "id" in n and "lat" in n and "lon" in n:
             node_coord[int(n["id"])] = (float(n["lon"]), float(n["lat"]))
-    inserted_node_ids = set(node_coord)
 
-    logging.info("Importing %s nodes", len(node_coord))
-    node_list = [
-        {"id": node_id, "lat": lat, "lon": lon}
-        for node_id, (lon, lat) in node_coord.items()
-    ]
-    node_df = pd.DataFrame(node_list)
-    node_gdf = gpd.GeoDataFrame(node_df, geometry=gpd.points_from_xy(node_df.lon, node_df.lat), crs="EPSG:4326")
-    node_gdf.drop(columns=['lon', 'lat'], inplace=True)
-    node_gdf.rename(columns={'geometry': 'geom'}, inplace=True)
-    node_gdf.set_geometry('geom', inplace=True)
-    node_gdf.set_index('id', inplace=True)
-    db.geodataframe_to_db_table(node_gdf, "nodes")
-
-    nodes_ways_list = []
-    ways_list = []
-    inserted_way_ids = set()
-
-    logging.info("Importing %s ways", len(ways))
+    directed_ways = {}
     for way in ways:
-        way_id = int(way["id"])
         way_nodes = [int(nid) for nid in way.get("nodes", [])]
         if not way_nodes:
             continue
@@ -247,34 +304,64 @@ def _run_overpass_backend(config, area_id: int, area_poly: geometry.base.BaseGeo
         else:
             way_nodes, oneway = _car_direction(way_nodes, way.get("tags") or {})
 
-        for position, node_id in enumerate(way_nodes):
-            nodes_ways_list.append(
-                {'node_id': node_id, 'way_id': way_id, 'position': position}
+        if sum(node_id in node_coord for node_id in way_nodes) < 2:
+            continue
+        directed_ways[int(way["id"])] = {"nodes": way_nodes, "oneway": oneway}
+
+    new_node_coord = _new_nodes(node_coord, _existing_node_coord(list(node_coord)))
+    new_ways = _new_ways(directed_ways, _existing_ways(list(directed_ways)))
+
+    logging.info(
+        "Importing %s nodes (%s more are already in the database)",
+        len(new_node_coord),
+        len(node_coord) - len(new_node_coord),
+    )
+    if new_node_coord:
+        node_list = [
+            {"id": node_id, "lat": lat, "lon": lon, "area": area_id}
+            for node_id, (lon, lat) in new_node_coord.items()
+        ]
+        node_df = pd.DataFrame(node_list)
+        node_gdf = gpd.GeoDataFrame(node_df, geometry=gpd.points_from_xy(node_df.lon, node_df.lat), crs="EPSG:4326")
+        node_gdf.drop(columns=['lon', 'lat'], inplace=True)
+        node_gdf.rename(columns={'geometry': 'geom'}, inplace=True)
+        node_gdf.set_geometry('geom', inplace=True)
+        node_gdf.set_index('id', inplace=True)
+        db.geodataframe_to_db_table(node_gdf, "nodes")
+
+    logging.info(
+        "Importing %s ways (%s more are already in the database)", len(new_ways), len(directed_ways) - len(new_ways)
+    )
+    if new_ways:
+        nodes_ways_list = []
+        ways_list = []
+        for way_id, way in new_ways.items():
+            way_nodes = way["nodes"]
+            for position, node_id in enumerate(way_nodes):
+                nodes_ways_list.append(
+                    {'node_id': node_id, 'way_id': way_id, 'position': position, 'area': area_id}
+                )
+
+            coords = [node_coord.get(nid) for nid in way_nodes]
+            coords = [c for c in coords if c is not None]
+            ways_list.append(
+                {
+                    'id': way_id,
+                    'geom': geometry.LineString(coords),
+                    'area': area_id,
+                    'from': way_nodes[0],
+                    'to': way_nodes[-1],
+                    'oneway': way["oneway"]}
             )
 
-        coords = [node_coord.get(nid) for nid in way_nodes]
-        coords = [c for c in coords if c is not None]
-        if len(coords) < 2:
-            continue
-        inserted_way_ids.add(way_id)
-        ways_list.append(
-            {
-                'id': way_id,
-                'geom': geometry.LineString(coords),
-                'area': area_id,
-                'from': way_nodes[0],
-                'to': way_nodes[-1],
-                'oneway': oneway}
-        )
+        ways_gdf = gpd.GeoDataFrame(ways_list, geometry='geom', crs="EPSG:4326")
+        ways_gdf.set_index('id', inplace=True)
+        db.geodataframe_to_db_table(ways_gdf, "ways", chunk_size=1000)
 
-    ways_gdf = gpd.GeoDataFrame(ways_list, geometry='geom', crs="EPSG:4326")
-    ways_gdf.set_index('id', inplace=True)
-    db.geodataframe_to_db_table(ways_gdf, "ways", chunk_size=1000)
+        nodes_ways_df = pd.DataFrame(nodes_ways_list)
+        db.dataframe_to_db_table(nodes_ways_df, "nodes_ways", index=False)
 
-    nodes_ways_df = pd.DataFrame(nodes_ways_list)
-    db.dataframe_to_db_table(nodes_ways_df, "nodes_ways", index=False)
-
-    _import_configured_tags(nodes, ways, tag_keys, inserted_node_ids, inserted_way_ids)
+    _import_configured_tags(nodes, ways, tag_keys, set(node_coord), set(directed_ways))
 
     return area_id
 

@@ -28,7 +28,7 @@ Column | Type | Required | Description
 ------- | ------ | ------ | ------------
 `component_id` | smallint | Yes | Component identifier (ordered from largest; starts at 0)
 `node_id` | bigint | Yes | Node identifier (`nodes.id`)
-`area` | smallint | Yes | Area id the component belongs to (`areas.id`)
+`area` | smallint | Yes | Area id the component was computed for (`areas.id`)
 
 # edges
 
@@ -38,7 +38,7 @@ Column | Type | Required | Description
 `to` | bigint | No | Head node id (`nodes.id`)
 `id` | integer | Yes | Edge identifier (default from `edge_id_seq`)
 `geom` | geometry(MultiLineString) | Yes | Edge geometry (WGS 84, 4326)
-`area` | smallint | Yes | Area id the edge belongs to (`areas.id`)
+`area` | smallint | Yes | Area id the edge was generated for by the contraction (`areas.id`)
 `speed` | double precision | No | Edge speed (may be null / derived depending on pipeline stage)
 
 # node_segment_data (view)
@@ -59,8 +59,7 @@ Column | Type | Required | Description
 `id` | bigint | Yes | Node identifier
 `tags` | hstore | No | OSM-like tags key/value store
 `geom` | geometry(Point, 4326) | Yes | Node geometry (WGS 84)
-`area` | integer | No | Area id node was imported into (`areas.id`)
-`contracted` | boolean | Yes | Whether node has been contracted (default `false`)
+`area` | integer | No | Area id node was first imported with (`areas.id`); the node is shared by all areas
 
 # nodes_edges
 
